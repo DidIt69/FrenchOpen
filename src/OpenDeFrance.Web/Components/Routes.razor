@@ -1,0 +1,29 @@
+<Router AppAssembly="typeof(Program).Assembly" NotFoundPage="typeof(Pages.NotFound)">
+    <Found Context="routeData">
+        <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
+            <NotAuthorized Context="authContext">
+                @if (authContext.User.Identity?.IsAuthenticated != true)
+                {
+                    <RedirectToLogin />
+                }
+                else
+                {
+                    <div class="container py-5 text-center">
+                        <div class="card p-4 mx-auto shadow border-0" style="max-width: 500px; border-radius: 12px;">
+                            <div class="display-3 mb-2">⛔</div>
+                            <h3 class="text-danger fw-bold">Privilèges Insuffisants</h3>
+                            <p class="text-muted">
+                                Vous êtes connecté en tant que <strong>@authContext.User.Identity?.Name</strong>, mais vos droits actuels ne vous permettent pas d'accéder à cette page.
+                            </p>
+                            <div class="mt-3 d-flex gap-2">
+                                <a href="/" class="btn btn-outline-secondary w-50">Accueil</a>
+                                <a href="login" class="btn btn-primary w-50">Changer de compte</a>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </NotAuthorized>
+        </AuthorizeRouteView>
+        <FocusOnNavigate RouteData="routeData" Selector="h1" />
+    </Found>
+</Router>

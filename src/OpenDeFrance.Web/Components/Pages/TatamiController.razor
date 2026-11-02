@@ -1,0 +1,656 @@
+@page "/tatami/{TatamiId:int}/controller"
+@attribute [Authorize(Roles = "Admin,Table")]
+@rendermode InteractiveServer
+@inject ITournamentService TournamentService
+@inject IJSRuntime JS
+@implements IDisposable
+
+<PageTitle>Table de Marque - Tatami @TatamiId</PageTitle>
+
+<div class="container-fluid py-3">
+    @if (tatami == null)
+    {
+        <div class="alert alert-danger">Tatami @TatamiId non trouvé.</div>
+    }
+    else
+    {
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <h2 class="mb-0 fw-bold">
+                    ⏱️ Table de Marque - @tatami.Name
+                    <span class="badge @(tatami.CurrentDiscipline == CompetitionType.Kumite ? "bg-danger" : "bg-primary") ms-2">
+                        @tatami.CurrentDiscipline
+                    </span>
+                    @if (tatami.Discipline == CompetitionType.Both)
+                    {
+                        <span class="badge bg-success ms-1 fs-6">Mixte (Kumité &amp; Kata)</span>
+                    }
+                </h2>
+            </div>
+            <div class="d-flex gap-2">
+                <a href="/tatami/@TatamiId/tv" target="_blank" class="btn btn-outline-info">
+                    📺 Ouvrir l'écran TV Tatami
+                </a>
+                <button class="btn btn-outline-warning" @onclick="PlayGong">
+                    🔔 Coup de Gong
+                </button>
+            </div>
+        </div>
+
+        @if (tatami.Discipline == CompetitionType.Both)
+        {
+            <div class="alert alert-light border shadow-sm py-2 px-3 mb-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="fw-bold">🥋 Mode actif du Tatami :</span>
+                    <span class="text-muted small">Ce tatami accueille Kumité et Kata. Basculez d'un mode à l'autre selon le programme :</span>
+                </div>
+                <div class="btn-group">
+                    <button class="btn @(tatami.CurrentDiscipline == CompetitionType.Kumite ? "btn-danger fw-bold active" : "btn-outline-danger")"
+                            @onclick="() => SwitchDiscipline(CompetitionType.Kumite)">
+                        🥊 Mode Kumité (@tatami.AssignedKumiteMatches.Count)
+                    </button>
+                    <button class="btn @(tatami.CurrentDiscipline == CompetitionType.Kata ? "btn-primary fw-bold active" : "btn-outline-primary")"
+                            @onclick="() => SwitchDiscipline(CompetitionType.Kata)">
+                        🥋 Mode Kata (@tatami.AssignedKataPerformances.Count)
+                    </button>
+                </div>
+            </div>
+        }
+
+        @if (tatami.CurrentDiscipline == CompetitionType.Kumite)
+        {
+            var match = tatami.CurrentKumiteMatch;
+            if (match == null)
+            {
+                <div class="card p-4 text-center my-4">
+                    <h4>Aucun combat en cours sur ce tatami</h4>
+                    <p class="text-muted">Sélectionnez un combat dans la liste ci-dessous pour démarrer.</p>
+                </div>
+            }
+            else
+            {
+                <!-- Info combat actif -->
+                <div class="card bg-dark text-white mb-3">
+                    <div class="card-body d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="badge bg-warning text-dark fs-5 me-2">Match #@match.MatchNumber</span>
+                            <span class="fs-4 fw-bold">@match.Category?.Name</span>
+                            <span class="badge bg-secondary ms-2 fs-6">@match.RoundName</span>
+                        </div>
+                        <div>
+                            @if (match.ExtensionsCount > 0)
+                            {
+                                <span class="badge bg-danger fs-5 px-3 py-2 me-2">
+                                    ⚠️ @match.CurrentPeriodName
+                                </span>
+                            }
+                            <span class="badge @(match.IsTimerRunning ? "bg-success" : "bg-warning text-dark") fs-5 px-3 py-2">
+                                @(match.IsTimerRunning ? "EN COURS" : "ARRÊTÉ")
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section Chronomètre & Prolongations -->
+                <div class="card p-2 p-md-3 mb-3 text-center shadow-sm">
+                    <div class="controller-timer-digits fw-bold font-monospace @(match.RemainingSeconds <= 10 ? "text-danger" : (match.IsTimerRunning ? "text-success" : "text-primary")) mb-2 mb-md-3">
+                        @FormatSeconds(match.RemainingSeconds)
+                    </div>
+
+                    <div class="d-flex justify-content-center gap-2 flex-wrap mb-3">
+                        <button class="btn @(match.IsTimerRunning ? "btn-warning" : "btn-success") btn-lg px-3 px-md-4 py-2 py-md-3 fs-5 fs-md-4 fw-bold flex-grow-1 flex-md-grow-0" @onclick="ToggleTimer" style="min-height: 52px;">
+                            @(match.IsTimerRunning ? "⏸ PAUSE / YAMÉ (Espace)" : "▶ DÉMARRER / HAJIMÉ (Espace)")
+                        </button>
+                        <button class="btn btn-secondary btn-lg px-3 py-2 fs-6 fs-md-5" @onclick="ResetTimer" style="min-height: 52px;">
+                            🔄 Remise à zéro
+                        </button>
+                    </div>
+
+                    <div class="d-flex justify-content-center gap-1 gap-md-2 flex-wrap mb-2">
+                        <button class="btn btn-outline-secondary px-3 py-2 fw-bold" @onclick="() => AdjustTimer(1)">+1s</button>
+                        <button class="btn btn-outline-secondary px-3 py-2 fw-bold" @onclick="() => AdjustTimer(-1)">-1s</button>
+                        <button class="btn btn-outline-secondary px-3 py-2 fw-bold" @onclick="() => AdjustTimer(10)">+10s</button>
+                        <button class="btn btn-outline-secondary px-3 py-2 fw-bold" @onclick="() => AdjustTimer(-10)">-10s</button>
+                    </div>
+
+                    <!-- Bouton Prolongation (Encho-sen) -->
+                    <div class="border-top pt-2 pt-md-3">
+                        <button class="btn btn-danger btn-lg px-4 fw-bold w-100 w-md-auto" @onclick="AddExtension" style="min-height: 48px;">
+                            ➕ PROLONGATION (ENCHO-SEN)
+                        </button>
+                        <small class="d-block text-muted mt-1">
+                            En cas d'égalité (Hikiwake) : ajoute une prolongation (@(match.Category?.KumiteExtensionDurationSeconds ?? 120)s) et réinitialise le chrono.
+                        </small>
+                    </div>
+                </div>
+
+                <!-- Section Scores AKA vs SHIRO -->
+                <div class="row g-3 mb-4">
+                    <!-- AKA (Rouge) -->
+                    <div class="col-md-6">
+                        <div class="card border-danger h-100 shadow">
+                            <div class="card-header bg-danger text-white py-2">
+                                <h4 class="mb-0 fw-bold">AKA (ROUGE) : @match.AkaDisplayName</h4>
+                                <small>@(match.AkaCompetitor?.DisplayInfo ?? "")</small>
+                            </div>
+                            <div class="card-body text-center">
+                                <div class="row g-2 mb-3">
+                                    <div class="col-6">
+                                        <div class="p-2 border rounded bg-light">
+                                            <div class="text-muted fw-bold">WAZA-ARI</div>
+                                            <div class="display-4 fw-bold text-danger">@match.AkaWazaAri</div>
+                                            <div class="btn-group mt-2 w-100">
+                                                <button class="btn btn-outline-danger btn-sm" @onclick='() => AddScore(match.Id, CornerColor.Aka, "wazaari")'>+1</button>
+                                                <button class="btn btn-outline-secondary btn-sm" @onclick='() => AddScore(match.Id, CornerColor.Aka, "remove_wazaari")'>-1</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="p-2 border rounded bg-light">
+                                            <div class="text-muted fw-bold">IPPON</div>
+                                            <div class="display-4 fw-bold text-danger">@match.AkaIppon</div>
+                                            <button class="btn btn-danger btn-sm mt-2 w-100 fw-bold" @onclick='() => AddScore(match.Id, CornerColor.Aka, "ippon")'>
+                                                + IPPON
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="row g-2 mb-3">
+                                    <div class="col-6">
+                                        <div class="p-2 border rounded">
+                                            <span class="text-muted">CHUI (Avertiss.) : </span>
+                                            <strong class="text-warning fs-5">@match.AkaChui</strong>
+                                            <div class="btn-group btn-group-sm w-100 mt-1">
+                                                <button class="btn btn-outline-warning" @onclick='() => AddScore(match.Id, CornerColor.Aka, "chui")'>+1</button>
+                                                <button class="btn btn-outline-secondary" @onclick='() => AddScore(match.Id, CornerColor.Aka, "remove_chui")'>-1</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="p-2 border rounded">
+                                            <span class="text-muted">GENTEN (Pénalité) : </span>
+                                            <strong class="text-danger fs-5">@match.AkaGenten</strong>
+                                            <div class="btn-group btn-group-sm w-100 mt-1">
+                                                <button class="btn btn-outline-danger" @onclick='() => AddScore(match.Id, CornerColor.Aka, "genten")'>+1</button>
+                                                <button class="btn btn-outline-secondary" @onclick='() => AddScore(match.Id, CornerColor.Aka, "remove_genten")'>-1</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="d-grid gap-2">
+                                    <button class="btn btn-danger btn-lg fw-bold" @onclick="() => DeclareWinner(CornerColor.Aka, MatchWinnerReason.WazaAriDecision)">
+                                        🏆 DÉCLARER VAINQUEUR AKA
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SHIRO (Blanc) -->
+                    <div class="col-md-6">
+                        <div class="card border-secondary h-100 shadow">
+                            <div class="card-header bg-dark text-white py-2">
+                                <h4 class="mb-0 fw-bold">SHIRO (BLANC) : @match.ShiroDisplayName</h4>
+                                <small>@(match.ShiroCompetitor?.DisplayInfo ?? "")</small>
+                            </div>
+                            <div class="card-body text-center">
+                                <div class="row g-2 mb-3">
+                                    <div class="col-6">
+                                        <div class="p-2 border rounded bg-light">
+                                            <div class="text-muted fw-bold">WAZA-ARI</div>
+                                            <div class="display-4 fw-bold text-dark">@match.ShiroWazaAri</div>
+                                            <div class="btn-group mt-2 w-100">
+                                                <button class="btn btn-outline-dark btn-sm" @onclick='() => AddScore(match.Id, CornerColor.Shiro, "wazaari")'>+1</button>
+                                                <button class="btn btn-outline-secondary btn-sm" @onclick='() => AddScore(match.Id, CornerColor.Shiro, "remove_wazaari")'>-1</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="p-2 border rounded bg-light">
+                                            <div class="text-muted fw-bold">IPPON</div>
+                                            <div class="display-4 fw-bold text-dark">@match.ShiroIppon</div>
+                                            <button class="btn btn-dark btn-sm mt-2 w-100 fw-bold" @onclick='() => AddScore(match.Id, CornerColor.Shiro, "ippon")'>
+                                                + IPPON
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="row g-2 mb-3">
+                                    <div class="col-6">
+                                        <div class="p-2 border rounded">
+                                            <span class="text-muted">CHUI (Avertiss.) : </span>
+                                            <strong class="text-warning fs-5">@match.ShiroChui</strong>
+                                            <div class="btn-group btn-group-sm w-100 mt-1">
+                                                <button class="btn btn-outline-warning" @onclick='() => AddScore(match.Id, CornerColor.Shiro, "chui")'>+1</button>
+                                                <button class="btn btn-outline-secondary" @onclick='() => AddScore(match.Id, CornerColor.Shiro, "remove_chui")'>-1</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="p-2 border rounded">
+                                            <span class="text-muted">GENTEN (Pénalité) : </span>
+                                            <strong class="text-danger fs-5">@match.ShiroGenten</strong>
+                                            <div class="btn-group btn-group-sm w-100 mt-1">
+                                                <button class="btn btn-outline-danger" @onclick='() => AddScore(match.Id, CornerColor.Shiro, "genten")'>+1</button>
+                                                <button class="btn btn-outline-secondary" @onclick='() => AddScore(match.Id, CornerColor.Shiro, "remove_genten")'>-1</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="d-grid gap-2">
+                                    <button class="btn btn-dark btn-lg fw-bold" @onclick="() => DeclareWinner(CornerColor.Shiro, MatchWinnerReason.WazaAriDecision)">
+                                        🏆 DÉCLARER VAINQUEUR SHIRO
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            <!-- Liste des combats assignés sur ce tatami -->
+            <div class="card">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <h5 class="mb-0 fw-bold">Combats assignés au Tatami @tatami.Number</h5>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="small fw-bold text-muted">Jour :</span>
+                        <select class="form-select form-select-sm" style="width: auto;" @bind="selectedDayFilter">
+                            <option value="0">Tous les jours</option>
+                            @for (int d = 1; d <= tournamentDaysCount; d++)
+                            {
+                                <option value="@d">📅 Jour @d</option>
+                            }
+                        </select>
+                        <span class="badge bg-secondary">@FilteredKumiteMatches.Count() combat(s)</span>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>#</th>
+                                <th>Jour</th>
+                                <th>Catégorie</th>
+                                <th>Tour</th>
+                                <th>AKA (Rouge)</th>
+                                <th>SHIRO (Blanc)</th>
+                                <th>Statut</th>
+                                <th>Vainqueur</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var m in FilteredKumiteMatches)
+                            {
+                                bool isCurrent = tatami.CurrentKumiteMatchId == m.Id;
+                                <tr class="@(isCurrent ? "table-warning fw-bold" : "")">
+                                    <td>#@m.MatchNumber</td>
+                                    <td><span class="badge bg-light text-dark border">J@m.CompetitionDay</span></td>
+                                    <td>@m.Category?.Name</td>
+                                    <td>@m.RoundName</td>
+                                    <td class="text-danger">@m.AkaDisplayName</td>
+                                    <td class="text-dark">@m.ShiroDisplayName</td>
+                                    <td>
+                                        <span class="badge @(m.Status == MatchStatus.Finished ? "bg-success" : (isCurrent ? "bg-primary" : "bg-secondary"))">
+                                            @m.Status
+                                        </span>
+                                    </td>
+                                    <td>
+                                        @(m.WinnerCompetitor != null ? $"🏆 {m.WinnerCompetitor.FullName}" : "-")
+                                    </td>
+                                    <td>
+                                        @if (!isCurrent)
+                                        {
+                                            <button class="btn btn-sm btn-outline-primary" @onclick="() => SelectMatch(m.Id)">
+                                                Mettre sur le tatami
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark">Sur le tatami</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+        else
+        {
+            <!-- Controller KATA -->
+            var kata = tatami.CurrentKataPerformance;
+            <div class="card mb-3">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0 fw-bold">Saisie des notes Kata - Tatami @tatami.Number</h4>
+                    @if (kata != null)
+                    {
+                        <span class="badge bg-light text-primary fs-6">
+                            Passage #@kata.PerformanceOrder - @(kata.Round == KataRound.Tour1 ? "Tour 1" : "Tour 2 (Finale)")
+                        </span>
+                    }
+                </div>
+                <div class="card-body">
+                    @if (kata == null)
+                    {
+                        <div class="text-center py-4">
+                            <h5>Aucun passage en cours</h5>
+                            <p class="text-muted">Sélectionnez un compétiteur dans la liste ci-dessous.</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="row align-items-center mb-4">
+                            <div class="col-md-7">
+                                <h3>
+                                    @if (kata.Competitor?.BibNumber.HasValue == true)
+                                    {
+                                        <span class="badge bg-warning text-dark me-2 fs-5 align-middle">#@kata.Competitor.BibNumber</span>
+                                    }
+                                    @kata.Competitor?.FullName
+                                </h3>
+                                <p class="lead mb-1">@kata.Competitor?.CountryWithFlag • @kata.Competitor?.Club • Grade : @kata.Competitor?.Grade</p>
+                                <div class="badge bg-warning text-dark fs-5">
+                                    Kata imposé : <strong>@kata.KataName</strong>
+                                </div>
+                            </div>
+                            <div class="col-md-5 text-end">
+                                <div class="text-muted">Note Finale Retenue :</div>
+                                <div class="display-3 fw-bold text-primary">@(kata.FinalScore > 0 ? kata.FinalScore.ToString("0") : "-")</div>
+                            </div>
+                        </div>
+
+                        <!-- Formulaire 5 juges -->
+                        <h5 class="fw-bold mb-3">Notes des 5 Juges (de 55 à 100) :</h5>
+                        <div class="row g-2 mb-3">
+                            @for (int i = 0; i < 5; i++)
+                            {
+                                int idx = i;
+                                <div class="col-4 col-sm-4 col-md">
+                                    <label class="form-label fw-bold small text-nowrap">Juge @(idx + 1)</label>
+                                    <input type="number" step="1" min="55" max="100" class="form-control form-control-lg text-center fw-bold px-1"
+                                           @bind="judgeInputScores[idx]" />
+                                </div>
+                            }
+                        </div>
+
+                        <div class="d-flex flex-wrap gap-2">
+                            <button class="btn btn-success btn-lg px-4 fw-bold flex-grow-1 flex-md-grow-0" @onclick="SubmitScores" style="min-height: 48px;">
+                                💾 Valider et Enregistrer les Notes
+                            </button>
+                            <button class="btn btn-outline-secondary py-2 flex-grow-1 flex-md-grow-0" @onclick="FillSampleScores">
+                                Remplir notes d'exemple (75, 78, etc.)
+                            </button>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <!-- Liste des passages Kata -->
+            <div class="card">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <div class="d-flex align-items-center gap-3">
+                        <h5 class="mb-0 fw-bold">Liste des passages Kata</h5>
+                        <div class="d-flex align-items-center gap-1">
+                            <span class="small fw-bold text-muted">Jour :</span>
+                            <select class="form-select form-select-sm" style="width: auto;" @bind="selectedDayFilter">
+                                <option value="0">Tous les jours</option>
+                                @for (int d = 1; d <= tournamentDaysCount; d++)
+                                {
+                                    <option value="@d">📅 Jour @d</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+                    @if (tatami.CurrentKataPerformance != null && tatami.CurrentKataPerformance.CategoryId > 0)
+                    {
+                        int catId = tatami.CurrentKataPerformance.CategoryId;
+                        <div class="btn-group">
+                            <button class="btn btn-primary btn-sm" @onclick="() => QualifyTour1(catId)">
+                                🏁 Clôturer Tour 1 &amp; Qualifier les @(tatami.CurrentKataPerformance?.Category?.KataQualifiersCount ?? 4) meilleurs
+                            </button>
+                            <button class="btn btn-warning btn-sm" @onclick="() => FinalizeTour2(catId)">
+                                🏆 Clôturer Tour 2 & Podium Final
+                            </button>
+                        </div>
+                    }
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Ordre</th>
+                                <th>Jour</th>
+                                <th>Tour</th>
+                                <th>Compétiteur</th>
+                                <th>Club</th>
+                                <th>Kata Imposé</th>
+                                <th>Notes juges</th>
+                                <th>Note Retenue</th>
+                                <th>Rang</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var p in FilteredKataPerformances)
+                            {
+                                bool isCurrent = tatami.CurrentKataPerformanceId == p.Id;
+                                <tr class="@(isCurrent ? "table-warning fw-bold" : "")">
+                                    <td>#@p.PerformanceOrder</td>
+                                    <td><span class="badge bg-light text-dark border">J@p.CompetitionDay</span></td>
+                                    <td>
+                                        <span class="badge @(p.Round == KataRound.Tour1 ? "bg-info text-dark" : "bg-warning text-dark")">
+                                            @p.Round
+                                        </span>
+                                    </td>
+                                    <td>@p.Competitor?.FullName</td>
+                                    <td>@p.Competitor?.Club</td>
+                                    <td>@p.KataName</td>
+                                    <td><small class="text-muted">@p.ScoresDisplay</small></td>
+                                    <td><strong class="fs-5 text-primary">@(p.FinalScore > 0 ? p.FinalScore.ToString("0") : "-")</strong></td>
+                                    <td>
+                                        @if (p.RankInRound.HasValue)
+                                        {
+                                            <span class="badge @(p.IsQualifiedForTour2 ? "bg-success" : "bg-secondary")">
+                                                @(p.RankInRound.Value == 1 ? "🥇 1er" : (p.RankInRound.Value == 2 ? "🥈 2e" : (p.RankInRound.Value == 3 ? "🥉 3e" : $"{p.RankInRound}e")))
+                                            </span>
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (!isCurrent)
+                                        {
+                                            <button class="btn btn-sm btn-outline-primary" @onclick="() => SelectKata(p.Id)">
+                                                Faire passer
+                                            </button>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int TatamiId { get; set; }
+
+    private Tatami? tatami;
+    private double[] judgeInputScores = new double[5] { 75, 75, 75, 75, 75 };
+    private int selectedDayFilter = 0;
+    private int tournamentDaysCount = 1;
+
+    private IEnumerable<KumiteMatch> FilteredKumiteMatches => tatami != null
+        ? tatami.AssignedKumiteMatches.Where(m => selectedDayFilter == 0 || m.CompetitionDay == selectedDayFilter).OrderBy(m => m.MatchNumber)
+        : Enumerable.Empty<KumiteMatch>();
+
+    private IEnumerable<KataPerformance> FilteredKataPerformances => tatami != null
+        ? tatami.AssignedKataPerformances.Where(p => selectedDayFilter == 0 || p.CompetitionDay == selectedDayFilter).OrderBy(p => p.Round).ThenBy(p => p.PerformanceOrder)
+        : Enumerable.Empty<KataPerformance>();
+
+    protected override void OnInitialized()
+    {
+        RefreshData();
+        TournamentService.OnTatamiUpdated += HandleTatamiUpdated;
+    }
+
+    protected override void OnParametersSet()
+    {
+        RefreshData();
+    }
+
+    private void RefreshData()
+    {
+        var tournament = TournamentService.GetTournament();
+        if (tournament != null)
+        {
+            tournamentDaysCount = Math.Max(1, tournament.DaysCount);
+        }
+
+        tatami = TournamentService.GetTatami(TatamiId);
+        if (tatami?.CurrentKataPerformance != null && tatami.CurrentKataPerformance.JudgeScores.Count == 5)
+        {
+            for (int i = 0; i < 5; i++)
+            {
+                judgeInputScores[i] = tatami.CurrentKataPerformance.JudgeScores[i];
+            }
+        }
+    }
+
+    private void SwitchDiscipline(CompetitionType mode)
+    {
+        TournamentService.SwitchTatamiMode(TatamiId, mode);
+        RefreshData();
+    }
+
+    private async void HandleTatamiUpdated(int updatedTatamiId)
+    {
+        if (updatedTatamiId == TatamiId || updatedTatamiId == 0)
+        {
+            RefreshData();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void ToggleTimer()
+    {
+        TournamentService.ToggleTimer(TatamiId);
+    }
+
+    private void ResetTimer()
+    {
+        TournamentService.ResetTimer(TatamiId);
+    }
+
+    private void AdjustTimer(int delta)
+    {
+        TournamentService.AdjustTimer(TatamiId, delta);
+    }
+
+    private void AddExtension()
+    {
+        TournamentService.AddExtension(TatamiId);
+    }
+
+    private void AddScore(int matchId, CornerColor corner, string type)
+    {
+        TournamentService.AddScore(matchId, corner, type);
+    }
+
+    private void DeclareWinner(CornerColor corner, MatchWinnerReason reason)
+    {
+        if (tatami?.CurrentKumiteMatchId.HasValue == true)
+        {
+            TournamentService.DeclareWinner(tatami.CurrentKumiteMatchId.Value, corner, reason);
+        }
+    }
+
+    private void SelectMatch(int matchId)
+    {
+        TournamentService.SetTatamiCurrentMatch(TatamiId, matchId);
+    }
+
+    private void SelectKata(int perfId)
+    {
+        TournamentService.SetTatamiCurrentKata(TatamiId, perfId);
+        RefreshData();
+    }
+
+    private void SubmitScores()
+    {
+        if (tatami?.CurrentKataPerformanceId.HasValue == true)
+        {
+            // Arrondir et restreindre les notes entre 55 et 100
+            for (int i = 0; i < 5; i++)
+            {
+                judgeInputScores[i] = Math.Clamp(Math.Round(judgeInputScores[i]), 55, 100);
+            }
+            TournamentService.SubmitKataScores(tatami.CurrentKataPerformanceId.Value, judgeInputScores.ToList());
+        }
+    }
+
+    private void FillSampleScores()
+    {
+        var rand = new Random();
+        for (int i = 0; i < 5; i++)
+        {
+            judgeInputScores[i] = rand.Next(70, 86); // Ex: 75, 82, 78, 80...
+        }
+    }
+
+    private void QualifyTour1(int categoryId)
+    {
+        TournamentService.QualifyKataRound1(categoryId);
+        RefreshData();
+    }
+
+    private void FinalizeTour2(int categoryId)
+    {
+        TournamentService.FinalizeKataRound2(categoryId);
+        RefreshData();
+    }
+
+    private async Task PlayGong()
+    {
+        await JS.InvokeVoidAsync("tournamentAudio.playGong");
+    }
+
+    private string FormatSeconds(int seconds)
+    {
+        int m = seconds / 60;
+        int s = seconds % 60;
+        return $"{m:00}:{s:00}";
+    }
+
+    public void Dispose()
+    {
+        TournamentService.OnTatamiUpdated -= HandleTatamiUpdated;
+    }
+}
+
+<style>
+    .controller-timer-digits {
+        font-size: clamp(2.8rem, 11vw, 5.5rem);
+        line-height: 1;
+        letter-spacing: 2px;
+    }
+
+    @@media (max-width: 576px) {
+        .card-header h4 {
+            font-size: 1.15rem;
+        }
+
+        .btn-group-sm > .btn {
+            padding: 0.35rem 0.5rem;
+            font-size: 0.85rem;
+        }
+    }
+</style>

@@ -1,0 +1,180 @@
+@inject ITournamentService TournamentService
+@inject ILanguageService Lang
+@implements IDisposable
+
+<div class="top-row ps-3 pe-2 navbar navbar-dark bg-dark d-flex justify-content-between align-items-center">
+    <div class="container-fluid d-flex justify-content-between align-items-center px-0">
+        <a class="navbar-brand text-warning fw-bold mb-0" href="" @onclick="HandleNavClick">🥋 Kyokushin Open</a>
+        <div class="d-flex align-items-center gap-1">
+            <button class="btn btn-sm btn-outline-secondary text-white d-md-none border-0 px-2 py-1" @onclick="HandleNavClick" title="Fermer">
+                ✕
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="nav-scrollable">
+    <nav class="nav flex-column">
+        <!-- Accès Public / Tous -->
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All" @onclick="HandleNavClick">
+                <span class="bi bi-tv me-2"></span> @Lang["NavPublicLive"]
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="brackets" @onclick="HandleNavClick">
+                <span class="bi bi-diagram-3 me-2"></span> @Lang["NavBrackets"]
+            </NavLink>
+        </div>
+
+        <!-- Rôle Table de Marque & Admin -->
+        <AuthorizeView Roles="Admin,Table">
+            <Authorized>
+                <div class="nav-item px-3 mt-3 text-uppercase text-secondary small fw-bold">
+                    @Lang["NavScoreboards"]
+                </div>
+
+                @foreach (var tatami in tatamis)
+                {
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="@($"tatami/{tatami.Id}/controller")" @onclick="HandleNavClick">
+                            <span class="bi @(tatami.CurrentDiscipline == CompetitionType.Kata ? "bi-pencil-square" : "bi-stopwatch") me-2"></span>
+                            @tatami.Name (@tatami.CurrentDiscipline)
+                        </NavLink>
+                    </div>
+                }
+            </Authorized>
+        </AuthorizeView>
+
+        <!-- Rôle Streamer, Table & Admin -->
+        <AuthorizeView Roles="Admin,Table,Streamer">
+            <Authorized>
+                <div class="nav-item px-3 mt-3 text-uppercase text-secondary small fw-bold">
+                    🎬 Régie Streamer
+                </div>
+
+                @foreach (var tatami in tatamis)
+                {
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link text-warning" href="@($"tatami/{tatami.Id}/streamer")" @onclick="HandleNavClick">
+                            <span class="bi bi-camera-video me-2"></span>
+                            Stream @tatami.Name
+                        </NavLink>
+                    </div>
+                }
+            </Authorized>
+        </AuthorizeView>
+
+        <!-- Rôle Collector, Table & Admin -->
+        <AuthorizeView Roles="Admin,Table,Collector">
+            <Authorized>
+                <div class="nav-item px-3 mt-3 text-uppercase text-secondary small fw-bold">
+                    🏃 Chambre d'Appel
+                </div>
+
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link text-success" href="collector" @onclick="HandleNavClick">
+                        <span class="bi bi-people-fill me-2"></span>
+                        Collecte Compétiteurs
+                    </NavLink>
+                </div>
+            </Authorized>
+        </AuthorizeView>
+
+        <!-- Rôle TV, Table, Streamer & Admin -->
+        <AuthorizeView Roles="Admin,Table,Tv,Streamer">
+            <Authorized>
+                <div class="nav-item px-3 mt-3 text-uppercase text-secondary small fw-bold">
+                    @Lang["NavTvScreens"]
+                </div>
+
+                @foreach (var tatami in tatamis)
+                {
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link text-info" href="@($"tatami/{tatami.Id}/tv")" target="_blank" @onclick="HandleNavClick">
+                            <span class="bi bi-display me-2"></span> 📺 TV @tatami.Name
+                        </NavLink>
+                    </div>
+                }
+            </Authorized>
+        </AuthorizeView>
+
+        <!-- Rôle Admin Uniquement -->
+        <AuthorizeView Roles="Admin">
+            <Authorized>
+                <div class="nav-item px-3 mt-3 text-uppercase text-secondary small fw-bold">
+                    Administration
+                </div>
+
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="admin" @onclick="HandleNavClick">
+                        <span class="bi bi-gear-fill me-2"></span> @Lang["NavAdmin"]
+                    </NavLink>
+                </div>
+            </Authorized>
+        </AuthorizeView>
+
+        <!-- Authentification & Session -->
+        <div class="nav-item px-3 mt-4 pt-3 border-top border-secondary">
+            <AuthorizeView>
+                <Authorized>
+                    <div class="px-2 py-1 text-light small">
+                        <div class="text-muted">@Lang["ConnectedAs"]</div>
+                        <div class="fw-bold text-warning text-truncate">@context.User.Identity?.Name</div>
+                        <span class="badge bg-primary mt-1">@context.User.FindFirst(ClaimTypes.Role)?.Value</span>
+                    </div>
+                    <div class="mt-2">
+                        <a href="login?logout=true" class="nav-link text-danger py-1 px-2 d-flex align-items-center gap-1" @onclick="HandleNavClick">
+                            <span>🚪</span> @Lang["Logout"]
+                        </a>
+                    </div>
+                </Authorized>
+                <NotAuthorized>
+                    <NavLink class="nav-link text-warning fw-bold" href="login" @onclick="HandleNavClick">
+                        <span>🔐</span> @Lang["Login"]
+                    </NavLink>
+                </NotAuthorized>
+            </AuthorizeView>
+        </div>
+    </nav>
+</div>
+
+@code {
+    [Parameter]
+    public EventCallback OnNavigate { get; set; }
+
+    private List<Tatami> tatamis = new();
+
+    protected override void OnInitialized()
+    {
+        tatamis = TournamentService.GetTatamis();
+        TournamentService.OnStateChanged += HandleStateChanged;
+        Lang.OnLanguageChanged += HandleLanguageChanged;
+    }
+
+    private async Task HandleNavClick()
+    {
+        if (OnNavigate.HasDelegate)
+        {
+            await OnNavigate.InvokeAsync();
+        }
+    }
+
+    private async void HandleStateChanged()
+    {
+        tatamis = TournamentService.GetTatamis();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async void HandleLanguageChanged()
+    {
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        TournamentService.OnStateChanged -= HandleStateChanged;
+        Lang.OnLanguageChanged -= HandleLanguageChanged;
+    }
+}

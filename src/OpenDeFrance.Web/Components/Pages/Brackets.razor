@@ -1,0 +1,980 @@
+@page "/brackets"
+@rendermode InteractiveServer
+@inject ITournamentService TournamentService
+@inject ILanguageService Lang
+@implements IDisposable
+
+<PageTitle>@Lang["BracketsTitle"]</PageTitle>
+
+<div class="container-fluid py-3">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <div>
+            <h2 class="fw-bold mb-1">🏆 @Lang["BracketsTitle"]</h2>
+            <p class="text-muted mb-0">@Lang["BracketsSubtitle"]</p>
+        </div>
+
+        <div class="d-flex align-items-center gap-3 flex-wrap">
+            <LanguageSwitcher />
+
+            <div class="d-flex align-items-center gap-2">
+                <label class="form-label mb-0 fw-bold">@Lang["Category"] :</label>
+                <select class="form-select" @bind="selectedCategoryId" @bind:after="OnCategoryChanged" style="min-width: 280px;">
+                    @foreach (var cat in categories.OrderBy(c => c.CompetitionDay).ThenBy(c => c.OrderIndex).ThenBy(c => c.Name))
+                    {
+                        <option value="@cat.Id">
+                            [#@cat.OrderIndex] 📅 J@(cat.CompetitionDay) • @(cat.Type == CompetitionType.Kumite ? "🥊" : "🥋") @cat.Name
+                        </option>
+                    }
+                </select>
+            </div>
+        </div>
+    </div>
+
+    @if (isAdmin)
+    {
+        <div class="alert alert-info d-flex align-items-center justify-content-between mb-3 py-2 shadow-sm border-0 border-start border-4 border-primary">
+            <div class="d-flex align-items-center gap-2">
+                <span class="fs-4">👑</span>
+                <div>
+                    <strong>Mode Administrateur actif :</strong>
+                    Vous pouvez modifier les tirages au sort par <strong>Glisser-Déposer (Drag &amp; Drop)</strong> (icône <span class="badge bg-secondary">⠿</span>) et modifier directement le <strong>tatami</strong> de chaque rencontre via le sélecteur dédié.
+                </div>
+            </div>
+            <span class="badge bg-primary px-3 py-2">Mode Admin</span>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(statusFeedback))
+    {
+        <div class="alert @(isErrorFeedback ? "alert-danger" : "alert-success") alert-dismissible fade show py-2 mb-3" role="alert">
+            <span>@statusFeedback</span>
+            <button type="button" class="btn-close py-2" @onclick="() => statusFeedback = null"></button>
+        </div>
+    }
+
+    @if (selectedCategory != null)
+    {
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-dark text-white py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <h4 class="mb-0 fw-bold">@selectedCategory.Name</h4>
+                        <span class="badge bg-warning text-dark border fw-bold">📅 Jour @selectedCategory.CompetitionDay</span>
+                        @if (selectedCategory.AssignedTatamiId.HasValue)
+                        {
+                            var assignedT = tatamis.FirstOrDefault(t => t.Id == selectedCategory.AssignedTatamiId.Value);
+                            <span class="badge bg-info text-dark border fw-bold">🥋 @(assignedT?.Name ?? $"Tatami #{selectedCategory.AssignedTatamiId}")</span>
+                        }
+                        @if (selectedCategory.Type == CompetitionType.Kumite)
+                        {
+                            @if (selectedCategory.HasBronzeMatch)
+                            {
+                                <span class="badge bg-warning text-dark border">🥉 Petite finale (3e place)</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary-subtle text-light border">Sans petite finale</span>
+                            }
+                        }
+                    </div>
+                    <small class="text-white-50">@selectedCategory.DisplayDetails</small>
+                </div>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    @if (isAdmin)
+                    {
+                        <div class="d-flex align-items-center gap-1 bg-secondary-subtle text-dark px-2 py-1 rounded">
+                            <small class="fw-bold">Jour :</small>
+                            <select class="form-select form-select-sm py-0 px-1 border-primary fw-bold" style="width: auto; height: 26px;"
+                                    value="@selectedCategory.CompetitionDay"
+                                    @onchange="(e) => ChangeCategoryDay(selectedCategory.Id, e)">
+                                <option value="1">Jour 1</option>
+                                <option value="2">Jour 2</option>
+                                <option value="3">Jour 3</option>
+                                <option value="4">Jour 4</option>
+                            </select>
+                        </div>
+
+                        @if (selectedCategory.Type == CompetitionType.Kata)
+                        {
+                            <div class="d-flex align-items-center gap-1 bg-secondary-subtle text-dark px-2 py-1 rounded">
+                                <small class="fw-bold">Qualifiés T2 :</small>
+                                <input type="number" class="form-control form-control-sm text-center py-0 px-1 border-primary fw-bold"
+                                       style="width: 55px; height: 26px;"
+                                       min="1" max="32"
+                                       value="@selectedCategory.KataQualifiersCount"
+                                       @onchange="(e) => ChangeKataQualifiersCount(selectedCategory.Id, e)"
+                                       title="Nombre de qualifiés pour la finale (Tour 2)" />
+                            </div>
+                        }
+
+                        <div class="d-flex align-items-center gap-1 bg-secondary-subtle text-dark px-2 py-1 rounded">
+                            <small class="fw-bold">Tout assigner au :</small>
+                            <select class="form-select form-select-sm py-0 px-1 border-primary" style="width: auto; height: 26px;"
+                                    @onchange="(e) => BulkAssignTatami(selectedCategory.Id, e)">
+                                <option value="">Choisir Tatami...</option>
+                                @foreach (var t in tatamis)
+                                {
+                                    <option value="@t.Id">@t.Name</option>
+                                }
+                            </select>
+                        </div>
+                    }
+                    <span class="badge @(selectedCategory.Type == CompetitionType.Kumite ? "bg-danger" : "bg-primary") fs-6">
+                        @selectedCategory.Type
+                    </span>
+                </div>
+            </div>
+
+            <div class="card-body p-2 p-md-4">
+                @if (selectedCategory.Type == CompetitionType.Kumite)
+                {
+                    var matches = categoryMatches;
+                    if (matches.Count == 0)
+                    {
+                        <div class="alert alert-warning text-center">
+                            Aucun match généré pour cette catégorie. Rendez-vous dans <strong>Administration</strong> pour générer les tirages.
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="d-md-none text-muted small text-center mb-2 py-1 bg-light rounded border">
+                            ↔️ Faites défiler horizontalement pour explorer tout l'arbre
+                        </div>
+                        int maxRound = matches.Max(m => m.BracketRound);
+
+                        <!-- Bracket Tree View -->
+                        <div class="bracket-container">
+                            @for (int r = 1; r <= maxRound; r++)
+                            {
+                                int currentRound = r;
+                                var roundMatches = matches.Where(m => m.BracketRound == currentRound).OrderBy(m => m.MatchNumber).ToList();
+                                var mainRoundMatches = roundMatches.Where(m => !m.IsBronzeMatch).ToList();
+                                var bronzeMatch = roundMatches.FirstOrDefault(m => m.IsBronzeMatch);
+
+                                string roundTitle = mainRoundMatches.FirstOrDefault()?.RoundName ?? $"Tour {currentRound}";
+
+                                <div class="bracket-round">
+                                    <div class="round-header text-center fw-bold text-uppercase py-2 mb-3 bg-light rounded border">
+                                        @roundTitle
+                                    </div>
+                                    @if (currentRound == maxRound && bronzeMatch != null)
+                                    {
+                                        <div class="round-matches-final-col">
+                                            <!-- Grande Finale : parfaitement centrée au milieu des deux demi-finales -->
+                                            <div class="final-main-match">
+                                                <div class="small fw-bold text-center text-uppercase text-dark bg-danger-subtle py-1 px-2 rounded mb-2 border border-danger">
+                                                    🏆 @Lang["GrandFinal"]
+                                                </div>
+                                                @foreach (var match in mainRoundMatches)
+                                                {
+                                                    bool canDragAka = isAdmin && match.BracketRound == 1 && (match.Status != MatchStatus.Finished || match.IsBye);
+                                                    bool canDragShiro = isAdmin && match.BracketRound == 1 && (match.Status != MatchStatus.Finished || match.IsBye);
+                                                    bool isAkaHover = dragHoverTarget == $"k_{match.Id}_Aka";
+                                                    bool isShiroHover = dragHoverTarget == $"k_{match.Id}_Shiro";
+
+                                                    <div class="bracket-match-card @(match.Status == MatchStatus.Finished ? "finished" : "") @(match.Status == MatchStatus.InProgress ? "in-progress" : "")">
+                                                        <div class="match-meta d-flex justify-content-between align-items-center small text-muted px-2 py-1 bg-light border-bottom">
+                                                            <span class="fw-bold">#@match.MatchNumber</span>
+                                                            @if (isAdmin)
+                                                            {
+                                                                <div class="d-flex align-items-center gap-1">
+                                                                    <span class="badge bg-light text-secondary border" style="font-size: 0.7rem;">Tatami</span>
+                                                                    <select class="form-select form-select-sm py-0 px-1 border-primary"
+                                                                            style="font-size: 0.75rem; width: auto; height: 24px; cursor: pointer;"
+                                                                            value="@match.TatamiId"
+                                                                            @onchange="(e) => OnChangeKumiteMatchTatami(match.Id, e)">
+                                                                        @foreach (var t in tatamis)
+                                                                        {
+                                                                            <option value="@t.Id">@t.Name</option>
+                                                                        }
+                                                                    </select>
+                                                                </div>
+                                                            }
+                                                            else if (match.Tatami != null)
+                                                            {
+                                                                <span class="badge bg-light text-dark border">@match.Tatami.Name</span>
+                                                            }
+                                                        </div>
+
+                                                        <!-- AKA -->
+                                                        <div class="fighter-row aka @(match.WinnerCompetitorId == match.AkaCompetitorId && match.Status == MatchStatus.Finished ? "winner fw-bold" : "") @(canDragAka ? "draggable-slot" : "") @(isAkaHover ? "drop-target-hover" : "")"
+                                                             draggable="@(canDragAka ? "true" : "false")"
+                                                             @ondragstart="() => OnKumiteDragStart(match.Id, CornerColor.Aka)"
+                                                             @ondragend="ResetDrag"
+                                                             @ondragover="HandleDragOver"
+                                                             @ondragover:preventDefault="true"
+                                                             @ondragenter="() => OnKumiteDragEnter(match.Id, CornerColor.Aka)"
+                                                             @ondragleave="() => OnKumiteDragLeave(match.Id, CornerColor.Aka)"
+                                                             @ondrop="() => OnKumiteDrop(match.Id, CornerColor.Aka)">
+                                                            <span class="corner-indicator red"></span>
+                                                            @if (canDragAka)
+                                                            {
+                                                                <span class="drag-handle" title="Glisser pour modifier le tirage">⠿</span>
+                                                            }
+                                                            <span class="name text-truncate">@match.AkaDisplayName</span>
+                                                            <span class="score">
+                                                                @(match.AkaIppon > 0 ? "IPPON" : (match.AkaWazaAri > 0 ? $"{match.AkaWazaAri} W" : ""))
+                                                            </span>
+                                                        </div>
+
+                                                        <!-- SHIRO -->
+                                                        <div class="fighter-row shiro @(match.WinnerCompetitorId == match.ShiroCompetitorId && match.Status == MatchStatus.Finished ? "winner fw-bold" : "") @(canDragShiro ? "draggable-slot" : "") @(isShiroHover ? "drop-target-hover" : "")"
+                                                             draggable="@(canDragShiro ? "true" : "false")"
+                                                             @ondragstart="() => OnKumiteDragStart(match.Id, CornerColor.Shiro)"
+                                                             @ondragend="ResetDrag"
+                                                             @ondragover="HandleDragOver"
+                                                             @ondragover:preventDefault="true"
+                                                             @ondragenter="() => OnKumiteDragEnter(match.Id, CornerColor.Shiro)"
+                                                             @ondragleave="() => OnKumiteDragLeave(match.Id, CornerColor.Shiro)"
+                                                             @ondrop="() => OnKumiteDrop(match.Id, CornerColor.Shiro)">
+                                                            <span class="corner-indicator white"></span>
+                                                            @if (canDragShiro)
+                                                            {
+                                                                <span class="drag-handle" title="Glisser pour modifier le tirage">⠿</span>
+                                                            }
+                                                            <span class="name text-truncate">@match.ShiroDisplayName</span>
+                                                            <span class="score">
+                                                                @(match.ShiroIppon > 0 ? "IPPON" : (match.ShiroWazaAri > 0 ? $"{match.ShiroWazaAri} W" : ""))
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                }
+                                            </div>
+
+                                            <!-- Petite Finale (3e place) : positionnée en dessous -->
+                                            <div class="final-bronze-match">
+                                                <div class="small fw-bold text-center text-uppercase text-dark bg-warning-subtle py-1 px-2 rounded mb-2 border border-warning">
+                                                    🥉 @Lang["BronzeMatch"]
+                                                </div>
+                                                <div class="bracket-match-card border-warning @(bronzeMatch.Status == MatchStatus.Finished ? "finished" : "") @(bronzeMatch.Status == MatchStatus.InProgress ? "in-progress" : "")">
+                                                    <div class="match-meta d-flex justify-content-between align-items-center small text-muted px-2 py-1 bg-warning-subtle border-bottom">
+                                                        <span class="fw-bold">#@bronzeMatch.MatchNumber</span>
+                                                        @if (isAdmin)
+                                                        {
+                                                            <div class="d-flex align-items-center gap-1">
+                                                                <span class="badge bg-light text-secondary border" style="font-size: 0.7rem;">Tatami</span>
+                                                                <select class="form-select form-select-sm py-0 px-1 border-primary"
+                                                                        style="font-size: 0.75rem; width: auto; height: 24px; cursor: pointer;"
+                                                                        value="@bronzeMatch.TatamiId"
+                                                                        @onchange="(e) => OnChangeKumiteMatchTatami(bronzeMatch.Id, e)">
+                                                                    @foreach (var t in tatamis)
+                                                                    {
+                                                                        <option value="@t.Id">@t.Name</option>
+                                                                    }
+                                                                </select>
+                                                            </div>
+                                                        }
+                                                        else if (bronzeMatch.Tatami != null)
+                                                        {
+                                                            <span class="badge bg-light text-dark border">@bronzeMatch.Tatami.Name</span>
+                                                        }
+                                                    </div>
+
+                                                    <!-- AKA -->
+                                                    <div class="fighter-row aka @(bronzeMatch.WinnerCompetitorId == bronzeMatch.AkaCompetitorId && bronzeMatch.Status == MatchStatus.Finished ? "winner fw-bold" : "")">
+                                                        <span class="corner-indicator red"></span>
+                                                        <span class="name text-truncate">@bronzeMatch.AkaDisplayName</span>
+                                                        <span class="score">
+                                                            @(bronzeMatch.AkaIppon > 0 ? "IPPON" : (bronzeMatch.AkaWazaAri > 0 ? $"{bronzeMatch.AkaWazaAri} W" : ""))
+                                                        </span>
+                                                    </div>
+
+                                                    <!-- SHIRO -->
+                                                    <div class="fighter-row shiro @(bronzeMatch.WinnerCompetitorId == bronzeMatch.ShiroCompetitorId && bronzeMatch.Status == MatchStatus.Finished ? "winner fw-bold" : "")">
+                                                        <span class="corner-indicator white"></span>
+                                                        <span class="name text-truncate">@bronzeMatch.ShiroDisplayName</span>
+                                                        <span class="score">
+                                                            @(bronzeMatch.ShiroIppon > 0 ? "IPPON" : (bronzeMatch.ShiroWazaAri > 0 ? $"{bronzeMatch.ShiroWazaAri} W" : ""))
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="round-matches-col">
+                                            @foreach (var match in mainRoundMatches)
+                                            {
+                                                bool canDragAka = isAdmin && match.BracketRound == 1 && (match.Status != MatchStatus.Finished || match.IsBye);
+                                                bool canDragShiro = isAdmin && match.BracketRound == 1 && (match.Status != MatchStatus.Finished || match.IsBye);
+                                                bool isAkaHover = dragHoverTarget == $"k_{match.Id}_Aka";
+                                                bool isShiroHover = dragHoverTarget == $"k_{match.Id}_Shiro";
+
+                                                <div class="bracket-match-card @(match.Status == MatchStatus.Finished ? "finished" : "") @(match.Status == MatchStatus.InProgress ? "in-progress" : "")">
+                                                    <div class="match-meta d-flex justify-content-between align-items-center small text-muted px-2 py-1 bg-light border-bottom">
+                                                        <span class="fw-bold">#@match.MatchNumber</span>
+                                                        @if (isAdmin)
+                                                        {
+                                                            <div class="d-flex align-items-center gap-1">
+                                                                <span class="badge bg-light text-secondary border" style="font-size: 0.7rem;">Tatami</span>
+                                                                <select class="form-select form-select-sm py-0 px-1 border-primary"
+                                                                        style="font-size: 0.75rem; width: auto; height: 24px; cursor: pointer;"
+                                                                        value="@match.TatamiId"
+                                                                        @onchange="(e) => OnChangeKumiteMatchTatami(match.Id, e)">
+                                                                    @foreach (var t in tatamis)
+                                                                    {
+                                                                        <option value="@t.Id">@t.Name</option>
+                                                                    }
+                                                                </select>
+                                                            </div>
+                                                        }
+                                                        else if (match.Tatami != null)
+                                                        {
+                                                            <span class="badge bg-light text-dark border">@match.Tatami.Name</span>
+                                                        }
+                                                    </div>
+
+                                                    <!-- AKA -->
+                                                    <div class="fighter-row aka @(match.WinnerCompetitorId == match.AkaCompetitorId && match.Status == MatchStatus.Finished ? "winner fw-bold" : "") @(canDragAka ? "draggable-slot" : "") @(isAkaHover ? "drop-target-hover" : "")"
+                                                         draggable="@(canDragAka ? "true" : "false")"
+                                                         @ondragstart="() => OnKumiteDragStart(match.Id, CornerColor.Aka)"
+                                                         @ondragend="ResetDrag"
+                                                         @ondragover="HandleDragOver"
+                                                         @ondragover:preventDefault="true"
+                                                         @ondragenter="() => OnKumiteDragEnter(match.Id, CornerColor.Aka)"
+                                                         @ondragleave="() => OnKumiteDragLeave(match.Id, CornerColor.Aka)"
+                                                         @ondrop="() => OnKumiteDrop(match.Id, CornerColor.Aka)">
+                                                        <span class="corner-indicator red"></span>
+                                                        @if (canDragAka)
+                                                        {
+                                                            <span class="drag-handle" title="Glisser pour modifier le tirage">⠿</span>
+                                                        }
+                                                        <span class="name text-truncate">@match.AkaDisplayName</span>
+                                                        <span class="score">
+                                                            @(match.AkaIppon > 0 ? "IPPON" : (match.AkaWazaAri > 0 ? $"{match.AkaWazaAri} W" : ""))
+                                                        </span>
+                                                    </div>
+
+                                                    <!-- SHIRO -->
+                                                    <div class="fighter-row shiro @(match.WinnerCompetitorId == match.ShiroCompetitorId && match.Status == MatchStatus.Finished ? "winner fw-bold" : "") @(canDragShiro ? "draggable-slot" : "") @(isShiroHover ? "drop-target-hover" : "")"
+                                                         draggable="@(canDragShiro ? "true" : "false")"
+                                                         @ondragstart="() => OnKumiteDragStart(match.Id, CornerColor.Shiro)"
+                                                         @ondragend="ResetDrag"
+                                                         @ondragover="HandleDragOver"
+                                                         @ondragover:preventDefault="true"
+                                                         @ondragenter="() => OnKumiteDragEnter(match.Id, CornerColor.Shiro)"
+                                                         @ondragleave="() => OnKumiteDragLeave(match.Id, CornerColor.Shiro)"
+                                                         @ondrop="() => OnKumiteDrop(match.Id, CornerColor.Shiro)">
+                                                        <span class="corner-indicator white"></span>
+                                                        @if (canDragShiro)
+                                                        {
+                                                            <span class="drag-handle" title="Glisser pour modifier le tirage">⠿</span>
+                                                        }
+                                                        <span class="name text-truncate">@match.ShiroDisplayName</span>
+                                                        <span class="score">
+                                                            @(match.ShiroIppon > 0 ? "IPPON" : (match.ShiroWazaAri > 0 ? $"{match.ShiroWazaAri} W" : ""))
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                }
+                else
+                {
+                    <!-- KATA 2-STEP VIEW -->
+                    <div class="row g-4">
+                        <!-- Tour 1 -->
+                        <div class="col-lg-7">
+                            <div class="card h-100 border-primary shadow-sm">
+                                <div class="card-header bg-primary text-white py-2 d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h5 class="mb-0 fw-bold">1er Tour - Éliminatoire (Kata : @selectedCategory.KataRound1MandatoryKata)</h5>
+                                        <small>Les @selectedCategory.KataQualifiersCount premiers sont qualifiés pour la finale</small>
+                                    </div>
+                                    @if (isAdmin)
+                                    {
+                                        <span class="badge bg-light text-dark">Réorganisation Drag &amp; Drop active</span>
+                                    }
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="table table-hover align-middle mb-0">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Ordre / Rang</th>
+                                                <th>Compétiteur</th>
+                                                <th>Club</th>
+                                                <th>Tatami</th>
+                                                <th>Notes juges</th>
+                                                <th>Note retenue</th>
+                                                <th>Statut</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var p in categoryKataPerformances.Where(x => x.Round == KataRound.Tour1).OrderBy(x => x.PerformanceOrder))
+                                            {
+                                                bool canDragKata = isAdmin && p.Status != MatchStatus.Finished;
+                                                bool isKataHover = dragHoverTarget == $"kata_{p.Id}";
+
+                                                <tr class="@(p.IsQualifiedForTour2 ? "table-success fw-bold" : "") @(canDragKata ? "draggable-row" : "") @(isKataHover ? "drop-target-hover" : "")"
+                                                    draggable="@(canDragKata ? "true" : "false")"
+                                                    @ondragstart="() => OnKataDragStart(p.Id)"
+                                                    @ondragend="ResetDrag"
+                                                    @ondragover="HandleDragOver"
+                                                    @ondragover:preventDefault="true"
+                                                    @ondragenter="() => OnKataDragEnter(p.Id)"
+                                                    @ondragleave="() => OnKataDragLeave(p.Id)"
+                                                    @ondrop="() => OnKataDrop(p.Id)">
+                                                    <td>
+                                                        <div class="d-flex align-items-center gap-1">
+                                                            @if (canDragKata)
+                                                            {
+                                                                <span class="drag-handle" title="Glisser pour modifier l'ordre de passage">⠿</span>
+                                                            }
+                                                            <span class="badge bg-light text-dark border">#@p.PerformanceOrder</span>
+                                                            @if (p.RankInRound.HasValue)
+                                                            {
+                                                                <span class="badge @(p.IsQualifiedForTour2 ? "bg-success" : "bg-secondary")">
+                                                                    Rang @p.RankInRound
+                                                                </span>
+                                                            }
+                                                        </div>
+                                                    </td>
+                                                    <td><strong>@p.Competitor?.FullName</strong></td>
+                                                    <td><small class="text-muted">@p.Competitor?.Club</small></td>
+                                                    <td>
+                                                        @if (isAdmin)
+                                                        {
+                                                            <select class="form-select form-select-sm py-0 px-1 border-primary"
+                                                                    style="font-size: 0.75rem; width: auto; height: 26px;"
+                                                                    value="@p.TatamiId"
+                                                                    @onchange="(e) => OnChangeKataTatami(p.Id, e)">
+                                                                @foreach (var t in tatamis)
+                                                                {
+                                                                    <option value="@t.Id">@t.Name</option>
+                                                                }
+                                                            </select>
+                                                        }
+                                                        else
+                                                        {
+                                                            <span class="badge bg-light text-dark border">@(p.Tatami?.Name ?? "-")</span>
+                                                        }
+                                                    </td>
+                                                    <td><small class="text-muted">@p.ScoresDisplay</small></td>
+                                                    <td>
+                                                        <strong class="text-primary fs-5">@(p.FinalScore > 0 ? p.FinalScore.ToString("0") : "-")</strong>
+                                                    </td>
+                                                    <td>
+                                                        @if (p.IsQualifiedForTour2)
+                                                        {
+                                                            <span class="badge bg-success">✅ Qualifié Finale</span>
+                                                        }
+                                                        else if (p.Status == MatchStatus.Finished)
+                                                        {
+                                                            <span class="badge bg-secondary">Éliminé</span>
+                                                        }
+                                                        else
+                                                        {
+                                                            <span class="badge bg-light text-dark">En attente</span>
+                                                        }
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Tour 2 (Finale) -->
+                        <div class="col-lg-5">
+                            <div class="card h-100 border-warning shadow-sm">
+                                <div class="card-header bg-warning text-dark py-2">
+                                    <h5 class="mb-0 fw-bold">2e Tour - Finale (Kata : @selectedCategory.KataRound2MandatoryKata)</h5>
+                                    <small>Podium final</small>
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="table table-hover align-middle mb-0">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Podium</th>
+                                                <th>Compétiteur</th>
+                                                <th>Club</th>
+                                                <th>Notes juges</th>
+                                                <th>Note Finale</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @{
+                                                var tour2List = categoryKataPerformances.Where(x => x.Round == KataRound.Tour2).OrderBy(x => x.RankInRound ?? 999).ToList();
+                                            }
+                                            @if (tour2List.Count == 0)
+                                            {
+                                                <tr>
+                                                    <td colspan="5" class="text-center text-muted py-4">
+                                                        <em>Le 1er tour n'a pas encore été validé.</em>
+                                                    </td>
+                                                </tr>
+                                            }
+                                            @foreach (var p in tour2List)
+                                            {
+                                                <tr class="@(p.RankInRound == 1 ? "table-warning fw-bold" : "")">
+                                                    <td>
+                                                        @if (p.RankInRound == 1)
+                                                        {
+                                                            <span class="badge bg-warning text-dark fs-6">🥇 1er (Champion)</span>
+                                                        }
+                                                        else if (p.RankInRound == 2)
+                                                        {
+                                                            <span class="badge bg-secondary fs-6">🥈 2e (Vice-Champ)</span>
+                                                        }
+                                                        else if (p.RankInRound == 3)
+                                                        {
+                                                            <span class="badge bg-danger fs-6">🥉 3e</span>
+                                                        }
+                                                        else if (p.RankInRound == 4)
+                                                        {
+                                                            <span class="badge bg-dark fs-6">4e</span>
+                                                        }
+                                                        else
+                                                        {
+                                                            <span>#@p.RankInRound</span>
+                                                        }
+                                                    </td>
+                                                    <td>@p.Competitor?.FullName</td>
+                                                    <td>@p.Competitor?.Club</td>
+                                                    <td><small class="text-muted">@p.ScoresDisplay</small></td>
+                                                    <td>
+                                                        <strong class="text-warning fs-5">@(p.FinalScore > 0 ? p.FinalScore.ToString("0") : "-")</strong>
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+    private bool isAdmin = false;
+    private List<Category> categories = new();
+    private List<Tatami> tatamis = new();
+    private Category? selectedCategory;
+    private int selectedCategoryId;
+    private List<KumiteMatch> categoryMatches = new();
+    private List<KataPerformance> categoryKataPerformances = new();
+
+    // Drag & Drop State
+    private int? draggingKumiteMatchId;
+    private CornerColor? draggingKumiteCorner;
+    private int? draggingKataPerfId;
+    private string? dragHoverTarget;
+    private string? statusFeedback;
+    private bool isErrorFeedback = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthStateTask != null)
+        {
+            var authState = await AuthStateTask;
+            isAdmin = authState.User.IsInRole("Admin");
+        }
+
+        RefreshData();
+        TournamentService.OnStateChanged += HandleStateChanged;
+        Lang.OnLanguageChanged += HandleLanguageChanged;
+    }
+
+    private void RefreshData()
+    {
+        tatamis = TournamentService.GetTatamis();
+        categories = TournamentService.GetCategories().OrderBy(c => c.CompetitionDay).ThenBy(c => c.OrderIndex).ThenBy(c => c.Name).ToList();
+
+        if (categories.Count > 0 && selectedCategory == null)
+        {
+            selectedCategoryId = categories[0].Id;
+            selectedCategory = categories[0];
+        }
+        else if (selectedCategory != null)
+        {
+            selectedCategory = categories.FirstOrDefault(c => c.Id == selectedCategoryId);
+        }
+
+        if (selectedCategory != null)
+        {
+            categoryMatches = TournamentService.GetMatches().Where(m => m.CategoryId == selectedCategoryId).ToList();
+            categoryKataPerformances = TournamentService.GetKataPerformances().Where(p => p.CategoryId == selectedCategoryId).ToList();
+        }
+    }
+
+    private void OnCategoryChanged()
+    {
+        selectedCategory = categories.FirstOrDefault(c => c.Id == selectedCategoryId);
+        RefreshData();
+    }
+
+    private async void HandleStateChanged()
+    {
+        RefreshData();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async void HandleLanguageChanged()
+    {
+        await InvokeAsync(StateHasChanged);
+    }
+
+    // Kumite Drag & Drop
+    private void OnKumiteDragStart(int matchId, CornerColor corner)
+    {
+        if (!isAdmin) return;
+        draggingKumiteMatchId = matchId;
+        draggingKumiteCorner = corner;
+    }
+
+    private void OnKumiteDragEnter(int matchId, CornerColor corner)
+    {
+        if (draggingKumiteMatchId.HasValue)
+        {
+            dragHoverTarget = $"k_{matchId}_{corner}";
+        }
+    }
+
+    private void OnKumiteDragLeave(int matchId, CornerColor corner)
+    {
+        if (dragHoverTarget == $"k_{matchId}_{corner}")
+        {
+            dragHoverTarget = null;
+        }
+    }
+
+    private void OnKumiteDrop(int targetMatchId, CornerColor targetCorner)
+    {
+        if (!isAdmin || !draggingKumiteMatchId.HasValue || !draggingKumiteCorner.HasValue)
+        {
+            ResetDrag();
+            return;
+        }
+
+        int srcMatchId = draggingKumiteMatchId.Value;
+        CornerColor srcCorner = draggingKumiteCorner.Value;
+
+        if (srcMatchId != targetMatchId || srcCorner != targetCorner)
+        {
+            var mSrc = TournamentService.GetMatch(srcMatchId);
+            var mDst = TournamentService.GetMatch(targetMatchId);
+
+            string srcName = (srcCorner == CornerColor.Aka ? mSrc?.AkaDisplayName : mSrc?.ShiroDisplayName) ?? "Combattant";
+            string dstName = (targetCorner == CornerColor.Aka ? mDst?.AkaDisplayName : mDst?.ShiroDisplayName) ?? "Combattant";
+
+            TournamentService.SwapKumiteCompetitors(srcMatchId, srcCorner, targetMatchId, targetCorner);
+            statusFeedback = $"Tirage modifié par Glisser-Déposer : {srcName} échangé avec {dstName}.";
+            isErrorFeedback = false;
+        }
+
+        ResetDrag();
+    }
+
+    // Kata Drag & Drop
+    private void OnKataDragStart(int perfId)
+    {
+        if (!isAdmin) return;
+        draggingKataPerfId = perfId;
+    }
+
+    private void OnKataDragEnter(int perfId)
+    {
+        if (draggingKataPerfId.HasValue)
+        {
+            dragHoverTarget = $"kata_{perfId}";
+        }
+    }
+
+    private void OnKataDragLeave(int perfId)
+    {
+        if (dragHoverTarget == $"kata_{perfId}")
+        {
+            dragHoverTarget = null;
+        }
+    }
+
+    private void OnKataDrop(int targetPerfId)
+    {
+        if (!isAdmin || !draggingKataPerfId.HasValue)
+        {
+            ResetDrag();
+            return;
+        }
+
+        if (draggingKataPerfId.Value != targetPerfId)
+        {
+            var p1 = categoryKataPerformances.FirstOrDefault(p => p.Id == draggingKataPerfId.Value);
+            var p2 = categoryKataPerformances.FirstOrDefault(p => p.Id == targetPerfId);
+
+            TournamentService.SwapKataPerformances(draggingKataPerfId.Value, targetPerfId);
+            statusFeedback = $"Ordre de passage Kata modifié : {p1?.CompetitorDisplayName} ⇄ {p2?.CompetitorDisplayName}.";
+            isErrorFeedback = false;
+        }
+
+        ResetDrag();
+    }
+
+    private void HandleDragOver()
+    {
+    }
+
+    private void ResetDrag()
+    {
+        draggingKumiteMatchId = null;
+        draggingKumiteCorner = null;
+        draggingKataPerfId = null;
+        dragHoverTarget = null;
+    }
+
+    // Tatami assignments
+    private void OnChangeKumiteMatchTatami(int matchId, ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int tatamiId))
+        {
+            TournamentService.AssignMatchToTatami(matchId, tatamiId);
+            var t = tatamis.FirstOrDefault(x => x.Id == tatamiId);
+            statusFeedback = $"Combat #{matchId} assigné au {t?.Name ?? $"Tatami {tatamiId}"}.";
+            isErrorFeedback = false;
+        }
+    }
+
+    private void OnChangeKataTatami(int perfId, ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int tatamiId))
+        {
+            TournamentService.AssignKataToTatami(perfId, tatamiId);
+            var t = tatamis.FirstOrDefault(x => x.Id == tatamiId);
+            statusFeedback = $"Passage Kata #{perfId} assigné au {t?.Name ?? $"Tatami {tatamiId}"}.";
+            isErrorFeedback = false;
+        }
+    }
+
+    private void ChangeCategoryDay(int categoryId, ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int day))
+        {
+            TournamentService.SetCategoryDay(categoryId, day);
+            statusFeedback = $"Catégorie planifiée sur le Jour {day}.";
+            isErrorFeedback = false;
+        }
+    }
+
+    private void BulkAssignTatami(int categoryId, ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int tatamiId))
+        {
+            TournamentService.AssignCategoryMatchesToTatami(categoryId, tatamiId);
+            var t = tatamis.FirstOrDefault(x => x.Id == tatamiId);
+            statusFeedback = $"Tous les combats de la catégorie ont été assignés au {t?.Name ?? $"Tatami {tatamiId}"}.";
+            isErrorFeedback = false;
+        }
+    }
+
+    private void ChangeKataQualifiersCount(int categoryId, ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int count) && count > 0)
+        {
+            TournamentService.SetCategoryKataQualifiersCount(categoryId, count);
+            if (selectedCategory != null && selectedCategory.Id == categoryId)
+            {
+                selectedCategory.KataQualifiersCount = count;
+            }
+            statusFeedback = $"Nombre de qualifiés pour la finale (Tour 2) mis à jour à {count} !";
+            isErrorFeedback = false;
+        }
+    }
+
+    public void Dispose()
+    {
+        TournamentService.OnStateChanged -= HandleStateChanged;
+        Lang.OnLanguageChanged -= HandleLanguageChanged;
+    }
+}
+
+<style>
+    .bracket-container {
+        display: flex;
+        gap: 20px;
+        overflow-x: auto;
+        padding: 15px 0;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .bracket-round {
+        min-width: 250px;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+    }
+
+    @@media (max-width: 576px) {
+        .bracket-container {
+            gap: 12px;
+            padding: 8px 0;
+        }
+
+        .bracket-round {
+            min-width: 215px;
+        }
+
+        .bracket-round .round-header {
+            font-size: 0.85rem;
+            padding: 0.35rem 0.5rem !important;
+            margin-bottom: 0.75rem !important;
+        }
+
+        .round-matches-final-col {
+            min-height: 420px;
+        }
+    }
+
+    .round-matches-col {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-around;
+        height: 100%;
+        gap: 20px;
+    }
+
+    .round-matches-final-col {
+        position: relative;
+        height: 100%;
+        min-height: 480px;
+        width: 100%;
+    }
+
+    .final-main-match {
+        position: absolute;
+        top: 50%;
+        left: 0;
+        right: 0;
+        transform: translateY(-50%);
+        z-index: 2;
+    }
+
+    .final-bronze-match {
+        position: absolute;
+        top: calc(50% + 75px);
+        bottom: 0;
+        left: 0;
+        right: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        z-index: 1;
+    }
+
+    .bracket-match-card {
+        background: #fff;
+        border: 2px solid #dee2e6;
+        border-radius: 8px;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+        overflow: hidden;
+        transition: transform 0.2s;
+    }
+
+    .bracket-match-card.in-progress {
+        border-color: #0d6efd;
+        box-shadow: 0 0 15px rgba(13, 110, 253, 0.4);
+    }
+
+    .bracket-match-card.finished {
+        border-color: #198754;
+    }
+
+    .fighter-row {
+        display: flex;
+        align-items: center;
+        padding: 8px 12px;
+        gap: 8px;
+        border-bottom: 1px solid #f0f0f0;
+        transition: background-color 0.15s ease-in-out, transform 0.15s ease-in-out;
+    }
+
+    .fighter-row:last-child {
+        border-bottom: none;
+    }
+
+    .fighter-row.winner {
+        background-color: #f6fff9;
+    }
+
+    .draggable-slot {
+        cursor: grab;
+        user-select: none;
+    }
+
+    .draggable-slot:hover {
+        background-color: #f0f7ff !important;
+    }
+
+    .draggable-slot:active {
+        cursor: grabbing;
+    }
+
+    .draggable-row {
+        cursor: grab;
+        user-select: none;
+    }
+
+    .draggable-row:hover {
+        background-color: #f8faff !important;
+    }
+
+    .drop-target-hover {
+        background-color: #dbeafe !important;
+        outline: 2px dashed #0d6efd !important;
+        outline-offset: -2px;
+        transform: scale(1.02);
+    }
+
+    .drag-handle {
+        cursor: grab;
+        color: #6c757d;
+        font-weight: bold;
+        font-size: 1.1rem;
+        line-height: 1;
+        padding: 0 2px;
+    }
+
+    .drag-handle:hover {
+        color: #0d6efd;
+    }
+
+    .corner-indicator {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        display: inline-block;
+        flex-shrink: 0;
+    }
+
+    .corner-indicator.red {
+        background-color: #dc3545;
+    }
+
+    .corner-indicator.white {
+        background-color: #ced4da;
+        border: 1px solid #6c757d;
+    }
+
+    .fighter-row .name {
+        flex: 1;
+        font-size: 0.95rem;
+    }
+
+    .fighter-row .score {
+        font-weight: bold;
+        color: #dc3545;
+        font-size: 0.85rem;
+    }
+</style>

@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/OpenDeFrance.Core/OpenDeFrance.Core.csproj" />
+    <Project Path="src/OpenDeFrance.Infrastructure/OpenDeFrance.Infrastructure.csproj" />
+    <Project Path="src/OpenDeFrance.Web/OpenDeFrance.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/OpenDeFrance.Tests/OpenDeFrance.Tests.csproj" />
+  </Folder>
+</Solution>

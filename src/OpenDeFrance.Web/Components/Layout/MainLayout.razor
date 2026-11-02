@@ -1,0 +1,65 @@
+@inherits LayoutComponentBase
+
+<div class="page">
+    <div class="sidebar @(isSidebarOpenMobile ? "show-mobile" : "") @(isSidebarCollapsedDesktop ? "collapsed-desktop" : "")">
+        <NavMenu OnNavigate="CloseMobileSidebar" />
+    </div>
+
+    @if (isSidebarOpenMobile)
+    {
+        <div class="sidebar-backdrop d-md-none" @onclick="CloseMobileSidebar"></div>
+    }
+
+    <main>
+        <div class="top-row px-2 px-md-3 d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-sm btn-outline-secondary toggle-sidebar-btn d-flex align-items-center gap-1" @onclick="ToggleSidebar" title="Menu">
+                    <span class="fs-6">☰</span>
+                    <span class="fw-bold d-none d-md-inline">@(isSidebarCollapsedDesktop ? "Afficher le menu" : "Masquer le menu")</span>
+                </button>
+            </div>
+
+            <div class="d-flex align-items-center gap-2 gap-sm-3">
+                <LanguageSwitcher />
+
+                <AuthorizeView>
+                    <Authorized>
+                        <div class="d-flex align-items-center gap-1 gap-md-2">
+                            <span class="badge bg-secondary d-none d-lg-inline">👤 @context.User.Identity?.Name</span>
+                            <span class="badge bg-primary d-none d-sm-inline">@context.User.FindFirst(ClaimTypes.Role)?.Value</span>
+                            <a href="login?logout=true" class="btn btn-sm btn-outline-danger py-0 px-2" title="Se déconnecter">
+                                🚪<span class="d-none d-md-inline ms-1">Déconnexion</span>
+                            </a>
+                        </div>
+                    </Authorized>
+                </AuthorizeView>
+            </div>
+        </div>
+
+        <article class="content px-2 px-md-4 py-2 py-md-3">
+            @Body
+        </article>
+    </main>
+</div>
+
+<div id="blazor-error-ui" data-nosnippet>
+    Une erreur est survenue.
+    <a href="." class="reload">Recharger</a>
+    <span class="dismiss">🗙</span>
+</div>
+
+@code {
+    private bool isSidebarCollapsedDesktop = false;
+    private bool isSidebarOpenMobile = false;
+
+    private void ToggleSidebar()
+    {
+        isSidebarOpenMobile = !isSidebarOpenMobile;
+        isSidebarCollapsedDesktop = !isSidebarCollapsedDesktop;
+    }
+
+    private void CloseMobileSidebar()
+    {
+        isSidebarOpenMobile = false;
+    }
+}

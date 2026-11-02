@@ -1,0 +1,566 @@
+@page "/tatami/{TatamiId:int}/tv"
+@attribute [Authorize(Roles = "Admin,Table,Tv,Streamer")]
+@layout EmptyLayout
+@rendermode InteractiveServer
+@inject ITournamentService TournamentService
+@inject IJSRuntime JS
+@implements IDisposable
+
+<div class="tatami-tv-container">
+    @if (tatami == null)
+    {
+        <div class="d-flex align-items-center justify-content-center h-100">
+            <h1 class="text-danger">Tatami @TatamiId introuvable</h1>
+        </div>
+    }
+    else
+    {
+        <!-- Header TV -->
+        <header class="tv-header d-flex justify-content-between align-items-center px-4 py-2">
+            <div class="d-flex align-items-center gap-3">
+                <span class="badge bg-warning text-dark fs-3 px-3 py-2 fw-bold">TATAMI @tatami.Number</span>
+                <span class="fs-4 text-light fw-bold">OPEN DE FRANCE KYOKUSHINKAI</span>
+            </div>
+            <div class="discipline-tag fs-4 fw-bold text-uppercase">
+                @if (tatami.CurrentDiscipline == CompetitionType.Kumite)
+                {
+                    <span class="badge bg-danger px-3 py-2">KUMITÉ</span>
+                }
+                else
+                {
+                    <span class="badge bg-primary px-3 py-2">KATA</span>
+                }
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        @if (tatami.CurrentDiscipline == CompetitionType.Kumite)
+        {
+            var match = tatami.CurrentKumiteMatch;
+            if (match == null)
+            {
+                <div class="empty-screen d-flex flex-column align-items-center justify-content-center">
+                    <h2 class="display-4 text-secondary mb-3">En attente du prochain combat...</h2>
+                    <p class="fs-4 text-muted">Tatami @tatami.Number en préparation</p>
+                </div>
+            }
+            else
+            {
+                <!-- Match Details Bar -->
+                <div class="match-info-bar d-flex justify-content-around align-items-center py-2 px-3">
+                    <span class="fs-4 badge bg-warning text-dark px-3 py-2 fw-bold">📅 Jour @match.CompetitionDay</span>
+                    <span class="fs-3 fw-bold text-warning">Match #@match.MatchNumber</span>
+                    <span class="fs-3 fw-bold text-white">@match.Category?.Name</span>
+                    <span class="fs-4 badge bg-secondary text-uppercase px-3 py-2">@match.RoundName</span>
+                </div>
+
+                <!-- Timer & Prolongation Display -->
+                <div class="timer-section text-center py-2">
+                    @if (match.ExtensionsCount > 0)
+                    {
+                        <div class="extension-banner mb-2">
+                            <span class="badge bg-danger fs-3 px-4 py-2 text-uppercase animate-pulse">
+                                ⚠️ @match.CurrentPeriodName
+                            </span>
+                        </div>
+                    }
+
+                    <div class="timer-digits @(match.IsTimerRunning ? "running" : "paused") @(match.RemainingSeconds <= 10 ? "critical" : "")">
+                        @FormatSeconds(match.RemainingSeconds)
+                    </div>
+
+                    <div class="timer-status fs-4 fw-bold mt-1">
+                        @if (match.Status == MatchStatus.Finished)
+                        {
+                            <span class="badge bg-success px-4 py-2 fs-3">COMBAT TERMINÉ</span>
+                        }
+                        else if (match.IsTimerRunning)
+                        {
+                            <span class="text-success fs-4">● COMBAT EN COURS (HAJIME)</span>
+                        }
+                        else
+                        {
+                            <span class="text-warning fs-4">⏸ ARRÊTÉ (YAME)</span>
+                        }
+                    </div>
+                </div>
+
+                <!-- Two Corners: AKA (Red) vs SHIRO (White) -->
+                <div class="corners-grid">
+                    <!-- AKA Corner -->
+                    <div class="corner-box aka-corner @(match.WinnerCompetitorId == match.AkaCompetitorId && match.Status == MatchStatus.Finished ? "winner-glow" : "")">
+                        <div class="corner-title text-center text-uppercase fw-bold">AKA (ROUGE)</div>
+                        <div class="fighter-name text-center">
+                            @if (match.AkaCompetitor?.BibNumber.HasValue == true)
+                            {
+                                <span class="badge bg-warning text-dark me-2 fs-3 align-middle">#@match.AkaCompetitor.BibNumber</span>
+                            }
+                            @(match.AkaCompetitor?.FullName ?? "En attente...")
+                        </div>
+                        <div class="fighter-details text-center fs-4">
+                            @(match.AkaCompetitor != null ? $"{match.AkaCompetitor.CountryWithFlag} • {match.AkaCompetitor.Club} • {match.AkaCompetitor.Grade} • {match.AkaCompetitor.Weight:F1}kg" : "")
+                        </div>
+
+                        <!-- Scores & Penalties Aka -->
+                        <div class="scores-row mt-3">
+                            <div class="score-card wazaari @(match.AkaWazaAri > 0 ? "active" : "")">
+                                <span class="score-label">WAZA-ARI</span>
+                                <span class="score-value">@match.AkaWazaAri</span>
+                            </div>
+                            <div class="score-card ippon @(match.AkaIppon > 0 ? "active" : "")">
+                                <span class="score-label">IPPON</span>
+                                <span class="score-value">@match.AkaIppon</span>
+                            </div>
+                        </div>
+
+                        <div class="penalties-row mt-2">
+                            <div class="penalty-tag chui @(match.AkaChui > 0 ? "active" : "")">
+                                CHUI: @match.AkaChui
+                            </div>
+                            <div class="penalty-tag genten @(match.AkaGenten > 0 ? "active" : "")">
+                                GENTEN: @match.AkaGenten
+                            </div>
+                        </div>
+
+                        @if (match.WinnerCompetitorId == match.AkaCompetitorId && match.Status == MatchStatus.Finished)
+                        {
+                            <div class="winner-stamp">VAINQUEUR</div>
+                        }
+                    </div>
+
+                    <!-- SHIRO Corner -->
+                    <div class="corner-box shiro-corner @(match.WinnerCompetitorId == match.ShiroCompetitorId && match.Status == MatchStatus.Finished ? "winner-glow" : "")">
+                        <div class="corner-title text-center text-uppercase fw-bold">SHIRO (BLANC)</div>
+                        <div class="fighter-name text-center">
+                            @if (match.ShiroCompetitor?.BibNumber.HasValue == true)
+                            {
+                                <span class="badge bg-warning text-dark me-2 fs-3 align-middle">#@match.ShiroCompetitor.BibNumber</span>
+                            }
+                            @(match.ShiroCompetitor?.FullName ?? "En attente...")
+                        </div>
+                        <div class="fighter-details text-center fs-4">
+                            @(match.ShiroCompetitor != null ? $"{match.ShiroCompetitor.CountryWithFlag} • {match.ShiroCompetitor.Club} • {match.ShiroCompetitor.Grade} • {match.ShiroCompetitor.Weight:F1}kg" : "")
+                        </div>
+
+                        <!-- Scores & Penalties Shiro -->
+                        <div class="scores-row mt-3">
+                            <div class="score-card wazaari @(match.ShiroWazaAri > 0 ? "active" : "")">
+                                <span class="score-label">WAZA-ARI</span>
+                                <span class="score-value">@match.ShiroWazaAri</span>
+                            </div>
+                            <div class="score-card ippon @(match.ShiroIppon > 0 ? "active" : "")">
+                                <span class="score-label">IPPON</span>
+                                <span class="score-value">@match.ShiroIppon</span>
+                            </div>
+                        </div>
+
+                        <div class="penalties-row mt-2">
+                            <div class="penalty-tag chui @(match.ShiroChui > 0 ? "active" : "")">
+                                CHUI: @match.ShiroChui
+                            </div>
+                            <div class="penalty-tag genten @(match.ShiroGenten > 0 ? "active" : "")">
+                                GENTEN: @match.ShiroGenten
+                            </div>
+                        </div>
+
+                        @if (match.WinnerCompetitorId == match.ShiroCompetitorId && match.Status == MatchStatus.Finished)
+                        {
+                            <div class="winner-stamp">VAINQUEUR</div>
+                        }
+                    </div>
+                </div>
+
+                <!-- Footer: Next match preview -->
+                <footer class="tv-footer px-4 py-2 d-flex justify-content-between align-items-center">
+                    @{
+                        var nextMatch = tatami.AssignedKumiteMatches
+                            .FirstOrDefault(m => m.Status != MatchStatus.Finished && m.Id != match.Id);
+                    }
+                    <div class="fs-5 text-white-50">
+                        @if (nextMatch != null)
+                        {
+                            <span>▶ COMBAT SUIVANT : <strong>#@nextMatch.MatchNumber (@nextMatch.Category?.Name)</strong> - @nextMatch.AkaDisplayName vs @nextMatch.ShiroDisplayName</span>
+                        }
+                        else
+                        {
+                            <span>Tous les combats programmés sont terminés</span>
+                        }
+                    </div>
+                    <div class="fs-6 text-white-50">Touche F11 pour plein écran</div>
+                </footer>
+            }
+        }
+        else
+        {
+            <!-- Kata TV View -->
+            var kata = tatami.CurrentKataPerformance;
+            if (kata == null)
+            {
+                <div class="empty-screen d-flex flex-column align-items-center justify-content-center">
+                    <h2 class="display-4 text-secondary mb-3">En attente de la compétition Kata...</h2>
+                    <p class="fs-4 text-muted">Tatami @tatami.Number en préparation</p>
+                </div>
+            }
+            else
+            {
+                <div class="match-info-bar d-flex justify-content-around align-items-center py-2 px-3">
+                    <span class="fs-4 badge bg-warning text-dark px-3 py-2 fw-bold">📅 Jour @kata.CompetitionDay</span>
+                    <span class="fs-3 fw-bold text-warning">Passage #@kata.PerformanceOrder</span>
+                    <span class="fs-3 fw-bold text-white">@kata.Category?.Name</span>
+                    <span class="fs-4 badge bg-primary text-uppercase px-3 py-2">
+                        @(kata.Round == KataRound.Tour1 ? "1er Tour (Éliminatoire)" : "2e Tour (Finale)")
+                    </span>
+                </div>
+
+                <div class="kata-details-card text-center my-4">
+                    <div class="text-uppercase text-info fs-3 fw-bold mb-1">KATA IMPOSÉ</div>
+                    <div class="display-3 fw-bolder text-warning text-uppercase mb-4">@kata.KataName</div>
+
+                    <div class="display-4 fw-bold text-white mb-2">
+                        @if (kata.Competitor?.BibNumber.HasValue == true)
+                        {
+                            <span class="badge bg-warning text-dark me-3 fs-2 align-middle">#@kata.Competitor.BibNumber</span>
+                        }
+                        @kata.Competitor?.FullName
+                    </div>
+                    <div class="fs-3 text-white-50 mb-4">
+                        @kata.Competitor?.CountryWithFlag • @kata.Competitor?.Club • Grade : @kata.Competitor?.Grade
+                    </div>
+
+                    <!-- Judges scores grid -->
+                    <div class="judges-grid-container my-4">
+                        <div class="d-flex justify-content-center gap-4">
+                            @for (int j = 0; j < 5; j++)
+                            {
+                                int judgeNum = j + 1;
+                                double? score = kata.JudgeScores.Count > j ? kata.JudgeScores[j] : null;
+                                bool isLowest = score.HasValue && score == kata.DroppedLowestScore;
+                                bool isHighest = score.HasValue && score == kata.DroppedHighestScore;
+
+                                <div class="judge-score-box @(isLowest ? "dropped" : "") @(isHighest ? "dropped" : "")">
+                                    <div class="judge-num">Juge @judgeNum</div>
+                                    <div class="judge-val">
+                                        @(score.HasValue ? score.Value.ToString("0") : "--")
+                                    </div>
+                                    @if (isLowest)
+                                    {
+                                        <div class="dropped-badge">Note basse</div>
+                                    }
+                                    else if (isHighest)
+                                    {
+                                        <div class="dropped-badge">Note haute</div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                    <!-- Final Score Badge -->
+                    @if (kata.FinalScore > 0)
+                    {
+                        <div class="final-score-container mt-4">
+                            <span class="fs-3 text-secondary text-uppercase fw-bold me-3">Note Finale Retenue :</span>
+                            <span class="display-2 fw-black text-warning">@kata.FinalScore.ToString("0")</span>
+                        </div>
+                    }
+                </div>
+            }
+        }
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int TatamiId { get; set; }
+
+    private Tatami? tatami;
+
+    protected override void OnInitialized()
+    {
+        RefreshData();
+        TournamentService.OnTatamiUpdated += HandleTatamiUpdated;
+        TournamentService.OnTimerZero += HandleTimerZero;
+    }
+
+    protected override void OnParametersSet()
+    {
+        RefreshData();
+    }
+
+    private void RefreshData()
+    {
+        tatami = TournamentService.GetTatami(TatamiId);
+    }
+
+    private async void HandleTatamiUpdated(int updatedTatamiId)
+    {
+        if (updatedTatamiId == TatamiId || updatedTatamiId == 0)
+        {
+            RefreshData();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async void HandleTimerZero(int zeroTatamiId)
+    {
+        if (zeroTatamiId == TatamiId)
+        {
+            await JS.InvokeVoidAsync("tournamentAudio.playBuzzer");
+        }
+    }
+
+    private string FormatSeconds(int seconds)
+    {
+        int m = seconds / 60;
+        int s = seconds % 60;
+        return $"{m:00}:{s:00}";
+    }
+
+    public void Dispose()
+    {
+        TournamentService.OnTatamiUpdated -= HandleTatamiUpdated;
+        TournamentService.OnTimerZero -= HandleTimerZero;
+    }
+}
+
+<style>
+    .tatami-tv-container {
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
+        width: 100vw;
+        background: radial-gradient(circle at 50% 30%, #151d30 0%, #080c14 100%);
+        color: #fff;
+        user-select: none;
+        overflow-y: auto;
+        overflow-x: hidden;
+    }
+
+    .tv-header {
+        background: #0d121d;
+        border-bottom: 2px solid #283347;
+    }
+
+    .match-info-bar {
+        background: #172133;
+        border-bottom: 1px solid #283347;
+    }
+
+    .timer-section {
+        background: rgba(0, 0, 0, 0.3);
+        border-bottom: 2px solid #222d3f;
+    }
+
+    .timer-digits {
+        font-family: 'Courier New', Courier, monospace;
+        font-size: clamp(3.5rem, 12vw, 8rem);
+        font-weight: 900;
+        line-height: 1;
+        letter-spacing: 2px;
+        text-shadow: 0 0 30px rgba(0, 255, 128, 0.4);
+    }
+
+    .timer-digits.running {
+        color: #00ff88;
+    }
+
+    .timer-digits.paused {
+        color: #ffbb00;
+        text-shadow: 0 0 30px rgba(255, 187, 0, 0.4);
+    }
+
+    .timer-digits.critical {
+        color: #ff3344;
+        text-shadow: 0 0 40px rgba(255, 51, 68, 0.8);
+        animation: pulse 1s infinite;
+    }
+
+    .corners-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        flex: 1;
+        padding: 20px 30px;
+    }
+
+    .corner-box {
+        position: relative;
+        border-radius: 16px;
+        padding: 24px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+
+    .aka-corner {
+        background: linear-gradient(135deg, #7a0914 0%, #3a0006 100%);
+        border: 3px solid #ff2233;
+    }
+
+    .shiro-corner {
+        background: linear-gradient(135deg, #2b3952 0%, #151d2c 100%);
+        border: 3px solid #e0e6ed;
+    }
+
+    .winner-glow {
+        box-shadow: 0 0 50px rgba(255, 215, 0, 0.8);
+        border-color: #ffd700 !important;
+    }
+
+    .corner-title {
+        font-size: clamp(1.2rem, 3.5vw, 2.2rem);
+        letter-spacing: 3px;
+    }
+
+    .fighter-name {
+        font-size: clamp(1.5rem, 5vw, 3.2rem);
+        font-weight: 900;
+        line-height: 1.1;
+        margin: 10px 0;
+    }
+
+    .scores-row {
+        display: flex;
+        justify-content: space-around;
+        gap: 15px;
+    }
+
+    .score-card {
+        flex: 1;
+        background: rgba(0,0,0,0.4);
+        border-radius: 12px;
+        padding: 10px;
+        text-align: center;
+        border: 2px solid rgba(255,255,255,0.2);
+    }
+
+    .score-card.active {
+        background: #ffd700;
+        color: #000;
+        border-color: #fff;
+    }
+
+    .score-label {
+        display: block;
+        font-size: 1.2rem;
+        font-weight: bold;
+    }
+
+    .score-value {
+        font-size: 3.5rem;
+        font-weight: 900;
+        line-height: 1;
+    }
+
+    .penalties-row {
+        display: flex;
+        justify-content: space-around;
+        gap: 15px;
+    }
+
+    .penalty-tag {
+        flex: 1;
+        text-align: center;
+        padding: 8px;
+        font-size: 1.3rem;
+        font-weight: bold;
+        background: rgba(0,0,0,0.3);
+        border-radius: 8px;
+    }
+
+    .penalty-tag.active {
+        background: #ff5500;
+        color: #fff;
+    }
+
+    .winner-stamp {
+        position: absolute;
+        top: 40%;
+        left: 50%;
+        transform: translate(-50%, -50%) rotate(-12deg);
+        background: #ffd700;
+        color: #000;
+        font-size: 3rem;
+        font-weight: 900;
+        padding: 15px 40px;
+        border-radius: 12px;
+        border: 4px solid #fff;
+        box-shadow: 0 0 30px rgba(0,0,0,0.8);
+    }
+
+    .tv-footer {
+        background: #0d121d;
+        border-top: 2px solid #283347;
+    }
+
+    .judge-score-box {
+        background: #192438;
+        border: 2px solid #3b4e72;
+        border-radius: 12px;
+        padding: 15px 25px;
+        min-width: 130px;
+        text-align: center;
+    }
+
+    .judge-score-box.dropped {
+        opacity: 0.4;
+        text-decoration: line-through;
+        border-color: #666;
+    }
+
+    .judge-num {
+        font-size: 1.1rem;
+        color: #9ab;
+    }
+
+    .judge-val {
+        font-size: 3.2rem;
+        font-weight: 900;
+        color: #fff;
+    }
+
+    .dropped-badge {
+        font-size: 0.9rem;
+        color: #ff7788;
+        text-decoration: none !important;
+    }
+
+    @@keyframes pulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.03); }
+        100% { transform: scale(1); }
+    }
+
+    @@media (max-width: 767.98px) {
+        .corners-grid {
+            grid-template-columns: 1fr;
+            padding: 12px;
+            gap: 14px;
+        }
+
+        .corner-box {
+            padding: 16px;
+        }
+
+        .match-info-bar {
+            flex-direction: column;
+            gap: 6px;
+            text-align: center;
+        }
+
+        .judges-grid-container .d-flex {
+            flex-wrap: wrap;
+            gap: 8px !important;
+        }
+
+        .judge-score-box {
+            min-width: 55px;
+            padding: 8px 10px;
+        }
+
+        .judge-val {
+            font-size: 2rem;
+        }
+    }
+</style>

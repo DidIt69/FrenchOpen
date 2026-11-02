@@ -1,0 +1,114 @@
+@rendermode InteractiveServer
+@inject ILanguageService Lang
+@implements IDisposable
+
+<div class="d-inline-flex align-items-center lang-switcher-container" title="@(Lang.CurrentLanguage == "fr" ? "Langue : Français" : "Language: English")">
+    <div class="btn-group btn-group-sm lang-pill-group shadow-sm" role="group" aria-label="Sélecteur de langue">
+        <!-- Bouton Drapeau Français -->
+        <button type="button"
+                class="btn lang-pill-btn @(Lang.CurrentLanguage == "fr" ? "active" : "")"
+                @onclick='() => SetLanguage("fr")'
+                title="Français"
+                aria-label="Français">
+            <svg class="flag-icon-svg" viewBox="0 0 900 600" width="20" height="14" aria-hidden="true">
+                <rect width="900" height="600" fill="#ED2939" />
+                <rect width="600" height="600" fill="#ffffff" />
+                <rect width="300" height="600" fill="#002395" />
+            </svg>
+        </button>
+
+        <!-- Bouton Drapeau Royaume-Uni -->
+        <button type="button"
+                class="btn lang-pill-btn @(Lang.CurrentLanguage == "en" ? "active" : "")"
+                @onclick='() => SetLanguage("en")'
+                title="English"
+                aria-label="English">
+            <svg class="flag-icon-svg" viewBox="0 0 60 30" width="20" height="14" aria-hidden="true">
+                <clipPath id="ls_uk_s"><path d="M0,0 v30 h60 v-30 z" /></clipPath>
+                <clipPath id="ls_uk_t"><path d="M30,15 h30 v15 z v15 h-30 z h-30 v-15 z v-15 h30 z" /></clipPath>
+                <g clip-path="url(#ls_uk_s)">
+                    <path d="M0,0 v30 h60 v-30 z" fill="#012169" />
+                    <path d="M0,0 L60,30 M60,0 L0,30" stroke="#ffffff" stroke-width="6" />
+                    <path d="M0,0 L60,30 M60,0 L0,30" clip-path="url(#ls_uk_t)" stroke="#C8102E" stroke-width="4" />
+                    <path d="M30,0 v30 M0,15 h60" stroke="#ffffff" stroke-width="10" />
+                    <path d="M30,0 v30 M0,15 h60" stroke="#C8102E" stroke-width="6" />
+                </g>
+            </svg>
+        </button>
+    </div>
+</div>
+
+<style>
+    .lang-switcher-container {
+        vertical-align: middle;
+    }
+
+    .lang-pill-group {
+        background: #1e293b;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 20px;
+        padding: 2px;
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
+    }
+
+    .lang-pill-btn {
+        border: none !important;
+        background: transparent;
+        padding: 3px 6px;
+        border-radius: 14px !important;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
+        opacity: 0.45;
+        transition: all 0.2s ease-in-out;
+        cursor: pointer;
+    }
+
+    .lang-pill-btn:hover {
+        opacity: 0.85;
+        transform: scale(1.08);
+        background: rgba(255, 255, 255, 0.1);
+    }
+
+    .lang-pill-btn.active {
+        opacity: 1;
+        background: #ffc107 !important;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+        transform: scale(1.05);
+    }
+
+    .flag-icon-svg {
+        border-radius: 2px;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+        display: block;
+        pointer-events: none;
+    }
+</style>
+
+@code {
+    protected override void OnInitialized()
+    {
+        Lang.OnLanguageChanged += HandleLanguageChanged;
+    }
+
+    private void SetLanguage(string lang)
+    {
+        if (Lang.CurrentLanguage != lang)
+        {
+            Lang.SetLanguage(lang);
+        }
+    }
+
+    private async void HandleLanguageChanged()
+    {
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        Lang.OnLanguageChanged -= HandleLanguageChanged;
+    }
+}

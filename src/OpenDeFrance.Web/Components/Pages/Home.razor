@@ -1,0 +1,476 @@
+@page "/"
+@page "/live"
+@rendermode InteractiveServer
+@inject ITournamentService TournamentService
+@implements IDisposable
+@inject ILanguageService Lang
+
+<PageTitle>Direct Compétition - Open de France Kyokushinkai</PageTitle>
+
+<div class="container-fluid py-3">
+    <!-- Top Hero Banner -->
+    <div class="p-3 mb-4 rounded-3 text-white shadow" style="background: linear-gradient(135deg, #1b2838 0%, #0d121d 100%); border-left: 5px solid #ffc107;">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+                <h1 class="h3 fw-bold mb-1 fs-4 fs-md-2">🥋 @Lang["FrenchOpen2027"]</h1>
+            </div>
+            <div class="d-flex gap-2">
+                <a href="brackets" class="btn btn-outline-warning btn-sm">
+                    @Lang["NavBrackets"]
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Multi-Tatamis Live Grid -->
+    <div class="row g-4 mb-5">
+        @foreach (var tatami in tatamis)
+        {
+            <div class="col-lg-4 col-md-6">
+                <div class="card h-100 shadow border-0 overflow-hidden">
+                    <!-- Tatami Header -->
+                    <div class="card-header py-3 d-flex justify-content-between align-items-center @(tatami.CurrentDiscipline == CompetitionType.Kumite ? "bg-dark text-white" : "bg-primary text-white")">
+                        <div>
+                            <span class="fs-5 fw-bold">@tatami.Name</span>
+                        </div>
+                    </div>
+
+                    <div class="card-body p-0">
+                        @if (tatami.CurrentDiscipline == CompetitionType.Kumite)
+                        {
+                            var match = tatami.CurrentKumiteMatch;
+                            if (match != null)
+                            {
+                                <!-- Current Kumite Match Banner -->
+                                <div class="p-3 bg-light border-bottom">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <span class="badge bg-warning text-dark fw-bold">COMBAT EN COURS • J@match.CompetitionDay • #@match.MatchNumber</span>
+                                        <span class="badge bg-secondary">@match.RoundName</span>
+                                    </div>
+                                    <h6 class="fw-bold text-primary mb-2">@match.Category?.Name</h6>
+
+                                    <!-- Fighters Aka vs Shiro -->
+                                    <div class="row g-2 text-center align-items-center mb-2">
+                                        <div class="col-5 p-2 rounded bg-danger text-white">
+                                            <div class="small fw-bold">AKA (ROUGE)</div>
+                                            <div class="fw-bold text-truncate small" title="@match.AkaDisplayName">@match.AkaDisplayName</div>
+                                            <small class="d-block text-white-50 text-truncate">@(match.AkaCompetitor != null ? $"{match.AkaCompetitor.CountryFlag} {match.AkaCompetitor.Club}" : "")</small>
+                                            <div class="mt-1 badge bg-dark text-nowrap" style="font-size: 0.75rem;">
+                                                W: @match.AkaWazaAri | I: @match.AkaIppon
+                                            </div>
+                                        </div>
+
+                                        <div class="col-2 fw-bold text-muted small">VS</div>
+
+                                        <div class="col-5 p-2 rounded bg-dark text-white">
+                                            <div class="small fw-bold text-white-50">SHIRO (BLANC)</div>
+                                            <div class="fw-bold text-truncate small" title="@match.ShiroDisplayName">@match.ShiroDisplayName</div>
+                                            <small class="d-block text-white-50 text-truncate">@(match.ShiroCompetitor != null ? $"{match.ShiroCompetitor.CountryFlag} {match.ShiroCompetitor.Club}" : "")</small>
+                                            <div class="mt-1 badge bg-secondary text-nowrap" style="font-size: 0.75rem;">
+                                                W: @match.ShiroWazaAri | I: @match.ShiroIppon
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Live Timer -->
+                                    <div class="d-flex justify-content-between align-items-center mt-2 pt-2 border-top">
+                                        <span class="font-monospace fs-4 fw-bold @(match.IsTimerRunning ? "text-success" : "text-muted")">
+                                            ⏱️ @FormatSeconds(match.RemainingSeconds)
+                                        </span>
+                                        @if (match.ExtensionsCount > 0)
+                                        {
+                                            <span class="badge bg-danger">@match.CurrentPeriodName</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge @(match.IsTimerRunning ? "bg-success" : "bg-warning text-dark")">
+                                                @(match.IsTimerRunning ? "En combat" : "Arrêté")
+                                            </span>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="p-4 text-center text-muted">
+                                    <em>Aucun combat en cours sur ce tatami</em>
+                                </div>
+                            }
+
+                            <!-- Upcoming Matches on this Tatami -->
+                            <div class="p-3">
+                                <h6 class="text-uppercase text-secondary fw-bold small mb-2">
+                                    ⏭️ Prochains combats sur ce tatami
+                                </h6>
+                                @{
+                                    var upcoming = tatami.AssignedKumiteMatches
+                                        .Where(m => m.Status != MatchStatus.Finished && m.Id != match?.Id)
+                                        .OrderBy(m => m.MatchNumber)
+                                        .Take(3)
+                                        .ToList();
+                                }
+                                @if (upcoming.Count == 0)
+                                {
+                                    <div class="text-muted small">Aucun autre combat programmé pour le moment.</div>
+                                }
+                                else
+                                {
+                                    <ul class="list-group list-group-flush">
+                                        @foreach (var up in upcoming)
+                                        {
+                                            <li class="list-group-item px-0 py-2">
+                                                <div class="d-flex justify-content-between align-items-start">
+                                                    <div>
+                                                        <span class="badge bg-secondary me-1">#@up.MatchNumber</span>
+                                                        <strong>@up.AkaDisplayName</strong>
+                                                        <span class="text-muted">vs</span>
+                                                        <strong>@up.ShiroDisplayName</strong>
+                                                    </div>
+                                                    <small class="badge bg-light text-dark">@up.RoundName</small>
+                                                </div>
+                                                <small class="text-muted d-block">@up.Category?.Name</small>
+                                            </li>
+                                        }
+                                    </ul>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <!-- Kata Tatami Live View -->
+                            var kata = tatami.CurrentKataPerformance;
+                            if (kata != null)
+                            {
+                                <div class="p-3 bg-light border-bottom">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <span class="badge bg-primary">@(Lang["KataInProgress"]) • @(Lang["Day"])@(kata.CompetitionDay) • Passage #@kata.PerformanceOrder</span>
+                                        <span class="badge bg-secondary">@(kata.Round == KataRound.Tour1 ? Lang["Turn1"] : Lang["Turn2Final"])</span>
+                                    </div>
+                                    <h5 class="fw-bold mb-1">@kata.CompetitorDisplayName</h5>
+                                    <div class="text-muted small mb-2 d-flex align-items-center gap-1 flex-wrap">
+                                        @if (kata.Competitor != null)
+                                        {
+                                            <img src="@kata.Competitor.FlagImageUrl"
+                                                 alt="@kata.Competitor.Country"
+                                                 title="@kata.Competitor.Country"
+                                                 class="border rounded-1 me-1"
+                                                 style="width: 22px; height: 15px; object-fit: cover; vertical-align: middle; box-shadow: 0 1px 2px rgba(0,0,0,0.15);" />
+                                            <span>@kata.Competitor.Club • @kata.Competitor.GradeName</span>
+                                        }
+                                        else
+                                        {
+                                            <span>Club • Grade : -</span>
+                                        }
+                                    </div>
+
+                                    <div class="p-2 rounded bg-warning bg-opacity-25 border border-warning mb-2 text-center">
+                                        <small class="text-uppercase fw-bold text-dark d-block">@Lang["Kata"]</small>
+                                        <strong class="fs-5 text-dark">@kata.KataName</strong>
+                                    </div>
+
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span class="text-muted small">@Lang["Notes"] : @((kata.ScoresDisplay == "NotNotes")?Lang["NotNotes"]:kata.ScoresDisplay)</span>
+                                        <span class="fs-6 fw-bold text-primary">
+                                            @(kata.FinalScore > 0 ? $"{kata.FinalScore:0} pts" : Lang["WaitingNotes"])
+                                        </span>
+                                    </div>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="p-4 text-center text-muted">
+                                    <em>@Lang["NoKataOnTatami"]</em>
+                                </div>
+                            }
+
+                            <!-- Upcoming Kata Performances -->
+                            <div class="p-3">
+                                <h6 class="text-uppercase text-secondary fw-bold small mb-2">
+                                    @(Lang["NextKataPassages"])
+                                </h6>
+                                @{
+                                    var upcomingKatas = tatami.AssignedKataPerformances
+                                        .Where(p => p.Status != MatchStatus.Finished && p.Id != kata?.Id)
+                                        .OrderBy(p => p.PerformanceOrder)
+                                        .Take(3)
+                                        .ToList();
+                                }
+                                @if (upcomingKatas.Count == 0)
+                                {
+                                    <div class="text-muted small">@Lang["NoOtherPassagesPending"]</div>
+                                }
+                                else
+                                {
+                                    <ul class="list-group list-group-flush">
+                                        @foreach (var up in upcomingKatas)
+                                        {
+                                            <li class="list-group-item px-0 py-2">
+                                                <div class="d-flex justify-content-between align-items-start">
+                                                    <div>
+                                                        <span class="badge bg-info text-dark me-1">#@up.PerformanceOrder</span>
+                                                        <strong>@up.CompetitorDisplayName</strong>
+                                                    </div>
+                                                    <span class="badge bg-light text-dark">@up.Round</span>
+                                                </div>
+                                                @if (up.Competitor != null)
+                                                {
+                                                    <img 
+                                                        src="@up.Competitor.FlagImageUrl"
+                                                        alt="@up.Competitor.Country"
+                                                        title="@up.Competitor.Country"
+                                                        class="border rounded-1 me-1"
+                                                        style="width: 22px; height: 15px; object-fit: cover; vertical-align: middle; box-shadow: 0 1px 2px rgba(0,0,0,0.15);" 
+                                                    />
+                                                    <small class="text-muted">@up.Competitor.Club • @up.Competitor.GradeName</small>
+                                                }
+                                            </li>
+                                        }
+                                    </ul>
+                                }
+                            </div>
+                        }
+                    </div>
+
+                    <!-- <div class="card-footer bg-white border-top-0 d-flex justify-content-between align-items-center">
+                        <a href="tatami/@tatami.Id/controller" class="btn btn-sm btn-outline-secondary">
+                            ⚙️ Table de Marque
+                        </a>
+                        <small class="text-muted">Tatami @tatami.Number</small>
+                    </div> -->
+                </div>
+            </div>
+        }
+    </div>
+
+    <!-- Search & Full Upcoming Matches Board -->
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <h5 class="mb-0 fw-bold">📋 Programme Général Officiel (Katas puis Kumités)</h5>
+            <div class="d-flex gap-2 align-items-center">
+                <div class="btn-group btn-group-sm">
+                    <button class="btn @(disciplineFilter == "all" ? "btn-warning" : "btn-outline-light")" @onclick='() => disciplineFilter = "all"'>Tous</button>
+                    <button class="btn @(disciplineFilter == "kata" ? "btn-warning" : "btn-outline-light")" @onclick='() => disciplineFilter = "kata"'>Katas</button>
+                    <button class="btn @(disciplineFilter == "kumite" ? "btn-warning" : "btn-outline-light")" @onclick='() => disciplineFilter = "kumite"'>Kumités</button>
+                </div>
+                <input type="text" class="form-control form-control-sm" placeholder="Rechercher..."
+                       @bind="searchTerm" @bind:event="oninput" style="min-width: 200px;" />
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th># Ordre</th>
+                        <th>Discipline</th>
+                        <th>Tatami</th>
+                        <th>Catégorie</th>
+                        <th>Tour / Phase</th>
+                        <th>Compétiteur(s)</th>
+                        <th>Détails</th>
+                        <th>Statut</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in UnifiedSchedule)
+                    {
+                        <tr>
+                            <td><strong>#@item.Number</strong></td>
+                            <td>
+                                @if (item.IsKata)
+                                {
+                                    <span class="badge bg-primary">KATA</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-danger">KUMITÉ</span>
+                                }
+                            </td>
+                            <td>
+                                @if (!string.IsNullOrWhiteSpace(item.TatamiName))
+                                {
+                                    <span class="badge bg-secondary">@item.TatamiName</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">-</span>
+                                }
+                            </td>
+                            <td>@item.CategoryName</td>
+                            <td><span class="badge bg-light text-dark border">@item.RoundName</span></td>
+                            <td>
+                                @if (item.IsKata)
+                                {
+                                    <strong>@item.KataCompetitorName</strong>
+                                }
+                                else
+                                {
+                                    <div>
+                                        <span class="text-danger fw-bold">@item.AkaName</span>
+                                        <span class="text-muted">vs</span>
+                                        <span class="text-dark fw-bold">@item.ShiroName</span>
+                                    </div>
+                                }
+                            </td>
+                            <td>
+                                @if (item.IsKata)
+                                {
+                                    <span class="text-muted small">Kata : @item.KataName</span>
+                                }
+                                else
+                                {
+                                    @if (!string.IsNullOrWhiteSpace(item.WinnerInfo))
+                                    {
+                                        <span class="text-success fw-bold">🏆 @item.WinnerInfo</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted small">Temps rég. : @item.DurationSeconds s</span>
+                                    }
+                                }
+                            </td>
+                            <td>
+                                @if (item.Status == MatchStatus.InProgress)
+                                {
+                                    <span class="badge bg-success">En cours</span>
+                                }
+                                else if (item.Status == MatchStatus.Finished)
+                                {
+                                    <span class="badge bg-dark">Terminé</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary">À venir</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<Tatami> tatamis = new();
+    private List<KumiteMatch> allMatches = new();
+    private List<KataPerformance> allKatas = new();
+    private string searchTerm = string.Empty;
+    private string disciplineFilter = "all";
+
+    public class ScheduleItem
+    {
+        public int Number { get; set; }
+        public bool IsKata { get; set; }
+        public string TatamiName { get; set; } = string.Empty;
+        public string CategoryName { get; set; } = string.Empty;
+        public string RoundName { get; set; } = string.Empty;
+        public string KataCompetitorName { get; set; } = string.Empty;
+        public string KataName { get; set; } = string.Empty;
+        public string AkaName { get; set; } = string.Empty;
+        public string ShiroName { get; set; } = string.Empty;
+        public string WinnerInfo { get; set; } = string.Empty;
+        public int DurationSeconds { get; set; }
+        public MatchStatus Status { get; set; }
+    }
+
+    protected override void OnInitialized()
+    {
+        RefreshData();
+        TournamentService.OnStateChanged += HandleStateChanged;
+        Lang.OnLanguageChanged += HandleLanguageChanged;
+    }
+
+    private void RefreshData()
+    {
+        tatamis = TournamentService.GetTatamis();
+        allMatches = TournamentService.GetMatches();
+        allKatas = TournamentService.GetKataPerformances();
+    }
+
+    private async void HandleStateChanged()
+    {
+        RefreshData();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private IEnumerable<ScheduleItem> UnifiedSchedule
+    {
+        get
+        {
+            var items = new List<ScheduleItem>();
+
+            // Katas
+            if (disciplineFilter != "kumite")
+            {
+                foreach (var k in allKatas)
+                {
+                    items.Add(new ScheduleItem
+                    {
+                        Number = k.PerformanceOrder,
+                        IsKata = true,
+                        TatamiName = k.Tatami?.Name ?? "Tatami 3",
+                        CategoryName = k.Category?.Name ?? "Kata",
+                        RoundName = k.Round == KataRound.Tour1 ? "1er Tour (Éliminatoire)" : "2e Tour (Finale)",
+                        KataCompetitorName = k.CompetitorDisplayName,
+                        KataName = k.KataName,
+                        Status = k.Status
+                    });
+                }
+            }
+
+            // Kumité
+            if (disciplineFilter != "kata")
+            {
+                foreach (var m in allMatches.Where(m => !m.IsBye))
+                {
+                    items.Add(new ScheduleItem
+                    {
+                        Number = m.MatchNumber,
+                        IsKata = false,
+                        TatamiName = m.Tatami?.Name ?? "-",
+                        CategoryName = m.Category?.Name ?? "Kumité",
+                        RoundName = m.RoundName,
+                        AkaName = m.AkaDisplayName,
+                        ShiroName = m.ShiroDisplayName,
+                        DurationSeconds = m.TotalDurationSeconds,
+                        WinnerInfo = m.WinnerCompetitor != null ? m.WinnerCompetitor.FullName : "",
+                        Status = m.Status
+                    });
+                }
+            }
+
+            // Recherche
+            var query = items.AsEnumerable();
+            if (!string.IsNullOrWhiteSpace(searchTerm))
+            {
+                string term = searchTerm.Trim().ToLowerInvariant();
+                query = query.Where(i =>
+                    i.CategoryName.ToLowerInvariant().Contains(term) ||
+                    i.KataCompetitorName.ToLowerInvariant().Contains(term) ||
+                    i.AkaName.ToLowerInvariant().Contains(term) ||
+                    i.ShiroName.ToLowerInvariant().Contains(term) ||
+                    i.RoundName.ToLowerInvariant().Contains(term));
+            }
+
+            return query.OrderBy(i => i.Number);
+        }
+    }
+
+    private async void HandleLanguageChanged()
+    {
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private string FormatSeconds(int seconds)
+    {
+        int m = seconds / 60;
+        int s = seconds % 60;
+        return $"{m:00}:{s:00}";
+    }
+
+    public void Dispose()
+    {
+        TournamentService.OnStateChanged -= HandleStateChanged;
+        Lang.OnLanguageChanged -= HandleLanguageChanged;
+    }
+}

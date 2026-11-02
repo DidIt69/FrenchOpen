@@ -1,0 +1,2051 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using OpenDeFrance.Core.Enums;
+using OpenDeFrance.Core.Models;
+using OpenDeFrance.Core.Services;
+using OpenDeFrance.Infrastructure.Data;
+
+namespace OpenDeFrance.Infrastructure.Services;
+
+public class TournamentService : ITournamentService, IHostedService
+{
+    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IKumiteBracketGenerator _bracketGenerator;
+    private readonly IKataTournamentManager _kataManager;
+    private readonly IExcelTournamentService _excelService;
+    private readonly object _lock = new();
+
+    private Tournament _tournament = new();
+    private List<Tatami> _tatamis = new()
+    {
+        new() { Id = 1, Number = 1, Name = "Tatami 1", Discipline = CompetitionType.Kumite, CurrentDiscipline = CompetitionType.Kumite },
+        new() { Id = 2, Number = 2, Name = "Tatami 2", Discipline = CompetitionType.Both, CurrentDiscipline = CompetitionType.Kumite },
+        new() { Id = 3, Number = 3, Name = "Tatami 3", Discipline = CompetitionType.Kata, CurrentDiscipline = CompetitionType.Kata }
+    };
+    private List<Category> _categories = new();
+    private List<Competitor> _competitors = new();
+    private List<KumiteMatch> _matches = new();
+    private List<KataPerformance> _kataPerformances = new();
+
+    private System.Threading.Timer? _clockTimer;
+
+    public event Action? OnStateChanged;
+    public event Action<int>? OnTatamiUpdated;
+    public event Action<int>? OnTimerZero;
+
+    public TournamentService(
+        IServiceScopeFactory scopeFactory,
+        IKumiteBracketGenerator bracketGenerator,
+        IKataTournamentManager kataManager,
+        IExcelTournamentService excelService)
+    {
+        _scopeFactory = scopeFactory;
+        _bracketGenerator = bracketGenerator;
+        _kataManager = kataManager;
+        _excelService = excelService;
+    }
+
+    public Task StartAsync(CancellationToken cancellationToken)
+    {
+        LoadFromDatabaseOrCreate();
+        _clockTimer = new System.Threading.Timer(TimerTick, null, 1000, 1000);
+        return Task.CompletedTask;
+    }
+
+    public Task StopAsync(CancellationToken cancellationToken)
+    {
+        _clockTimer?.Dispose();
+        return Task.CompletedTask;
+    }
+
+    private void TimerTick(object? state)
+    {
+        bool anyChanged = false;
+        var zeroTatamis = new List<int>();
+
+        lock (_lock)
+        {
+            foreach (var tatami in _tatamis)
+            {
+                if (tatami.CurrentKumiteMatch != null && tatami.CurrentKumiteMatch.IsTimerRunning)
+                {
+                    if (tatami.CurrentKumiteMatch.RemainingSeconds > 0)
+                    {
+                        tatami.CurrentKumiteMatch.RemainingSeconds--;
+                        anyChanged = true;
+
+                        if (tatami.CurrentKumiteMatch.RemainingSeconds == 0)
+                        {
+                            tatami.CurrentKumiteMatch.IsTimerRunning = false;
+                            tatami.CurrentKumiteMatch.Status = MatchStatus.Paused;
+                            zeroTatamis.Add(tatami.Id);
+                        }
+                    }
+                }
+            }
+        }
+
+        if (anyChanged)
+        {
+            OnStateChanged?.Invoke();
+            foreach (var t in _tatamis)
+            {
+                OnTatamiUpdated?.Invoke(t.Id);
+            }
+        }
+
+        foreach (var tId in zeroTatamis)
+        {
+            OnTimerZero?.Invoke(tId);
+        }
+    }
+
+    public Tournament GetTournament() => _tournament;
+    public List<Tatami> GetTatamis() => _tatamis;
+    public Tatami? GetTatami(int tatamiId) => _tatamis.FirstOrDefault(t => t.Id == tatamiId);
+    public List<Category> GetCategories() => _categories;
+    public Category? GetCategory(int categoryId) => _categories.FirstOrDefault(c => c.Id == categoryId);
+    public List<Competitor> GetCompetitors() => _competitors;
+    public List<KumiteMatch> GetMatches() => _matches;
+    public KumiteMatch? GetMatch(int matchId) => _matches.FirstOrDefault(m => m.Id == matchId);
+    public List<KataPerformance> GetKataPerformances() => _kataPerformances;
+
+    public void SeedSampleData()
+    {
+        lock (_lock)
+        {
+            var templateBytes = _excelService.GenerateSampleExcelTemplate();
+            using var ms = new MemoryStream(templateBytes);
+            var result = _excelService.ImportTournamentData(ms);
+            ApplyExcelImport(result);
+        }
+    }
+
+    public void ResetTournament()
+    {
+        lock (_lock)
+        {
+            _competitors.Clear();
+            _categories.Clear();
+            _matches.Clear();
+            _kataPerformances.Clear();
+
+            foreach (var t in _tatamis)
+            {
+                t.CurrentKumiteMatch = null;
+                t.CurrentKumiteMatchId = null;
+                t.CurrentKataPerformance = null;
+                t.CurrentKataPerformanceId = null;
+                t.AssignedKumiteMatches.Clear();
+                t.AssignedKataPerformances.Clear();
+            }
+
+            SaveAllToDatabase();
+            NotifyChange();
+        }
+    }
+
+    public void ApplyExcelImport(ExcelImportResult importResult)
+    {
+        lock (_lock)
+        {
+            _competitors = importResult.Competitors;
+            _categories = importResult.Categories;
+            _matches.Clear();
+            _kataPerformances.Clear();
+
+            int catId = 1;
+            int autoOrder = 1;
+            foreach (var cat in _categories)
+            {
+                if (cat.Id <= 0) cat.Id = catId++;
+                if (cat.OrderIndex <= 0) cat.OrderIndex = autoOrder++;
+            }
+
+            if (importResult.DaysCount > 0)
+            {
+                _tournament.DaysCount = importResult.DaysCount;
+            }
+
+            // S'assurer d'avoir au moins 3 tatamis par défaut
+            if (_tatamis.Count == 0)
+            {
+                _tatamis = new List<Tatami>
+                {
+                    new() { Id = 1, Number = 1, Name = "Tatami 1 - Principal", Discipline = CompetitionType.Kumite, CurrentDiscipline = CompetitionType.Kumite },
+                    new() { Id = 2, Number = 2, Name = "Tatami 2", Discipline = CompetitionType.Both, CurrentDiscipline = CompetitionType.Kumite },
+                    new() { Id = 3, Number = 3, Name = "Tatami 3 - Kata & Kumité", Discipline = CompetitionType.Kata, CurrentDiscipline = CompetitionType.Kata }
+                };
+            }
+
+            // Générer immédiatement les tirages et tableaux
+            GenerateAllBrackets();
+
+            NotifyChange();
+        }
+    }
+
+    public void GenerateAllBrackets()
+    {
+        lock (_lock)
+        {
+            _matches.Clear();
+            _kataPerformances.Clear();
+
+            int nextMatchId = 1;
+            int nextKataPerfId = 1;
+
+            // 1. Initialiser les arbres Kumite
+            foreach (var category in _categories.Where(c => c.Type == CompetitionType.Kumite).OrderBy(c => c.CompetitionDay).ThenBy(c => c.OrderIndex).ThenBy(c => c.Id))
+            {
+                var catCompetitors = category.Competitors.Where(c => c.IsKumiteRegistered).ToList();
+                var bracket = _bracketGenerator.GenerateBracket(category, catCompetitors, 1);
+                foreach (var m in bracket)
+                {
+                    m.Id = nextMatchId++;
+                    m.CompetitionDay = category.CompetitionDay;
+                    if (category.AssignedTatamiId.HasValue) m.TatamiId = category.AssignedTatamiId.Value;
+                    _matches.Add(m);
+                }
+                category.Matches = bracket;
+            }
+
+            // 2. Initialiser les Katas Tour 1 et pré-créer les créneaux pour Tour 2
+            foreach (var category in _categories.Where(c => c.Type == CompetitionType.Kata).OrderBy(c => c.CompetitionDay).ThenBy(c => c.OrderIndex).ThenBy(c => c.Id))
+            {
+                var catCompetitors = category.Competitors.Where(c => c.IsKataRegistered).ToList();
+                var performances = _kataManager.InitializeRound1(category, catCompetitors);
+                foreach (var p in performances)
+                {
+                    p.Id = nextKataPerfId++;
+                    p.CompetitionDay = category.CompetitionDay;
+                    if (category.AssignedTatamiId.HasValue) p.TatamiId = category.AssignedTatamiId.Value;
+                    _kataPerformances.Add(p);
+                }
+
+                // Créneaux pour le 2e tour (Finale)
+                int qualifiersCount = Math.Min(category.KataQualifiersCount > 0 ? category.KataQualifiersCount : 4, catCompetitors.Count);
+                var t2Placeholders = _kataManager.InitializeRound2Placeholders(category, qualifiersCount);
+                foreach (var p in t2Placeholders)
+                {
+                    p.Id = nextKataPerfId++;
+                    p.CompetitionDay = category.CompetitionDay;
+                    if (category.AssignedTatamiId.HasValue) p.TatamiId = category.AssignedTatamiId.Value;
+                    _kataPerformances.Add(p);
+                }
+
+                category.KataPerformances = _kataPerformances.Where(p => p.CategoryId == category.Id).ToList();
+            }
+
+            // 3. Appliquer la numérotation chronologique globale par jour :
+            ApplyChronologicalNumbering();
+
+            // 4. Dispatch initial sur les tatamis
+            DistributeToTatamis();
+            SaveAllToDatabase();
+            NotifyChange();
+        }
+    }
+
+    public void GenerateCategoryBracket(int categoryId)
+    {
+        lock (_lock)
+        {
+            var category = _categories.FirstOrDefault(c => c.Id == categoryId);
+            if (category == null) return;
+
+            if (category.Type == CompetitionType.Kumite)
+            {
+                _matches.RemoveAll(m => m.CategoryId == categoryId);
+                var catCompetitors = category.Competitors.Where(c => c.IsKumiteRegistered).ToList();
+                int startId = _matches.Count > 0 ? _matches.Max(m => m.Id) + 1 : 1;
+
+                var bracket = _bracketGenerator.GenerateBracket(category, catCompetitors, 1);
+                foreach (var m in bracket)
+                {
+                    m.Id = startId++;
+                    m.CompetitionDay = category.CompetitionDay;
+                    if (category.AssignedTatamiId.HasValue) m.TatamiId = category.AssignedTatamiId.Value;
+                    _matches.Add(m);
+                }
+                category.Matches = bracket;
+            }
+            else
+            {
+                _kataPerformances.RemoveAll(p => p.CategoryId == categoryId);
+                var catCompetitors = category.Competitors.Where(c => c.IsKataRegistered).ToList();
+                var perfs = _kataManager.InitializeRound1(category, catCompetitors);
+                int startId = _kataPerformances.Count > 0 ? _kataPerformances.Max(p => p.Id) + 1 : 1;
+                foreach (var p in perfs)
+                {
+                    p.Id = startId++;
+                    p.CompetitionDay = category.CompetitionDay;
+                    if (category.AssignedTatamiId.HasValue) p.TatamiId = category.AssignedTatamiId.Value;
+                    _kataPerformances.Add(p);
+                }
+
+                int qualifiersCount = Math.Min(category.KataQualifiersCount > 0 ? category.KataQualifiersCount : 4, catCompetitors.Count);
+                var t2 = _kataManager.InitializeRound2Placeholders(category, qualifiersCount);
+                foreach (var p in t2)
+                {
+                    p.Id = startId++;
+                    p.CompetitionDay = category.CompetitionDay;
+                    if (category.AssignedTatamiId.HasValue) p.TatamiId = category.AssignedTatamiId.Value;
+                    _kataPerformances.Add(p);
+                }
+
+                category.KataPerformances = _kataPerformances.Where(p => p.CategoryId == category.Id).ToList();
+            }
+
+            ApplyChronologicalNumbering();
+            DistributeToTatamis();
+            SaveAllToDatabase();
+            NotifyChange();
+        }
+    }
+
+    private int GetCategoryOrderIndex(int categoryId)
+    {
+        var cat = _categories.FirstOrDefault(c => c.Id == categoryId);
+        return cat?.OrderIndex > 0 ? cat.OrderIndex : categoryId;
+    }
+
+    /// <summary>
+    /// Numérote l'ensemble des tirages chronologiquement selon la règle :
+    /// - Par jour de compétition (Jour 1, Jour 2, etc.)
+    /// - D'abord tous les katas (1er tour, puis finales), ordonnés par ordre des catégories
+    /// - Puis les combats du tour le plus éloigné vers les finales, ordonnés par ordre des catégories
+    /// </summary>
+    private void ApplyChronologicalNumbering()
+    {
+        int currentNumber = 1;
+
+        var allDays = _categories.Select(c => c.CompetitionDay)
+            .Concat(_matches.Select(m => m.CompetitionDay))
+            .Concat(_kataPerformances.Select(p => p.CompetitionDay))
+            .DefaultIfEmpty(1)
+            .Distinct()
+            .OrderBy(d => d)
+            .ToList();
+
+        foreach (var day in allDays)
+        {
+            // 1. Katas : Tous les 1ers tours du jour
+            var kataTour1 = _kataPerformances
+                .Where(p => p.Round == KataRound.Tour1 && p.CompetitionDay == day)
+                .OrderBy(p => GetCategoryOrderIndex(p.CategoryId))
+                .ThenBy(p => p.PerformanceOrder)
+                .ToList();
+
+            foreach (var p in kataTour1)
+            {
+                p.PerformanceOrder = currentNumber;
+                p.GlobalMatchNumber = currentNumber;
+                currentNumber++;
+            }
+
+            // 2. Katas : Tous les 2es tours (Finales) du jour
+            var kataTour2 = _kataPerformances
+                .Where(p => p.Round == KataRound.Tour2 && p.CompetitionDay == day)
+                .OrderBy(p => GetCategoryOrderIndex(p.CategoryId))
+                .ThenBy(p => p.PerformanceOrder)
+                .ToList();
+
+            foreach (var p in kataTour2)
+            {
+                p.PerformanceOrder = currentNumber;
+                p.GlobalMatchNumber = currentNumber;
+                currentNumber++;
+            }
+
+            // 3. Combats Kumité du jour : du tour le plus éloigné vers la finale
+            var dayMatches = _matches.Where(m => m.CompetitionDay == day).ToList();
+            if (dayMatches.Count > 0)
+            {
+                int maxRoundFromFinal = dayMatches.Max(m => m.RoundFromFinal);
+
+                for (int r = maxRoundFromFinal; r >= 0; r--)
+                {
+                    var matchesInThisRound = dayMatches
+                        .Where(m => m.RoundFromFinal == r)
+                        .OrderBy(m => GetCategoryOrderIndex(m.CategoryId))
+                        .ThenBy(m => m.Id)
+                        .ToList();
+
+                    foreach (var match in matchesInThisRound)
+                    {
+                        match.MatchNumber = currentNumber++;
+                    }
+                }
+            }
+        }
+    }
+
+    public void AssignMatchToTatami(int matchId, int tatamiId)
+    {
+        lock (_lock)
+        {
+            var match = _matches.FirstOrDefault(m => m.Id == matchId);
+            var targetTatami = _tatamis.FirstOrDefault(t => t.Id == tatamiId);
+            if (match == null || targetTatami == null) return;
+
+            int oldTatamiId = match.TatamiId ?? 0;
+            if (oldTatamiId != 0 && oldTatamiId != tatamiId)
+            {
+                var oldTatami = _tatamis.FirstOrDefault(t => t.Id == oldTatamiId);
+                if (oldTatami != null)
+                {
+                    oldTatami.AssignedKumiteMatches.Remove(match);
+                    if (oldTatami.CurrentKumiteMatchId == matchId)
+                    {
+                        var nextM = oldTatami.AssignedKumiteMatches.FirstOrDefault(m => m.Status != MatchStatus.Finished);
+                        oldTatami.CurrentKumiteMatchId = nextM?.Id;
+                        oldTatami.CurrentKumiteMatch = nextM;
+                    }
+                }
+            }
+
+            match.TatamiId = tatamiId;
+            match.Tatami = targetTatami;
+
+            if (!targetTatami.AssignedKumiteMatches.Any(m => m.Id == matchId))
+            {
+                targetTatami.AssignedKumiteMatches.Add(match);
+            }
+            targetTatami.AssignedKumiteMatches = targetTatami.AssignedKumiteMatches.OrderBy(m => m.MatchNumber).ToList();
+
+            if (targetTatami.CurrentKumiteMatchId == null)
+            {
+                SetTatamiCurrentMatch(tatamiId, matchId);
+            }
+
+            SaveMatchStateToDatabase(match.Id);
+            SaveTatamiStateToDatabase(tatamiId);
+            if (oldTatamiId > 0 && oldTatamiId != tatamiId)
+            {
+                SaveTatamiStateToDatabase(oldTatamiId);
+                NotifyChange(oldTatamiId);
+            }
+            NotifyChange(tatamiId);
+        }
+    }
+
+    public void AssignKataToTatami(int performanceId, int tatamiId)
+    {
+        lock (_lock)
+        {
+            var perf = _kataPerformances.FirstOrDefault(p => p.Id == performanceId);
+            var targetTatami = _tatamis.FirstOrDefault(t => t.Id == tatamiId);
+            if (perf == null || targetTatami == null) return;
+
+            int oldTatamiId = perf.TatamiId ?? 0;
+            if (oldTatamiId != 0 && oldTatamiId != tatamiId)
+            {
+                var oldTatami = _tatamis.FirstOrDefault(t => t.Id == oldTatamiId);
+                if (oldTatami != null)
+                {
+                    oldTatami.AssignedKataPerformances.Remove(perf);
+                    if (oldTatami.CurrentKataPerformanceId == performanceId)
+                    {
+                        var nextP = oldTatami.AssignedKataPerformances.FirstOrDefault(p => p.Status != MatchStatus.Finished);
+                        oldTatami.CurrentKataPerformanceId = nextP?.Id;
+                        oldTatami.CurrentKataPerformance = nextP;
+                    }
+                }
+            }
+
+            perf.TatamiId = tatamiId;
+            perf.Tatami = targetTatami;
+
+            if (!targetTatami.AssignedKataPerformances.Any(p => p.Id == performanceId))
+            {
+                targetTatami.AssignedKataPerformances.Add(perf);
+            }
+            targetTatami.AssignedKataPerformances = targetTatami.AssignedKataPerformances.OrderBy(p => p.PerformanceOrder).ToList();
+
+            if (targetTatami.CurrentKataPerformanceId == null)
+            {
+                SetTatamiCurrentKata(tatamiId, performanceId);
+            }
+
+            SaveKataStateToDatabase(perf.Id);
+            SaveTatamiStateToDatabase(tatamiId);
+            if (oldTatamiId > 0 && oldTatamiId != tatamiId)
+            {
+                SaveTatamiStateToDatabase(oldTatamiId);
+                NotifyChange(oldTatamiId);
+            }
+            NotifyChange(tatamiId);
+        }
+    }
+
+    public void AssignCategoryMatchesToTatami(int categoryId, int tatamiId)
+    {
+        lock (_lock)
+        {
+            var cat = _categories.FirstOrDefault(c => c.Id == categoryId);
+            if (cat == null) return;
+
+            cat.AssignedTatamiId = tatamiId;
+            cat.AssignedTatami = _tatamis.FirstOrDefault(t => t.Id == tatamiId);
+
+            if (cat.Type == CompetitionType.Kumite)
+            {
+                var matches = _matches.Where(m => m.CategoryId == categoryId).ToList();
+                foreach (var m in matches)
+                {
+                    AssignMatchToTatami(m.Id, tatamiId);
+                }
+            }
+            else
+            {
+                var perfs = _kataPerformances.Where(p => p.CategoryId == categoryId).ToList();
+                foreach (var p in perfs)
+                {
+                    AssignKataToTatami(p.Id, tatamiId);
+                }
+            }
+
+            SaveAllToDatabase();
+            NotifyChange();
+        }
+    }
+
+    public void SetCategoryTatami(int categoryId, int? tatamiId)
+    {
+        lock (_lock)
+        {
+            var cat = _categories.FirstOrDefault(c => c.Id == categoryId);
+            if (cat == null) return;
+
+            if (tatamiId.HasValue && tatamiId.Value > 0)
+            {
+                AssignCategoryMatchesToTatami(categoryId, tatamiId.Value);
+            }
+            else
+            {
+                cat.AssignedTatamiId = null;
+                cat.AssignedTatami = null;
+                BalanceCategoriesAcrossTatamis(resetManualAssignments: false);
+            }
+        }
+    }
+
+    public void SetCategoryDay(int categoryId, int dayNumber)
+    {
+        lock (_lock)
+        {
+            var cat = _categories.FirstOrDefault(c => c.Id == categoryId);
+            if (cat == null) return;
+
+            cat.CompetitionDay = Math.Max(1, dayNumber);
+            foreach (var m in _matches.Where(m => m.CategoryId == categoryId))
+            {
+                m.CompetitionDay = cat.CompetitionDay;
+            }
+            foreach (var p in _kataPerformances.Where(p => p.CategoryId == categoryId))
+            {
+                p.CompetitionDay = cat.CompetitionDay;
+            }
+
+            ApplyChronologicalNumbering();
+            SaveAllToDatabase();
+            NotifyChange();
+        }
+    }
+
+    public void SetCategoryOrderIndex(int categoryId, int orderIndex)
+    {
+        lock (_lock)
+        {
+            var cat = _categories.FirstOrDefault(c => c.Id == categoryId);
+            if (cat == null) return;
+
+            cat.OrderIndex = Math.Max(1, orderIndex);
+
+            ApplyChronologicalNumbering();
+            SaveAllToDatabase();
+            NotifyChange();
+        }
+    }
+
+    public void MoveCategoryOrder(int categoryId, int direction)
+    {
+        lock (_lock)
+        {
+            var cat = _categories.FirstOrDefault(c => c.Id == categoryId);
+            if (cat == null) return;
+
+            // Catégories du même jour triées selon leur ordre actuel
+            var sameDayCats = _categories
+                .Where(c => c.CompetitionDay == cat.CompetitionDay)
+                .OrderBy(c => c.OrderIndex)
+                .ThenBy(c => c.Id)
+                .ToList();
+
+            // Normaliser en 1, 2, 3...
+            for (int i = 0; i < sameDayCats.Count; i++)
+            {
+                sameDayCats[i].OrderIndex = i + 1;
+            }
+
+            int currentIndex = sameDayCats.IndexOf(cat);
+            int targetIndex = currentIndex + direction;
+
+            if (targetIndex >= 0 && targetIndex < sameDayCats.Count)
+            {
+                var targetCat = sameDayCats[targetIndex];
+                int temp = cat.OrderIndex;
+                cat.OrderIndex = targetCat.OrderIndex;
+                targetCat.OrderIndex = temp;
+
+                ApplyChronologicalNumbering();
+                SaveAllToDatabase();
+                NotifyChange();
+            }
+        }
+    }
+
+    public void SetTournamentDaysCount(int daysCount)
+    {
+        lock (_lock)
+        {
+            _tournament.DaysCount = Math.Max(1, daysCount);
+            SaveAllToDatabase();
+            NotifyChange();
+        }
+    }
+
+    public void SetCategoryDayAndTatami(int categoryId, int dayNumber, int tatamiId)
+    {
+        lock (_lock)
+        {
+            var cat = _categories.FirstOrDefault(c => c.Id == categoryId);
+            if (cat == null) return;
+
+            cat.CompetitionDay = Math.Max(1, dayNumber);
+            foreach (var m in _matches.Where(m => m.CategoryId == categoryId))
+            {
+                m.CompetitionDay = cat.CompetitionDay;
+            }
+            foreach (var p in _kataPerformances.Where(p => p.CategoryId == categoryId))
+            {
+                p.CompetitionDay = cat.CompetitionDay;
+            }
+
+            if (tatamiId > 0)
+            {
+                AssignCategoryMatchesToTatami(categoryId, tatamiId);
+            }
+            else
+            {
+                cat.AssignedTatamiId = null;
+                cat.AssignedTatami = null;
+                ApplyChronologicalNumbering();
+                BalanceCategoriesAcrossTatamis(resetManualAssignments: false);
+            }
+        }
+    }
+
+    public void SetMatchDay(int matchId, int dayNumber)
+    {
+        lock (_lock)
+        {
+            var match = _matches.FirstOrDefault(m => m.Id == matchId);
+            if (match == null) return;
+
+            match.CompetitionDay = Math.Max(1, dayNumber);
+            ApplyChronologicalNumbering();
+            SaveMatchStateToDatabase(matchId);
+            NotifyChange(match.TatamiId ?? 0);
+        }
+    }
+
+    public void SetKataDay(int performanceId, int dayNumber)
+    {
+        lock (_lock)
+        {
+            var perf = _kataPerformances.FirstOrDefault(p => p.Id == performanceId);
+            if (perf == null) return;
+
+            perf.CompetitionDay = Math.Max(1, dayNumber);
+            ApplyChronologicalNumbering();
+            SaveKataStateToDatabase(performanceId);
+            NotifyChange(perf.TatamiId ?? 0);
+        }
+    }
+
+    public void SwapKumiteCompetitors(int match1Id, CornerColor corner1, int match2Id, CornerColor corner2)
+    {
+        lock (_lock)
+        {
+            var m1 = _matches.FirstOrDefault(m => m.Id == match1Id);
+            var m2 = _matches.FirstOrDefault(m => m.Id == match2Id);
+            if (m1 == null || m2 == null) return;
+
+            // Swapping permitted only within the same category
+            if (m1.CategoryId != m2.CategoryId) return;
+
+            // Swapping not permitted on matches already fought with a decisive reason
+            if (m1.Status == MatchStatus.Finished && m1.WinnerReason != MatchWinnerReason.None) return;
+            if (m2.Status == MatchStatus.Finished && m2.WinnerReason != MatchWinnerReason.None) return;
+
+            int? c1Id = (corner1 == CornerColor.Aka) ? m1.AkaCompetitorId : m1.ShiroCompetitorId;
+            var c1 = (corner1 == CornerColor.Aka) ? m1.AkaCompetitor : m1.ShiroCompetitor;
+
+            int? c2Id = (corner2 == CornerColor.Aka) ? m2.AkaCompetitorId : m2.ShiroCompetitorId;
+            var c2 = (corner2 == CornerColor.Aka) ? m2.AkaCompetitor : m2.ShiroCompetitor;
+
+            // Règle d'or du tirage : chaque combat du 1er tour doit comporter au moins un combattant (jamais 0 combattant)
+            int? simM1Aka = (corner1 == CornerColor.Aka) ? c2Id : m1.AkaCompetitorId;
+            int? simM1Shiro = (corner1 == CornerColor.Shiro) ? c2Id : m1.ShiroCompetitorId;
+            int? simM2Aka = (corner2 == CornerColor.Aka) ? c1Id : m2.AkaCompetitorId;
+            int? simM2Shiro = (corner2 == CornerColor.Shiro) ? c1Id : m2.ShiroCompetitorId;
+
+            if (m1.BracketRound == 1 && !simM1Aka.HasValue && !simM1Shiro.HasValue) return;
+            if (m2.BracketRound == 1 && !simM2Aka.HasValue && !simM2Shiro.HasValue) return;
+
+            if (corner1 == CornerColor.Aka)
+            {
+                m1.AkaCompetitorId = c2Id;
+                m1.AkaCompetitor = c2;
+            }
+            else
+            {
+                m1.ShiroCompetitorId = c2Id;
+                m1.ShiroCompetitor = c2;
+            }
+
+            if (corner2 == CornerColor.Aka)
+            {
+                m2.AkaCompetitorId = c1Id;
+                m2.AkaCompetitor = c1;
+            }
+            else
+            {
+                m2.ShiroCompetitorId = c1Id;
+                m2.ShiroCompetitor = c1;
+            }
+
+            UpdateMatchByeAndProgression(m1);
+            if (m1.Id != m2.Id)
+            {
+                UpdateMatchByeAndProgression(m2);
+            }
+
+            SaveAllToDatabase();
+            NotifyChange();
+        }
+    }
+
+    private void UpdateMatchByeAndProgression(KumiteMatch match)
+    {
+        if (match.Status == MatchStatus.Finished && match.WinnerReason != MatchWinnerReason.None)
+        {
+            return;
+        }
+
+        // Normalize if only Shiro is present
+        if (!match.AkaCompetitorId.HasValue && match.ShiroCompetitorId.HasValue)
+        {
+            match.AkaCompetitorId = match.ShiroCompetitorId;
+            match.AkaCompetitor = match.ShiroCompetitor;
+            match.ShiroCompetitorId = null;
+            match.ShiroCompetitor = null;
+        }
+
+        if (match.AkaCompetitorId.HasValue && !match.ShiroCompetitorId.HasValue)
+        {
+            // BYE (Exempt)
+            match.WinnerCompetitorId = match.AkaCompetitorId;
+            match.WinnerCompetitor = match.AkaCompetitor;
+            match.WinnerReason = MatchWinnerReason.None;
+            match.Status = MatchStatus.Finished;
+
+            if (match.NextMatch != null)
+            {
+                if (match.NextMatchCorner == CornerColor.Aka)
+                {
+                    match.NextMatch.AkaCompetitorId = match.WinnerCompetitorId;
+                    match.NextMatch.AkaCompetitor = match.WinnerCompetitor;
+                }
+                else
+                {
+                    match.NextMatch.ShiroCompetitorId = match.WinnerCompetitorId;
+                    match.NextMatch.ShiroCompetitor = match.WinnerCompetitor;
+                }
+                UpdateMatchByeAndProgression(match.NextMatch);
+            }
+        }
+        else if (match.AkaCompetitorId.HasValue && match.ShiroCompetitorId.HasValue)
+        {
+            // Two competitors -> Regular match
+            match.WinnerCompetitorId = null;
+            match.WinnerCompetitor = null;
+            match.WinnerReason = MatchWinnerReason.None;
+            match.Status = MatchStatus.Pending;
+
+            if (match.NextMatch != null)
+            {
+                if (match.NextMatchCorner == CornerColor.Aka)
+                {
+                    if (match.NextMatch.AkaCompetitorId == match.AkaCompetitorId || match.NextMatch.AkaCompetitorId == match.ShiroCompetitorId)
+                    {
+                        match.NextMatch.AkaCompetitorId = null;
+                        match.NextMatch.AkaCompetitor = null;
+                    }
+                }
+                else
+                {
+                    if (match.NextMatch.ShiroCompetitorId == match.AkaCompetitorId || match.NextMatch.ShiroCompetitorId == match.ShiroCompetitorId)
+                    {
+                        match.NextMatch.ShiroCompetitorId = null;
+                        match.NextMatch.ShiroCompetitor = null;
+                    }
+                }
+                UpdateMatchByeAndProgression(match.NextMatch);
+            }
+        }
+        else
+        {
+            // Empty
+            match.WinnerCompetitorId = null;
+            match.WinnerCompetitor = null;
+            match.WinnerReason = MatchWinnerReason.None;
+            match.Status = MatchStatus.Pending;
+
+            if (match.NextMatch != null)
+            {
+                if (match.NextMatchCorner == CornerColor.Aka)
+                {
+                    match.NextMatch.AkaCompetitorId = null;
+                    match.NextMatch.AkaCompetitor = null;
+                }
+                else
+                {
+                    match.NextMatch.ShiroCompetitorId = null;
+                    match.NextMatch.ShiroCompetitor = null;
+                }
+                UpdateMatchByeAndProgression(match.NextMatch);
+            }
+        }
+    }
+
+    public void SwapKataPerformances(int perf1Id, int perf2Id)
+    {
+        lock (_lock)
+        {
+            var p1 = _kataPerformances.FirstOrDefault(p => p.Id == perf1Id);
+            var p2 = _kataPerformances.FirstOrDefault(p => p.Id == perf2Id);
+            if (p1 == null || p2 == null) return;
+            if (p1.CategoryId != p2.CategoryId) return;
+            if (p1.Round != p2.Round) return;
+            if (p1.Status == MatchStatus.Finished || p2.Status == MatchStatus.Finished) return;
+
+            var tempCompId = p1.CompetitorId;
+            var tempComp = p1.Competitor;
+            p1.CompetitorId = p2.CompetitorId;
+            p1.Competitor = p2.Competitor;
+            p2.CompetitorId = tempCompId;
+            p2.Competitor = tempComp;
+
+            SaveKataStateToDatabase(p1.Id);
+            SaveKataStateToDatabase(p2.Id);
+            NotifyChange(p1.TatamiId ?? 0);
+        }
+    }
+
+    public void SetTatamiCurrentMatch(int tatamiId, int matchId)
+    {
+        lock (_lock)
+        {
+            var tatami = _tatamis.FirstOrDefault(t => t.Id == tatamiId);
+            var match = _matches.FirstOrDefault(m => m.Id == matchId);
+            if (tatami == null) return;
+
+            tatami.CurrentKumiteMatchId = matchId;
+            tatami.CurrentKumiteMatch = match;
+            tatami.CurrentDiscipline = CompetitionType.Kumite;
+
+            if (match != null && match.Status == MatchStatus.Pending)
+            {
+                match.Status = MatchStatus.Ready;
+            }
+
+            NotifyChange(tatamiId);
+        }
+    }
+
+    public void ToggleTimer(int tatamiId)
+    {
+        lock (_lock)
+        {
+            var tatami = _tatamis.FirstOrDefault(t => t.Id == tatamiId);
+            var match = tatami?.CurrentKumiteMatch;
+            if (match == null) return;
+
+            match.IsTimerRunning = !match.IsTimerRunning;
+            match.Status = match.IsTimerRunning ? MatchStatus.InProgress : MatchStatus.Paused;
+
+            NotifyChange(tatamiId);
+        }
+    }
+
+    public void ResetTimer(int tatamiId)
+    {
+        lock (_lock)
+        {
+            var tatami = _tatamis.FirstOrDefault(t => t.Id == tatamiId);
+            var match = tatami?.CurrentKumiteMatch;
+            if (match == null) return;
+
+            match.IsTimerRunning = false;
+            match.RemainingSeconds = match.TotalDurationSeconds;
+            match.Status = MatchStatus.Ready;
+
+            NotifyChange(tatamiId);
+        }
+    }
+
+    public void AdjustTimer(int tatamiId, int deltaSeconds)
+    {
+        lock (_lock)
+        {
+            var tatami = _tatamis.FirstOrDefault(t => t.Id == tatamiId);
+            var match = tatami?.CurrentKumiteMatch;
+            if (match == null) return;
+
+            match.RemainingSeconds = Math.Max(0, match.RemainingSeconds + deltaSeconds);
+            NotifyChange(tatamiId);
+        }
+    }
+
+    /// <summary>
+    /// Ajoute dynamiquement une prolongation (Encho-sen) en cas d'égalité en Kyokushin
+    /// </summary>
+    public void AddExtension(int tatamiId)
+    {
+        lock (_lock)
+        {
+            var tatami = _tatamis.FirstOrDefault(t => t.Id == tatamiId);
+            var match = tatami?.CurrentKumiteMatch;
+            if (match == null) return;
+
+            int extensionSeconds = match.Category?.KumiteExtensionDurationSeconds ?? 120;
+            match.ExtensionsCount++;
+            match.TotalDurationSeconds = extensionSeconds;
+            match.RemainingSeconds = extensionSeconds;
+            match.IsTimerRunning = false;
+            match.Status = MatchStatus.Ready;
+
+            SaveMatchStateToDatabase(match.Id);
+            NotifyChange(tatamiId);
+        }
+    }
+
+    public void AddScore(int matchId, CornerColor corner, string type)
+    {
+        lock (_lock)
+        {
+            var match = _matches.FirstOrDefault(m => m.Id == matchId);
+            if (match == null) return;
+
+            switch (type.ToLowerInvariant())
+            {
+                case "wazaari":
+                    if (corner == CornerColor.Aka)
+                    {
+                        match.AkaWazaAri++;
+                        if (match.AkaWazaAri >= 2)
+                        {
+                            // Awase-Ippon !
+                            match.AkaIppon = 1;
+                            DeclareWinner(matchId, CornerColor.Aka, MatchWinnerReason.AwaseIppon);
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        match.ShiroWazaAri++;
+                        if (match.ShiroWazaAri >= 2)
+                        {
+                            match.ShiroIppon = 1;
+                            DeclareWinner(matchId, CornerColor.Shiro, MatchWinnerReason.AwaseIppon);
+                            return;
+                        }
+                    }
+                    break;
+
+                case "ippon":
+                    if (corner == CornerColor.Aka)
+                    {
+                        match.AkaIppon = 1;
+                        DeclareWinner(matchId, CornerColor.Aka, MatchWinnerReason.Ippon);
+                        return;
+                    }
+                    else
+                    {
+                        match.ShiroIppon = 1;
+                        DeclareWinner(matchId, CornerColor.Shiro, MatchWinnerReason.Ippon);
+                        return;
+                    }
+
+                case "chui":
+                    if (corner == CornerColor.Aka)
+                    {
+                        match.AkaChui++;
+                        if (match.AkaChui >= 2)
+                        {
+                            // 2 Chui = Genten Ichi
+                            match.AkaChui = 0;
+                            match.AkaGenten++;
+                        }
+                    }
+                    else
+                    {
+                        match.ShiroChui++;
+                        if (match.ShiroChui >= 2)
+                        {
+                            match.ShiroChui = 0;
+                            match.ShiroGenten++;
+                        }
+                    }
+                    break;
+
+                case "genten":
+                    if (corner == CornerColor.Aka)
+                    {
+                        match.AkaGenten++;
+                        if (match.AkaGenten >= 2)
+                        {
+                            // Disqualification Hansoku -> Shiro gagne
+                            DeclareWinner(matchId, CornerColor.Shiro, MatchWinnerReason.GentenDisqualification);
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        match.ShiroGenten++;
+                        if (match.ShiroGenten >= 2)
+                        {
+                            // Disqualification Hansoku -> Aka gagne
+                            DeclareWinner(matchId, CornerColor.Aka, MatchWinnerReason.GentenDisqualification);
+                            return;
+                        }
+                    }
+                    break;
+
+                case "remove_wazaari":
+                    if (corner == CornerColor.Aka) match.AkaWazaAri = Math.Max(0, match.AkaWazaAri - 1);
+                    else match.ShiroWazaAri = Math.Max(0, match.ShiroWazaAri - 1);
+                    break;
+
+                case "remove_chui":
+                    if (corner == CornerColor.Aka) match.AkaChui = Math.Max(0, match.AkaChui - 1);
+                    else match.ShiroChui = Math.Max(0, match.ShiroChui - 1);
+                    break;
+
+                case "remove_genten":
+                    if (corner == CornerColor.Aka) match.AkaGenten = Math.Max(0, match.AkaGenten - 1);
+                    else match.ShiroGenten = Math.Max(0, match.ShiroGenten - 1);
+                    break;
+            }
+
+            SaveMatchStateToDatabase(match.Id);
+            NotifyChange(match.TatamiId ?? 0);
+        }
+    }
+
+    public void DeclareWinner(int matchId, CornerColor winnerCorner, MatchWinnerReason reason)
+    {
+        lock (_lock)
+        {
+            var match = _matches.FirstOrDefault(m => m.Id == matchId);
+            if (match == null) return;
+
+            var winner = (winnerCorner == CornerColor.Aka) ? match.AkaCompetitor : match.ShiroCompetitor;
+            if (winner == null) return;
+
+            match.WinnerCompetitorId = winner.Id;
+            match.WinnerCompetitor = winner;
+            match.WinnerReason = reason;
+            match.Status = MatchStatus.Finished;
+            match.IsTimerRunning = false;
+
+            // Propagation vers le tour suivant dans l'arbre !
+            if (match.NextMatch != null)
+            {
+                if (match.NextMatchCorner == CornerColor.Aka)
+                {
+                    match.NextMatch.AkaCompetitorId = winner.Id;
+                    match.NextMatch.AkaCompetitor = winner;
+                }
+                else
+                {
+                    match.NextMatch.ShiroCompetitorId = winner.Id;
+                    match.NextMatch.ShiroCompetitor = winner;
+                }
+
+                // Si les deux combattants du tour suivant sont maintenant prêts
+                if (match.NextMatch.AkaCompetitorId.HasValue && match.NextMatch.ShiroCompetitorId.HasValue)
+                {
+                    match.NextMatch.Status = MatchStatus.Ready;
+                }
+
+                SaveMatchStateToDatabase(match.NextMatch.Id);
+            }
+
+            // Propagation du perdant vers la Petite Finale (3e place) si applicable
+            if (match.BronzeMatch != null)
+            {
+                var loser = (winnerCorner == CornerColor.Aka) ? match.ShiroCompetitor : match.AkaCompetitor;
+                if (loser != null)
+                {
+                    if (match.BronzeMatchCorner == CornerColor.Aka)
+                    {
+                        match.BronzeMatch.AkaCompetitorId = loser.Id;
+                        match.BronzeMatch.AkaCompetitor = loser;
+                    }
+                    else
+                    {
+                        match.BronzeMatch.ShiroCompetitorId = loser.Id;
+                        match.BronzeMatch.ShiroCompetitor = loser;
+                    }
+
+                    if (match.BronzeMatch.AkaCompetitorId.HasValue && match.BronzeMatch.ShiroCompetitorId.HasValue)
+                    {
+                        match.BronzeMatch.Status = MatchStatus.Ready;
+                    }
+
+                    SaveMatchStateToDatabase(match.BronzeMatch.Id);
+                }
+            }
+
+            // Passer automatiquement au combat suivant disponible sur ce tatami
+            if (match.TatamiId.HasValue)
+            {
+                var tatami = _tatamis.FirstOrDefault(t => t.Id == match.TatamiId.Value);
+                if (tatami != null)
+                {
+                    // Liste des combats restants non terminés assignés à ce tatami (hors combat actuel et exempts)
+                    var remainingMatches = _matches
+                        .Where(m => m.TatamiId == tatami.Id && m.Id != matchId && m.Status != MatchStatus.Finished && !m.IsBye)
+                        .OrderBy(m => m.MatchNumber)
+                        .ToList();
+
+                    // Priorité 1 : Prochain combat dans l'ordre chronologique dont les 2 combattants sont prêts
+                    var nextMatch = remainingMatches
+                        .FirstOrDefault(m => m.MatchNumber > match.MatchNumber && m.AkaCompetitorId.HasValue && m.ShiroCompetitorId.HasValue);
+
+                    // Priorité 2 : Si aucun combat postérieur n'est prêt, chercher parmi les combats antérieurs du tatami
+                    if (nextMatch == null)
+                    {
+                        nextMatch = remainingMatches
+                            .FirstOrDefault(m => m.AkaCompetitorId.HasValue && m.ShiroCompetitorId.HasValue);
+                    }
+
+                    // Priorité 3 : S'il reste des combats mais qu'au moins un adversaire est en attente
+                    if (nextMatch == null)
+                    {
+                        nextMatch = remainingMatches.FirstOrDefault(m => m.MatchNumber > match.MatchNumber)
+                                 ?? remainingMatches.FirstOrDefault();
+                    }
+
+                    if (nextMatch != null)
+                    {
+                        tatami.CurrentKumiteMatchId = nextMatch.Id;
+                        tatami.CurrentKumiteMatch = nextMatch;
+                        tatami.CurrentDiscipline = CompetitionType.Kumite;
+
+                        if (nextMatch.Status == MatchStatus.Pending)
+                        {
+                            nextMatch.Status = MatchStatus.Ready;
+                        }
+
+                        SaveMatchStateToDatabase(nextMatch.Id);
+                    }
+                    else
+                    {
+                        // Tous les combats du tatami sont terminés
+                        tatami.CurrentKumiteMatchId = null;
+                        tatami.CurrentKumiteMatch = null;
+                    }
+
+                    SaveTatamiStateToDatabase(tatami.Id);
+                }
+            }
+
+            SaveMatchStateToDatabase(match.Id);
+            if (match.NextMatchId.HasValue)
+            {
+                SaveMatchStateToDatabase(match.NextMatchId.Value);
+            }
+
+            NotifyChange(match.TatamiId ?? 0);
+        }
+    }
+
+    public void SetTatamiCurrentKata(int tatamiId, int performanceId)
+    {
+        lock (_lock)
+        {
+            var tatami = _tatamis.FirstOrDefault(t => t.Id == tatamiId);
+            var perf = _kataPerformances.FirstOrDefault(p => p.Id == performanceId);
+            if (tatami == null) return;
+
+            tatami.CurrentKataPerformanceId = performanceId;
+            tatami.CurrentKataPerformance = perf;
+            tatami.CurrentDiscipline = CompetitionType.Kata;
+
+            if (perf != null && perf.Status == MatchStatus.Pending)
+            {
+                perf.Status = MatchStatus.InProgress;
+            }
+
+            NotifyChange(tatamiId);
+        }
+    }
+
+    public void SubmitKataScores(int performanceId, List<double> scores)
+    {
+        lock (_lock)
+        {
+            var perf = _kataPerformances.FirstOrDefault(p => p.Id == performanceId);
+            if (perf == null) return;
+
+            _kataManager.CalculateScore(perf, scores);
+            SaveKataStateToDatabase(perf.Id);
+
+            // Passer automatiquement au passage Kata suivant disponible sur ce tatami
+            if (perf.TatamiId.HasValue)
+            {
+                var tatami = _tatamis.FirstOrDefault(t => t.Id == perf.TatamiId.Value);
+                if (tatami != null)
+                {
+                    var nextPerf = _kataPerformances
+                        .Where(p => p.TatamiId == tatami.Id && p.Id != performanceId && p.Status != MatchStatus.Finished)
+                        .OrderBy(p => p.PerformanceOrder)
+                        .FirstOrDefault();
+
+                    if (nextPerf != null)
+                    {
+                        tatami.CurrentKataPerformanceId = nextPerf.Id;
+                        tatami.CurrentKataPerformance = nextPerf;
+                        tatami.CurrentDiscipline = CompetitionType.Kata;
+                    }
+                    else
+                    {
+                        tatami.CurrentKataPerformanceId = null;
+                        tatami.CurrentKataPerformance = null;
+                    }
+
+                    SaveTatamiStateToDatabase(tatami.Id);
+                }
+            }
+
+            NotifyChange(perf.TatamiId ?? 0);
+        }
+    }
+
+    public void QualifyKataRound1(int categoryId)
+    {
+        lock (_lock)
+        {
+            var category = _categories.FirstOrDefault(c => c.Id == categoryId);
+            if (category == null) return;
+
+            var r1Perfs = _kataPerformances.Where(p => p.CategoryId == categoryId && p.Round == KataRound.Tour1).ToList();
+            _kataManager.FinalizeRound1AndQualify(category, r1Perfs);
+
+            int qualifiersCount = Math.Min(category.KataQualifiersCount > 0 ? category.KataQualifiersCount : 4, r1Perfs.Count);
+
+            // Utiliser les créneaux Tour 2 déjà prévus et numérotés
+            var existingT2 = _kataPerformances
+                .Where(p => p.CategoryId == categoryId && p.Round == KataRound.Tour2)
+                .OrderBy(p => p.PerformanceOrder)
+                .ToList();
+
+            bool t2Started = existingT2.Any(p => p.Status == MatchStatus.Finished || p.Status == MatchStatus.InProgress);
+            if (!t2Started && existingT2.Count != qualifiersCount)
+            {
+                _kataPerformances.RemoveAll(p => p.CategoryId == categoryId && p.Round == KataRound.Tour2);
+                int nextId = _kataPerformances.Count > 0 ? _kataPerformances.Max(p => p.Id) + 1 : 1;
+                existingT2 = _kataManager.InitializeRound2Placeholders(category, qualifiersCount);
+                foreach (var p in existingT2)
+                {
+                    p.Id = nextId++;
+                    _kataPerformances.Add(p);
+                }
+                ApplyChronologicalNumbering();
+            }
+
+            if (existingT2.Count > 0)
+            {
+                _kataManager.AssignRound2Qualifiers(r1Perfs, existingT2);
+            }
+            else
+            {
+                // Fallback si non pré-créés
+                var r2Perfs = _kataManager.InitializeRound2(category, r1Perfs);
+                int nextId = _kataPerformances.Count > 0 ? _kataPerformances.Max(p => p.Id) + 1 : 1;
+                foreach (var p in r2Perfs)
+                {
+                    p.Id = nextId++;
+                    _kataPerformances.Add(p);
+                }
+                ApplyChronologicalNumbering();
+            }
+
+            category.KataPerformances = _kataPerformances.Where(p => p.CategoryId == categoryId).ToList();
+
+            // Attribuer au tatami Kata
+            var kataTatami = _tatamis.FirstOrDefault(t => t.CurrentDiscipline == CompetitionType.Kata) ?? _tatamis.LastOrDefault();
+            if (kataTatami != null)
+            {
+                var catT2 = _kataPerformances.Where(p => p.CategoryId == categoryId && p.Round == KataRound.Tour2).ToList();
+                foreach (var p in catT2)
+                {
+                    p.TatamiId = kataTatami.Id;
+                    p.Tatami = kataTatami;
+                    if (!kataTatami.AssignedKataPerformances.Any(x => x.Id == p.Id))
+                    {
+                        kataTatami.AssignedKataPerformances.Add(p);
+                    }
+                }
+                kataTatami.AssignedKataPerformances = kataTatami.AssignedKataPerformances.OrderBy(p => p.PerformanceOrder).ToList();
+            }
+
+            SaveAllToDatabase();
+            NotifyChange();
+        }
+    }
+
+    public void FinalizeKataRound2(int categoryId)
+    {
+        lock (_lock)
+        {
+            var r2Perfs = _kataPerformances.Where(p => p.CategoryId == categoryId && p.Round == KataRound.Tour2).ToList();
+            _kataManager.FinalizeRound2(r2Perfs);
+            SaveAllToDatabase();
+            NotifyChange();
+        }
+    }
+
+    private void DistributeToTatamis()
+    {
+        if (_tatamis.Count == 0) return;
+
+        bool hasUnassigned = _matches.Any(m => !m.IsBye && (!m.TatamiId.HasValue || m.TatamiId <= 0 || !_tatamis.Any(t => t.Id == m.TatamiId.Value)))
+                          || _kataPerformances.Any(p => !p.TatamiId.HasValue || p.TatamiId <= 0 || !_tatamis.Any(t => t.Id == p.TatamiId.Value));
+
+        if (hasUnassigned)
+        {
+            BalanceCategoriesAcrossTatamis();
+            return;
+        }
+
+        foreach (var t in _tatamis)
+        {
+            t.AssignedKumiteMatches = _matches.Where(m => m.TatamiId == t.Id && !m.IsBye).OrderBy(m => m.MatchNumber).ToList();
+            t.AssignedKataPerformances = _kataPerformances.Where(p => p.TatamiId == t.Id).OrderBy(p => p.PerformanceOrder).ToList();
+
+            if (t.CurrentKumiteMatch == null && t.AssignedKumiteMatches.Count > 0)
+            {
+                var firstReady = t.AssignedKumiteMatches.FirstOrDefault(m => m.Status != MatchStatus.Finished) ?? t.AssignedKumiteMatches[0];
+                t.CurrentKumiteMatchId = firstReady.Id;
+                t.CurrentKumiteMatch = firstReady;
+                if (firstReady.Status == MatchStatus.Pending) firstReady.Status = MatchStatus.Ready;
+            }
+
+            if (t.CurrentKataPerformance == null && t.AssignedKataPerformances.Count > 0)
+            {
+                t.CurrentKataPerformanceId = t.AssignedKataPerformances[0].Id;
+                t.CurrentKataPerformance = t.AssignedKataPerformances[0];
+            }
+        }
+    }
+
+    public void BalanceCategoriesAcrossTatamis(bool resetManualAssignments = true)
+    {
+        lock (_lock)
+        {
+            if (_tatamis.Count == 0) return;
+
+            var kumiteTatamis = _tatamis.Where(t => t.Discipline == CompetitionType.Kumite || t.Discipline == CompetitionType.Both).ToList();
+            if (kumiteTatamis.Count == 0) kumiteTatamis = _tatamis.ToList();
+
+            var kataTatamis = _tatamis.Where(t => t.Discipline == CompetitionType.Kata || t.Discipline == CompetitionType.Both).ToList();
+            if (kataTatamis.Count == 0) kataTatamis = _tatamis.ToList();
+
+            // Si réinitialisation demandée (par ex. bouton 'Rééquilibrer les combats' ou ajout/suppression de tatami),
+            // on efface les affectations précédentes pour permettre une répartition optimale
+            if (resetManualAssignments)
+            {
+                foreach (var c in _categories)
+                {
+                    c.AssignedTatamiId = null;
+                    c.AssignedTatami = null;
+                }
+            }
+
+            foreach (var t in _tatamis)
+            {
+                t.AssignedKumiteMatches.Clear();
+                t.AssignedKataPerformances.Clear();
+            }
+
+            // Rééquilibrage par jour de compétition afin que chaque jour soit équilibré entre les tatamis
+            var allDays = _categories.Select(c => c.CompetitionDay)
+                .Concat(_matches.Select(m => m.CompetitionDay))
+                .Concat(_kataPerformances.Select(p => p.CompetitionDay))
+                .DefaultIfEmpty(1)
+                .Distinct()
+                .OrderBy(d => d)
+                .ToList();
+
+            foreach (var day in allDays)
+            {
+                // 1. Kumité pour ce jour
+                var dayKumiteCategories = _categories
+                    .Where(c => c.Type == CompetitionType.Kumite && c.CompetitionDay == day)
+                    .Select(c => new
+                    {
+                        Category = c,
+                        Matches = _matches.Where(m => m.CategoryId == c.Id && !m.IsBye).ToList()
+                    })
+                    .OrderByDescending(x => x.Matches.Count) // Heuristique LPT (Longest Processing Time)
+                    .ToList();
+
+                var kumiteLoads = kumiteTatamis.ToDictionary(t => t.Id, t => 0);
+
+                // Prendre en compte les catégories déjà assignées manuellement (si non réinitialisées)
+                foreach (var item in dayKumiteCategories)
+                {
+                    if (item.Category.AssignedTatamiId.HasValue && kumiteTatamis.Any(t => t.Id == item.Category.AssignedTatamiId.Value))
+                    {
+                        kumiteLoads[item.Category.AssignedTatamiId.Value] += item.Matches.Count;
+                    }
+                }
+
+                foreach (var item in dayKumiteCategories)
+                {
+                    int chosenTatamiId;
+                    if (item.Category.AssignedTatamiId.HasValue && kumiteTatamis.Any(t => t.Id == item.Category.AssignedTatamiId.Value))
+                    {
+                        chosenTatamiId = item.Category.AssignedTatamiId.Value;
+                    }
+                    else
+                    {
+                        chosenTatamiId = kumiteLoads.OrderBy(kv => kv.Value).First().Key;
+                        kumiteLoads[chosenTatamiId] += item.Matches.Count;
+                        item.Category.AssignedTatamiId = chosenTatamiId;
+                    }
+
+                    var chosenTatami = _tatamis.First(t => t.Id == chosenTatamiId);
+                    item.Category.AssignedTatami = chosenTatami;
+
+                    var allCatMatches = _matches.Where(m => m.CategoryId == item.Category.Id).ToList();
+                    foreach (var m in allCatMatches)
+                    {
+                        m.TatamiId = chosenTatami.Id;
+                        m.Tatami = chosenTatami;
+                        if (!m.IsBye && !chosenTatami.AssignedKumiteMatches.Any(x => x.Id == m.Id))
+                        {
+                            chosenTatami.AssignedKumiteMatches.Add(m);
+                        }
+                    }
+                    foreach (var m in item.Category.Matches)
+                    {
+                        m.TatamiId = chosenTatami.Id;
+                        m.Tatami = chosenTatami;
+                    }
+                }
+
+                // 2. Kata pour ce jour
+                var dayKataCategories = _categories
+                    .Where(c => c.Type == CompetitionType.Kata && c.CompetitionDay == day)
+                    .Select(c => new
+                    {
+                        Category = c,
+                        Performances = _kataPerformances.Where(p => p.CategoryId == c.Id).ToList()
+                    })
+                    .OrderByDescending(x => x.Performances.Count)
+                    .ToList();
+
+                var kataLoads = kataTatamis.ToDictionary(t => t.Id, t => 0);
+
+                // Prendre en compte les catégories déjà assignées manuellement
+                foreach (var item in dayKataCategories)
+                {
+                    if (item.Category.AssignedTatamiId.HasValue && kataTatamis.Any(t => t.Id == item.Category.AssignedTatamiId.Value))
+                    {
+                        kataLoads[item.Category.AssignedTatamiId.Value] += item.Performances.Count;
+                    }
+                }
+
+                foreach (var item in dayKataCategories)
+                {
+                    int chosenTatamiId;
+                    if (item.Category.AssignedTatamiId.HasValue && kataTatamis.Any(t => t.Id == item.Category.AssignedTatamiId.Value))
+                    {
+                        chosenTatamiId = item.Category.AssignedTatamiId.Value;
+                    }
+                    else
+                    {
+                        chosenTatamiId = kataLoads.OrderBy(kv => kv.Value).First().Key;
+                        kataLoads[chosenTatamiId] += item.Performances.Count;
+                        item.Category.AssignedTatamiId = chosenTatamiId;
+                    }
+
+                    var chosenTatami = _tatamis.First(t => t.Id == chosenTatamiId);
+                    item.Category.AssignedTatami = chosenTatami;
+
+                    var allCatPerfs = _kataPerformances.Where(p => p.CategoryId == item.Category.Id).ToList();
+                    foreach (var p in allCatPerfs)
+                    {
+                        p.TatamiId = chosenTatami.Id;
+                        p.Tatami = chosenTatami;
+                        if (!chosenTatami.AssignedKataPerformances.Any(x => x.Id == p.Id))
+                        {
+                            chosenTatami.AssignedKataPerformances.Add(p);
+                        }
+                    }
+                    foreach (var p in item.Category.KataPerformances)
+                    {
+                        p.TatamiId = chosenTatami.Id;
+                        p.Tatami = chosenTatami;
+                    }
+                }
+            }
+
+            // Trier les combats et katas sur chaque tatami par ordre chronologique
+            foreach (var t in _tatamis)
+            {
+                t.AssignedKumiteMatches = t.AssignedKumiteMatches.OrderBy(m => m.MatchNumber).ToList();
+                t.AssignedKataPerformances = t.AssignedKataPerformances.OrderBy(p => p.PerformanceOrder).ToList();
+
+                if (t.CurrentKumiteMatch != null && !t.AssignedKumiteMatches.Any(m => m.Id == t.CurrentKumiteMatch.Id))
+                {
+                    t.CurrentKumiteMatchId = null;
+                    t.CurrentKumiteMatch = null;
+                }
+                if (t.CurrentKataPerformance != null && !t.AssignedKataPerformances.Any(p => p.Id == t.CurrentKataPerformance.Id))
+                {
+                    t.CurrentKataPerformanceId = null;
+                    t.CurrentKataPerformance = null;
+                }
+
+                if (t.CurrentKumiteMatch == null && t.AssignedKumiteMatches.Count > 0)
+                {
+                    var firstReady = t.AssignedKumiteMatches.FirstOrDefault(m => m.Status != MatchStatus.Finished) ?? t.AssignedKumiteMatches[0];
+                    t.CurrentKumiteMatchId = firstReady.Id;
+                    t.CurrentKumiteMatch = firstReady;
+                    if (firstReady.Status == MatchStatus.Pending) firstReady.Status = MatchStatus.Ready;
+                }
+
+                if (t.CurrentKataPerformance == null && t.AssignedKataPerformances.Count > 0)
+                {
+                    var firstPerf = t.AssignedKataPerformances.FirstOrDefault(p => p.Status != MatchStatus.Finished) ?? t.AssignedKataPerformances[0];
+                    t.CurrentKataPerformanceId = firstPerf.Id;
+                    t.CurrentKataPerformance = firstPerf;
+                }
+            }
+
+            SaveAllToDatabase();
+            NotifyChange();
+        }
+    }
+
+    public Tatami AddTatami(string name, CompetitionType discipline)
+    {
+        lock (_lock)
+        {
+            int newId = _tatamis.Count > 0 ? _tatamis.Max(t => t.Id) + 1 : 1;
+            int newNumber = _tatamis.Count > 0 ? _tatamis.Max(t => t.Number) + 1 : 1;
+
+            var tatami = new Tatami
+            {
+                Id = newId,
+                Number = newNumber,
+                Name = string.IsNullOrWhiteSpace(name) ? $"Tatami {newNumber}" : name.Trim(),
+                Discipline = discipline,
+                CurrentDiscipline = discipline == CompetitionType.Kata ? CompetitionType.Kata : CompetitionType.Kumite
+            };
+
+            _tatamis.Add(tatami);
+            BalanceCategoriesAcrossTatamis(resetManualAssignments: true);
+            return tatami;
+        }
+    }
+
+    public bool DeleteTatami(int tatamiId)
+    {
+        lock (_lock)
+        {
+            if (_tatamis.Count <= 1) return false;
+
+            var tatami = _tatamis.FirstOrDefault(t => t.Id == tatamiId);
+            if (tatami == null) return false;
+
+            _tatamis.Remove(tatami);
+            BalanceCategoriesAcrossTatamis(resetManualAssignments: true);
+            return true;
+        }
+    }
+
+    public void UpdateTatami(int tatamiId, string name, CompetitionType discipline)
+    {
+        lock (_lock)
+        {
+            var tatami = _tatamis.FirstOrDefault(t => t.Id == tatamiId);
+            if (tatami == null) return;
+
+            var oldDiscipline = tatami.Discipline;
+            tatami.Name = string.IsNullOrWhiteSpace(name) ? tatami.Name : name.Trim();
+            tatami.Discipline = discipline;
+            if (discipline == CompetitionType.Kumite) tatami.CurrentDiscipline = CompetitionType.Kumite;
+            else if (discipline == CompetitionType.Kata) tatami.CurrentDiscipline = CompetitionType.Kata;
+
+            if (oldDiscipline != discipline)
+            {
+                BalanceCategoriesAcrossTatamis(resetManualAssignments: true);
+            }
+            else
+            {
+                SaveTatamiStateToDatabase(tatamiId);
+                NotifyChange(tatamiId);
+            }
+        }
+    }
+
+    public void SwitchTatamiMode(int tatamiId, CompetitionType mode)
+    {
+        lock (_lock)
+        {
+            var tatami = _tatamis.FirstOrDefault(t => t.Id == tatamiId);
+            if (tatami == null) return;
+
+            if (mode == CompetitionType.Kumite || mode == CompetitionType.Kata)
+            {
+                tatami.CurrentDiscipline = mode;
+                SaveTatamiStateToDatabase(tatamiId);
+                NotifyChange(tatamiId);
+            }
+        }
+    }
+
+    public void SetCategoryHasBronzeMatch(int categoryId, bool hasBronzeMatch)
+    {
+        lock (_lock)
+        {
+            var category = _categories.FirstOrDefault(c => c.Id == categoryId);
+            if (category == null) return;
+
+            category.HasBronzeMatch = hasBronzeMatch;
+
+            var catMatches = _matches.Where(m => m.CategoryId == categoryId).ToList();
+            bool hasStarted = catMatches.Any(m => m.Status == MatchStatus.Finished && !m.IsBye || m.Status == MatchStatus.InProgress);
+
+            if (!hasStarted)
+            {
+                GenerateCategoryBracket(categoryId);
+            }
+            else
+            {
+                SaveAllToDatabase();
+                NotifyChange();
+            }
+        }
+    }
+
+    public void SetCategoryKataQualifiersCount(int categoryId, int qualifiersCount)
+    {
+        lock (_lock)
+        {
+            var category = _categories.FirstOrDefault(c => c.Id == categoryId);
+            if (category == null || category.Type != CompetitionType.Kata) return;
+
+            if (qualifiersCount < 1) qualifiersCount = 1;
+            category.KataQualifiersCount = qualifiersCount;
+
+            var catT2 = _kataPerformances.Where(p => p.CategoryId == categoryId && p.Round == KataRound.Tour2).ToList();
+            bool t2Started = catT2.Any(p => p.Status == MatchStatus.Finished || p.Status == MatchStatus.InProgress);
+
+            if (!t2Started)
+            {
+                var catT1 = _kataPerformances.Where(p => p.CategoryId == categoryId && p.Round == KataRound.Tour1).ToList();
+                bool t1Started = catT1.Any(p => p.Status == MatchStatus.Finished || p.Status == MatchStatus.InProgress);
+
+                if (!t1Started)
+                {
+                    GenerateCategoryBracket(categoryId);
+                }
+                else
+                {
+                    int catCompetitorsCount = category.Competitors.Count;
+                    int actualQualifiersCount = Math.Min(qualifiersCount, catCompetitorsCount > 0 ? catCompetitorsCount : qualifiersCount);
+
+                    _kataPerformances.RemoveAll(p => p.CategoryId == categoryId && p.Round == KataRound.Tour2);
+                    int startId = _kataPerformances.Count > 0 ? _kataPerformances.Max(p => p.Id) + 1 : 1;
+                    var newT2 = _kataManager.InitializeRound2Placeholders(category, actualQualifiersCount);
+                    foreach (var p in newT2)
+                    {
+                        p.Id = startId++;
+                        _kataPerformances.Add(p);
+                    }
+
+                    category.KataPerformances = _kataPerformances.Where(p => p.CategoryId == categoryId).ToList();
+
+                    bool t1AllFinished = catT1.Count > 0 && catT1.All(p => p.Status == MatchStatus.Finished);
+                    if (t1AllFinished)
+                    {
+                        _kataManager.FinalizeRound1AndQualify(category, catT1);
+                        _kataManager.AssignRound2Qualifiers(catT1, newT2);
+                    }
+
+                    ApplyChronologicalNumbering();
+                    DistributeToTatamis();
+                    SaveAllToDatabase();
+                    NotifyChange();
+                }
+            }
+            else
+            {
+                SaveAllToDatabase();
+                NotifyChange();
+            }
+        }
+    }
+
+    private void LoadFromDatabaseOrCreate()
+    {
+        lock (_lock)
+        {
+            try
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetService<TournamentDbContext>();
+                if (db != null)
+                {
+                    db.Database.EnsureCreated();
+
+                    if (db.Competitors.Any() && db.Categories.Any())
+                    {
+                        _competitors = db.Competitors.AsNoTracking().ToList();
+                        _categories = db.Categories.AsNoTracking().Include(c => c.Competitors).ToList();
+                        _matches = db.KumiteMatches.AsNoTracking()
+                            .Include(m => m.AkaCompetitor)
+                            .Include(m => m.ShiroCompetitor)
+                            .Include(m => m.WinnerCompetitor)
+                            .Include(m => m.Category)
+                            .ToList();
+
+                        var matchMap = _matches.ToDictionary(m => m.Id);
+                        foreach (var m in _matches)
+                        {
+                            if (m.NextMatchId.HasValue && matchMap.TryGetValue(m.NextMatchId.Value, out var parent))
+                            {
+                                m.NextMatch = parent;
+                            }
+                            if (m.BronzeMatchId.HasValue && matchMap.TryGetValue(m.BronzeMatchId.Value, out var bronze))
+                            {
+                                m.BronzeMatch = bronze;
+                            }
+                        }
+
+                        _kataPerformances = db.KataPerformances.AsNoTracking()
+                            .Include(p => p.Competitor)
+                            .Include(p => p.Category)
+                            .ToList();
+                        _tatamis = db.Tatamis.AsNoTracking().ToList();
+
+                        if (_tatamis.Count == 0)
+                        {
+                            _tatamis = new List<Tatami>
+                            {
+                                new() { Id = 1, Number = 1, Name = "Tatami 1", Discipline = CompetitionType.Kumite, CurrentDiscipline = CompetitionType.Kumite },
+                                new() { Id = 2, Number = 2, Name = "Tatami 2", Discipline = CompetitionType.Both, CurrentDiscipline = CompetitionType.Kumite },
+                                new() { Id = 3, Number = 3, Name = "Tatami 3", Discipline = CompetitionType.Kata, CurrentDiscipline = CompetitionType.Kata }
+                            };
+                        }
+
+                        DistributeToTatamis();
+                        return;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[DB] Notice chargement base : {ex.Message}");
+            }
+
+            _tatamis = new List<Tatami>
+            {
+                new() { Id = 1, Number = 1, Name = "Tatami 1", Discipline = CompetitionType.Kumite, CurrentDiscipline = CompetitionType.Kumite },
+                new() { Id = 2, Number = 2, Name = "Tatami 2", Discipline = CompetitionType.Both, CurrentDiscipline = CompetitionType.Kumite },
+                new() { Id = 3, Number = 3, Name = "Tatami 3", Discipline = CompetitionType.Kata, CurrentDiscipline = CompetitionType.Kata }
+            };
+
+            SeedSampleData();
+        }
+    }
+
+    private void SaveAllToDatabase()
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetService<TournamentDbContext>();
+            if (db == null) return;
+
+            db.Database.EnsureDeleted();
+            db.Database.EnsureCreated();
+
+            var dbCompetitors = _competitors.Select(c => new Competitor
+            {
+                Id = c.Id,
+                BibNumber = c.BibNumber,
+                FirstName = c.FirstName,
+                LastName = c.LastName,
+                Country = c.Country,
+                Club = c.Club,
+                BirthDate = c.BirthDate,
+                Age = c.Age,
+                Weight = c.Weight,
+                Grade = c.Grade,
+                Gender = c.Gender,
+                IsKumiteRegistered = c.IsKumiteRegistered,
+                IsKataRegistered = c.IsKataRegistered
+            }).ToList();
+            db.Competitors.AddRange(dbCompetitors);
+            db.SaveChanges();
+
+            var compMap = dbCompetitors.ToDictionary(c => c.Id);
+
+            var dbTatamis = _tatamis.Select(t => new Tatami
+            {
+                Id = t.Id,
+                Number = t.Number,
+                Name = t.Name,
+                Discipline = t.Discipline,
+                CurrentDiscipline = t.CurrentDiscipline
+            }).ToList();
+            db.Tatamis.AddRange(dbTatamis);
+            db.SaveChanges();
+
+            var dbCategories = _categories.Select(cat => new Category
+            {
+                Id = cat.Id,
+                Name = cat.Name,
+                Type = cat.Type,
+                Gender = cat.Gender,
+                MinAge = cat.MinAge,
+                MaxAge = cat.MaxAge,
+                MinWeight = cat.MinWeight,
+                MaxWeight = cat.MaxWeight,
+                CompetitionDay = cat.CompetitionDay,
+                OrderIndex = cat.OrderIndex,
+                AssignedTatamiId = cat.AssignedTatamiId,
+                KumiteRegularDurationSeconds = cat.KumiteRegularDurationSeconds,
+                KumiteExtensionDurationSeconds = cat.KumiteExtensionDurationSeconds,
+                MaxExtensionsAllowed = cat.MaxExtensionsAllowed,
+                HasBronzeMatch = cat.HasBronzeMatch,
+                KataRound1MandatoryKata = cat.KataRound1MandatoryKata,
+                KataRound2MandatoryKata = cat.KataRound2MandatoryKata,
+                KataQualifiersCount = cat.KataQualifiersCount,
+                KataJudgesCount = cat.KataJudgesCount,
+                Competitors = cat.Competitors.Where(c => compMap.ContainsKey(c.Id)).Select(c => compMap[c.Id]).ToList()
+            }).ToList();
+            db.Categories.AddRange(dbCategories);
+            db.SaveChanges();
+
+            // 1ère passe pour KumiteMatches : insérer sans NextMatchId / BronzeMatchId pour satisfaire les contraintes d'intégrité
+            var dbMatches = _matches.Select(m => new KumiteMatch
+            {
+                Id = m.Id,
+                CategoryId = m.CategoryId,
+                TatamiId = m.TatamiId,
+                CompetitionDay = m.CompetitionDay,
+                MatchNumber = m.MatchNumber,
+                BracketRound = m.BracketRound,
+                RoundFromFinal = m.RoundFromFinal,
+                RoundName = m.RoundName,
+                AkaCompetitorId = m.AkaCompetitorId,
+                AkaWazaAri = m.AkaWazaAri,
+                AkaIppon = m.AkaIppon,
+                AkaChui = m.AkaChui,
+                AkaGenten = m.AkaGenten,
+                ShiroCompetitorId = m.ShiroCompetitorId,
+                ShiroWazaAri = m.ShiroWazaAri,
+                ShiroIppon = m.ShiroIppon,
+                ShiroChui = m.ShiroChui,
+                ShiroGenten = m.ShiroGenten,
+                Status = m.Status,
+                WinnerCompetitorId = m.WinnerCompetitorId,
+                WinnerReason = m.WinnerReason,
+                TotalDurationSeconds = m.TotalDurationSeconds,
+                RemainingSeconds = m.RemainingSeconds,
+                IsTimerRunning = false,
+                ExtensionsCount = m.ExtensionsCount,
+                NextMatchId = null, // différé en 2e passe
+                NextMatchCorner = m.NextMatchCorner,
+                IsBronzeMatch = m.IsBronzeMatch,
+                BronzeMatchId = null, // différé en 2e passe
+                BronzeMatchCorner = m.BronzeMatchCorner
+            }).ToList();
+            db.KumiteMatches.AddRange(dbMatches);
+            db.SaveChanges();
+
+            // 2ème passe : relier NextMatchId et BronzeMatchId maintenant que tous les matchs sont persistés
+            for (int i = 0; i < dbMatches.Count; i++)
+            {
+                var targetParentId = _matches[i].NextMatch?.Id ?? _matches[i].NextMatchId;
+                if (targetParentId.HasValue && dbMatches.Any(x => x.Id == targetParentId.Value))
+                {
+                    dbMatches[i].NextMatchId = targetParentId.Value;
+                }
+
+                var targetBronzeId = _matches[i].BronzeMatch?.Id ?? _matches[i].BronzeMatchId;
+                if (targetBronzeId.HasValue && dbMatches.Any(x => x.Id == targetBronzeId.Value))
+                {
+                    dbMatches[i].BronzeMatchId = targetBronzeId.Value;
+                }
+            }
+            db.SaveChanges();
+
+            var dbKataPerfs = _kataPerformances.Select(p => new KataPerformance
+            {
+                Id = p.Id,
+                CategoryId = p.CategoryId,
+                TatamiId = p.TatamiId,
+                CompetitionDay = p.CompetitionDay,
+                CompetitorId = p.CompetitorId,
+                Round = p.Round,
+                KataName = p.KataName,
+                PerformanceOrder = p.PerformanceOrder,
+                GlobalMatchNumber = p.GlobalMatchNumber,
+                JudgeScores = new List<double>(p.JudgeScores),
+                DroppedLowestScore = p.DroppedLowestScore,
+                DroppedHighestScore = p.DroppedHighestScore,
+                FinalScore = p.FinalScore,
+                RankInRound = p.RankInRound,
+                IsQualifiedForTour2 = p.IsQualifiedForTour2,
+                Status = p.Status
+            }).ToList();
+            db.KataPerformances.AddRange(dbKataPerfs);
+            db.SaveChanges();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[DB] Erreur lors de la sauvegarde complète : {ex}");
+        }
+    }
+
+    private void SaveMatchStateToDatabase(int matchId)
+    {
+        Task.Run(() =>
+        {
+            try
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<TournamentDbContext>();
+                var local = _matches.FirstOrDefault(m => m.Id == matchId);
+                if (local == null) return;
+
+                var entity = db.KumiteMatches.FirstOrDefault(m => m.Id == matchId);
+                if (entity != null)
+                {
+                    entity.AkaCompetitorId = local.AkaCompetitorId;
+                    entity.ShiroCompetitorId = local.ShiroCompetitorId;
+                    entity.TatamiId = local.TatamiId;
+                    entity.AkaWazaAri = local.AkaWazaAri;
+                    entity.AkaIppon = local.AkaIppon;
+                    entity.AkaChui = local.AkaChui;
+                    entity.AkaGenten = local.AkaGenten;
+                    entity.ShiroWazaAri = local.ShiroWazaAri;
+                    entity.ShiroIppon = local.ShiroIppon;
+                    entity.ShiroChui = local.ShiroChui;
+                    entity.ShiroGenten = local.ShiroGenten;
+                    entity.RemainingSeconds = local.RemainingSeconds;
+                    entity.TotalDurationSeconds = local.TotalDurationSeconds;
+                    entity.ExtensionsCount = local.ExtensionsCount;
+                    entity.Status = local.Status;
+                    entity.WinnerCompetitorId = local.WinnerCompetitorId;
+                    entity.WinnerReason = local.WinnerReason;
+                    entity.NextMatchId = local.NextMatchId ?? local.NextMatch?.Id;
+                    entity.NextMatchCorner = local.NextMatchCorner;
+                    entity.IsBronzeMatch = local.IsBronzeMatch;
+                    entity.BronzeMatchId = local.BronzeMatchId ?? local.BronzeMatch?.Id;
+                    entity.BronzeMatchCorner = local.BronzeMatchCorner;
+                    db.SaveChanges();
+                }
+            }
+            catch { }
+        });
+    }
+
+    private void SaveKataStateToDatabase(int perfId)
+    {
+        Task.Run(() =>
+        {
+            try
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<TournamentDbContext>();
+                var local = _kataPerformances.FirstOrDefault(p => p.Id == perfId);
+                if (local == null) return;
+
+                var entity = db.KataPerformances.FirstOrDefault(p => p.Id == perfId);
+                if (entity != null)
+                {
+                    entity.CompetitorId = local.CompetitorId;
+                    entity.TatamiId = local.TatamiId;
+                    entity.PerformanceOrder = local.PerformanceOrder;
+                    entity.JudgeScores = new List<double>(local.JudgeScores);
+                    entity.DroppedLowestScore = local.DroppedLowestScore;
+                    entity.DroppedHighestScore = local.DroppedHighestScore;
+                    entity.FinalScore = local.FinalScore;
+                    entity.RankInRound = local.RankInRound;
+                    entity.IsQualifiedForTour2 = local.IsQualifiedForTour2;
+                    entity.Status = local.Status;
+                    db.SaveChanges();
+                }
+            }
+            catch { }
+        });
+    }
+
+    private void SaveTatamiStateToDatabase(int tatamiId)
+    {
+        Task.Run(() =>
+        {
+            try
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<TournamentDbContext>();
+                var local = _tatamis.FirstOrDefault(t => t.Id == tatamiId);
+                if (local == null) return;
+
+                var entity = db.Tatamis.FirstOrDefault(t => t.Id == tatamiId);
+                if (entity != null)
+                {
+                    entity.CurrentKumiteMatchId = local.CurrentKumiteMatchId;
+                    entity.CurrentKataPerformanceId = local.CurrentKataPerformanceId;
+                    entity.CurrentDiscipline = local.CurrentDiscipline;
+                    db.SaveChanges();
+                }
+            }
+            catch { }
+        });
+    }
+
+    private void NotifyChange(int tatamiId = 0)
+    {
+        OnStateChanged?.Invoke();
+        if (tatamiId > 0)
+        {
+            OnTatamiUpdated?.Invoke(tatamiId);
+        }
+    }
+}

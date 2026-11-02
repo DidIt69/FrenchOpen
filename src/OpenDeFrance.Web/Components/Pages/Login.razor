@@ -1,0 +1,137 @@
+@page "/login"
+@inject NavigationManager Navigation
+
+<PageTitle>Connexion - Open de France Kyokushinkai</PageTitle>
+
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6 col-lg-5">
+            <div class="card shadow border-0" style="border-radius: 12px; overflow: hidden;">
+                <div class="card-header bg-dark text-white text-center py-4">
+                    <div class="display-4 mb-2">🥋</div>
+                    <h3 class="fw-bold mb-0 text-warning">Espace Officiels</h3>
+                    <small class="text-white-50">Open de France de Karaté Kyokushinkai</small>
+                </div>
+
+                <div class="card-body p-4">
+                    <AuthorizeView>
+                        <Authorized>
+                            <div class="alert alert-success text-center">
+                                <h5>Vous êtes connecté !</h5>
+                                <p class="mb-1">Utilisateur : <strong>@context.User.Identity?.Name</strong></p>
+                                <p class="mb-3">
+                                    Rôle :
+                                    <span class="badge bg-primary">
+                                        @context.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value
+                                    </span>
+                                </p>
+                                <a href="/api/auth/logout" class="btn btn-outline-danger w-100 fw-bold">
+                                    Déconnexion
+                                </a>
+                            </div>
+                        </Authorized>
+                        <NotAuthorized>
+                            @if (!string.IsNullOrWhiteSpace(ReturnUrl))
+                            {
+                                <div class="alert alert-warning py-2 small mb-3 text-center">
+                                    🔒 Veuillez vous connecter pour accéder à la page demandée.
+                                </div>
+                            }
+
+                            @if (error == "invalid")
+                            {
+                                <div class="alert alert-danger" role="alert">
+                                    Identifiant ou mot de passe incorrect.
+                                </div>
+                            }
+
+                            <form method="post" action="/api/auth/login">
+                                <input type="hidden" name="returnUrl" value="@ReturnUrl" />
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Nom d'utilisateur</label>
+                                    <input type="text" name="username" class="form-control form-control-lg" placeholder="admin, table, tv, streamer ou collector" required autofocus />
+                                </div>
+
+                                <div class="mb-4">
+                                    <label class="form-label fw-bold">Mot de passe</label>
+                                    <input type="password" name="password" class="form-control form-control-lg" placeholder="••••••••" required />
+                                </div>
+
+                                <button type="submit" class="btn btn-primary btn-lg w-100 fw-bold mb-4">
+                                    Se connecter
+                                </button>
+                            </form>
+
+                            <hr />
+
+                            <!-- Connexions rapides pour faciliter l'accès le jour de la compétition -->
+                            <div class="text-center mb-3">
+                                <small class="text-uppercase text-secondary fw-bold">
+                                    ⚡ Connexion Rapide par Rôle
+                                </small>
+                            </div>
+
+                            <div class="d-grid gap-2">
+                                <a href="@($"/api/auth/login?quick=admin&returnUrl={Uri.EscapeDataString(ReturnUrl ?? "")}")"
+                                   class="btn btn-outline-dark d-flex justify-content-between align-items-center py-2 text-decoration-none">
+                                    <span>👑 <strong>Administrateur</strong> (Accès total)</span>
+                                    <span class="badge bg-dark">admin</span>
+                                </a>
+
+                                <a href="@($"/api/auth/login?quick=table&returnUrl={Uri.EscapeDataString(ReturnUrl ?? "")}")"
+                                   class="btn btn-outline-primary d-flex justify-content-between align-items-center py-2 text-decoration-none">
+                                    <span>⏱️ <strong>Table de Marque</strong> (Chronos & Scores)</span>
+                                    <span class="badge bg-primary">table</span>
+                                </a>
+
+                                <a href="@($"/api/auth/login?quick=tv&returnUrl={Uri.EscapeDataString(ReturnUrl ?? "")}")"
+                                   class="btn btn-outline-info d-flex justify-content-between align-items-center py-2 text-decoration-none">
+                                    <span>📺 <strong>Écran Tatami TV</strong> (Affichage télé)</span>
+                                    <span class="badge bg-info text-dark">tv</span>
+                                </a>
+
+                                <a href="@($"/api/auth/login?quick=streamer&returnUrl={Uri.EscapeDataString(ReturnUrl ?? "")}")"
+                                   class="btn btn-outline-warning d-flex justify-content-between align-items-center py-2 text-decoration-none">
+                                    <span>🎬 <strong>Régie Streamer</strong> (Combats à venir - lecture seule)</span>
+                                    <span class="badge bg-warning text-dark">streamer</span>
+                                </a>
+
+                                <a href="@($"/api/auth/login?quick=collector&returnUrl={Uri.EscapeDataString(ReturnUrl ?? "")}")"
+                                   class="btn btn-outline-success d-flex justify-content-between align-items-center py-2 text-decoration-none">
+                                    <span>🏃 <strong>Collector</strong> (Chambre d'appel / Recherche compétiteurs)</span>
+                                    <span class="badge bg-success">collector</span>
+                                </a>
+                            </div>
+                        </NotAuthorized>
+                    </AuthorizeView>
+                </div>
+
+                <div class="card-footer bg-light text-center py-3">
+                    <a href="/" class="text-decoration-none small text-secondary">
+                        ← Retourner à la vue publique (Consultation libre)
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; }
+
+    [SupplyParameterFromQuery]
+    private string? error { get; set; }
+
+    [SupplyParameterFromQuery]
+    private bool? logout { get; set; }
+
+    protected override void OnInitialized()
+    {
+        if (logout == true)
+        {
+            Navigation.NavigateTo("/api/auth/logout", forceLoad: true);
+        }
+    }
+}

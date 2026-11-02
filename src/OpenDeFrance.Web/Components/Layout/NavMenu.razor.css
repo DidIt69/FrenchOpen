@@ -1,0 +1,57 @@
+.top-row {
+    min-height: 3.5rem;
+    background-color: rgba(0,0,0,0.5);
+}
+
+.navbar-brand {
+    font-size: 1.15rem;
+    white-space: nowrap;
+}
+
+.nav-item {
+    font-size: 0.95rem;
+    padding-bottom: 0.25rem;
+}
+
+    .nav-item:first-of-type {
+        padding-top: 0.75rem;
+    }
+
+    .nav-item:last-of-type {
+        padding-bottom: 1rem;
+    }
+
+    .nav-item ::deep .nav-link {
+        color: #d7d7d7;
+        background: none;
+        border: none;
+        border-radius: 6px;
+        min-height: 2.6rem;
+        display: flex;
+        align-items: center;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        width: 100%;
+        padding: 0.5rem 0.8rem;
+        transition: background 0.15s ease-in-out;
+    }
+
+.nav-item ::deep a.active {
+    background-color: rgba(255,255,255,0.2);
+    color: #fff;
+    font-weight: bold;
+    border-left: 3px solid #ffc107;
+}
+
+.nav-item ::deep .nav-link:hover {
+    background-color: rgba(255,255,255,0.1);
+    color: white;
+}
+
+.nav-scrollable {
+    display: block;
+    height: calc(100vh - 3.5rem);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
