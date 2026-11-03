@@ -526,15 +526,15 @@
                             <td>
                                 @if (item.Status == MatchStatus.InProgress)
                                 {
-                                    <span class="badge bg-success">En cours</span>
+                                    <span class="badge bg-success">@Lang["InProgress"]</span>
                                 }
                                 else if (item.Status == MatchStatus.Finished)
                                 {
-                                    <span class="badge bg-dark">Terminé</span>
+                                    <span class="badge bg-dark">@Lang["Finished"]</span>
                                 }
                                 else
                                 {
-                                    <span class="badge bg-secondary">À venir</span>
+                                    <span class="badge bg-secondary">@Lang["Coming"]</span>
                                 }
                             </td>
                         </tr>

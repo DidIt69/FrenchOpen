@@ -63,8 +63,6 @@ public enum MatchWinnerReason
 
 public enum KataRound
 {
-    Tour1 = 1,
     Turn1 = 1,
-    Tour2 = 2,
     Turn2 = 2
 }

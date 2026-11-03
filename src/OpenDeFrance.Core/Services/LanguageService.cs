@@ -176,6 +176,7 @@ public class LanguageService : ILanguageService
         ["Competitor(s)"] = new() { ["fr"] = "Compétiteur(s)", ["en"] = "Competitor(s)" },
         ["Details"] = new() { ["fr"] = "Détails", ["en"] = "Details" },
         ["Status"] = new() { ["fr"] = "Statut", ["en"] = "Status" },
+        ["Coming"] = new() { ["fr"] = "À venir", ["en"] = "Coming" },
 
         // General / Nav
         ["AppTitle"] = new() { ["fr"] = "Kyokushin Open", ["en"] = "Kyokushin Open" },

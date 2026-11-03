@@ -1437,6 +1437,13 @@ public class TournamentService : ITournamentService, IHostedService
             var perf = _kataPerformances.FirstOrDefault(p => p.Id == performanceId);
             if (tatami == null) return;
 
+            // Si l'ancien passage était InProgress sans être terminé, le repasser en Pending
+            if (tatami.CurrentKataPerformance != null && tatami.CurrentKataPerformance.Id != performanceId && tatami.CurrentKataPerformance.Status == MatchStatus.InProgress)
+            {
+                tatami.CurrentKataPerformance.Status = MatchStatus.Pending;
+                SaveKataStateToDatabase(tatami.CurrentKataPerformance.Id);
+            }
+
             tatami.CurrentKataPerformanceId = performanceId;
             tatami.CurrentKataPerformance = perf;
             tatami.CurrentDiscipline = CompetitionType.Kata;
@@ -1444,8 +1451,10 @@ public class TournamentService : ITournamentService, IHostedService
             if (perf != null && perf.Status == MatchStatus.Pending)
             {
                 perf.Status = MatchStatus.InProgress;
+                SaveKataStateToDatabase(perf.Id);
             }
 
+            SaveTatamiStateToDatabase(tatami.Id);
             NotifyChange(tatamiId);
         }
     }
@@ -1490,6 +1499,11 @@ public class TournamentService : ITournamentService, IHostedService
                         tatami.CurrentKataPerformanceId = nextPerf.Id;
                         tatami.CurrentKataPerformance = nextPerf;
                         tatami.CurrentDiscipline = CompetitionType.Kata;
+                        if (nextPerf.Status == MatchStatus.Pending)
+                        {
+                            nextPerf.Status = MatchStatus.InProgress;
+                            SaveKataStateToDatabase(nextPerf.Id);
+                        }
                     }
                     else
                     {
@@ -1659,8 +1673,17 @@ public class TournamentService : ITournamentService, IHostedService
 
             if (t.CurrentKataPerformance == null && t.AssignedKataPerformances.Count > 0)
             {
-                t.CurrentKataPerformanceId = t.AssignedKataPerformances[0].Id;
-                t.CurrentKataPerformance = t.AssignedKataPerformances[0];
+                var firstReady = t.AssignedKataPerformances.FirstOrDefault(p => p.Status != MatchStatus.Finished) ?? t.AssignedKataPerformances[0];
+                t.CurrentKataPerformanceId = firstReady.Id;
+                t.CurrentKataPerformance = firstReady;
+                if (firstReady.Status == MatchStatus.Pending)
+                {
+                    firstReady.Status = MatchStatus.InProgress;
+                }
+            }
+            else if (t.CurrentKataPerformance != null && t.CurrentKataPerformance.Status == MatchStatus.Pending)
+            {
+                t.CurrentKataPerformance.Status = MatchStatus.InProgress;
             }
         }
     }
@@ -1876,6 +1899,14 @@ public class TournamentService : ITournamentService, IHostedService
                     var firstPerf = t.AssignedKataPerformances.FirstOrDefault(p => p.Status != MatchStatus.Finished) ?? t.AssignedKataPerformances[0];
                     t.CurrentKataPerformanceId = firstPerf.Id;
                     t.CurrentKataPerformance = firstPerf;
+                    if (firstPerf.Status == MatchStatus.Pending)
+                    {
+                        firstPerf.Status = MatchStatus.InProgress;
+                    }
+                }
+                else if (t.CurrentKataPerformance != null && t.CurrentKataPerformance.Status == MatchStatus.Pending)
+                {
+                    t.CurrentKataPerformance.Status = MatchStatus.InProgress;
                 }
             }
 
@@ -2143,6 +2174,13 @@ public class TournamentService : ITournamentService, IHostedService
                         }
 
                         DistributeToTatamis();
+                        foreach (var t in _tatamis)
+                        {
+                            if (t.CurrentKataPerformance != null && t.CurrentKataPerformance.Status == MatchStatus.Pending)
+                            {
+                                t.CurrentKataPerformance.Status = MatchStatus.InProgress;
+                            }
+                        }
                         return;
                     }
                 }

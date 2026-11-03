@@ -320,4 +320,38 @@ public class AdminDrawAndTatamiTests
             catch { }
         }
     }
+
+    [Fact]
+    public void CurrentKataPerformance_ShouldHaveStatusInProgress()
+    {
+        var (service, _, dbPath) = CreateTestEnvironment();
+        try
+        {
+            var tatamis = service.GetTatamis();
+            var kataTatami = tatamis.FirstOrDefault(t => t.CurrentKataPerformanceId.HasValue);
+            Assert.NotNull(kataTatami);
+
+            var currentKata = kataTatami.CurrentKataPerformance;
+            Assert.NotNull(currentKata);
+            Assert.Equal(MatchStatus.InProgress, currentKata.Status);
+
+            // Test setting another kata as current: it should also become InProgress
+            var otherKata = service.GetKataPerformances().FirstOrDefault(p => p.Id != currentKata.Id && p.Status == MatchStatus.Pending);
+            if (otherKata != null)
+            {
+                service.SetTatamiCurrentKata(kataTatami.Id, otherKata.Id);
+                var updated = service.GetKataPerformances().First(p => p.Id == otherKata.Id);
+                Assert.Equal(MatchStatus.InProgress, updated.Status);
+            }
+        }
+        finally
+        {
+            try
+            {
+                Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+                if (File.Exists(dbPath)) File.Delete(dbPath);
+            }
+            catch { }
+        }
+    }
 }
