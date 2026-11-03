@@ -52,6 +52,9 @@ public class LanguageService : ILanguageService
         ["Turn2Final"] = new() { ["fr"] = "Tour 2 (finale)", ["en"] = "Turn 2 (final)" },
         ["Grade"] = new() {["fr"] = "Grade", ["en"] = "Grade" },
         ["Kata"] = new() { ["fr"] = "Kata", ["en"] = "Kata" },
+        ["Kumite"] = new() { ["fr"] = "Kumité", ["en"] = "Kumite" },
+        ["Katas"] = new() { ["fr"] = "Katas", ["en"] = "Katas" },
+        ["Kumites"] = new() { ["fr"] = "Kumités", ["en"] = "Kumites" },
         ["Notes"] = new() { ["fr"] = "Notes", ["en"] = "Notes" },
         ["WaitingNotes"] = new() { ["fr"] = "En attente notes", ["en"] = "Pending notes" },
         ["NotNotes"] = new() { ["fr"] = "Pas de note", ["en"] = "No score" },
@@ -62,6 +65,10 @@ public class LanguageService : ILanguageService
         ["NoKataOnTatami"] = new() { ["fr"] = "Aucun passage Kata en cours sur ce tatami", ["en"] = "No Kata sequence is currently in progress on this tatami" },
         ["NextKataPassages"] = new() { ["fr"] = "⏭️ Prochains passages Kata", ["en"] = "⏭️ Next Kata passages" },
         ["NoOtherPassagesPending"] = new() { ["fr"] = "Aucun autre passage en attente.", ["en"] = "No other passages pending." },
+        ["Program"] = new() { ["fr"] = "📋 Programme", ["en"] = "📋 Program"},
+        ["All"] = new() { ["fr"] = "Tous", ["en"] = "All" },
+        ["Search"] = new() { ["fr"] = "Rechercher...", ["en"] = "Search..." },
+
 
         // General / Nav
         ["AppTitle"] = new() { ["fr"] = "Kyokushin Open", ["en"] = "Kyokushin Open" },
