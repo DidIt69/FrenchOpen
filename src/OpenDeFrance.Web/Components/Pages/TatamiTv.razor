@@ -36,16 +36,29 @@
         <!-- Main Content -->
         @if (tatami.CurrentDiscipline == CompetitionType.Kumite)
         {
-            var match = tatami.CurrentKumiteMatch;
-            if (match == null)
+            if (!TournamentService.IsKataCompetitionFinished())
             {
-                <div class="empty-screen d-flex flex-column align-items-center justify-content-center">
-                    <h2 class="display-4 text-secondary mb-3">En attente du prochain combat...</h2>
-                    <p class="fs-4 text-muted">Tatami @tatami.Number en préparation</p>
+                <div class="empty-screen d-flex flex-column align-items-center justify-content-center p-5 text-center">
+                    <div class="display-1 mb-3">🥋</div>
+                    <h1 class="display-4 text-warning fw-bold mb-3">ÉPREUVES KATA EN COURS</h1>
+                    <p class="fs-3 text-light mb-4">Les épreuves Kata se déroulent en premier sur les tatamis.</p>
+                    <div class="badge bg-primary fs-3 px-4 py-2">
+                        ⏳ @TournamentService.GetPendingKataCount() passage(s) restant(s) avant les combats
+                    </div>
                 </div>
             }
             else
             {
+                var match = tatami.CurrentKumiteMatch;
+                if (match == null)
+                {
+                    <div class="empty-screen d-flex flex-column align-items-center justify-content-center">
+                        <h2 class="display-4 text-secondary mb-3">En attente du prochain combat...</h2>
+                        <p class="fs-4 text-muted">Tatami @tatami.Number en préparation</p>
+                    </div>
+                }
+                else
+                {
                 <!-- Match Details Bar -->
                 <div class="match-info-bar d-flex justify-content-around align-items-center py-2 px-3">
                     <span class="fs-4 badge bg-warning text-dark px-3 py-2 fw-bold">📅 Jour @match.CompetitionDay</span>
@@ -188,6 +201,7 @@
                     </div>
                     <div class="fs-6 text-white-50">Touche F11 pour plein écran</div>
                 </footer>
+            }
             }
         }
         else

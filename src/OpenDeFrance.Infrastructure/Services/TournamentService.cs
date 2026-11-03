@@ -20,7 +20,7 @@ public class TournamentService : ITournamentService, IHostedService
     private List<Tatami> _tatamis = new()
     {
         new() { Id = 1, Number = 1, Name = "Tatami 1", Discipline = CompetitionType.Kumite, CurrentDiscipline = CompetitionType.Kumite },
-        new() { Id = 2, Number = 2, Name = "Tatami 2", Discipline = CompetitionType.Both, CurrentDiscipline = CompetitionType.Kumite },
+        new() { Id = 2, Number = 2, Name = "Tatami 2", Discipline = CompetitionType.Both, CurrentDiscipline = CompetitionType.Kata },
         new() { Id = 3, Number = 3, Name = "Tatami 3", Discipline = CompetitionType.Kata, CurrentDiscipline = CompetitionType.Kata }
     };
     private List<Category> _categories = new();
@@ -174,7 +174,7 @@ public class TournamentService : ITournamentService, IHostedService
                 _tatamis = new List<Tatami>
                 {
                     new() { Id = 1, Number = 1, Name = "Tatami 1 - Principal", Discipline = CompetitionType.Kumite, CurrentDiscipline = CompetitionType.Kumite },
-                    new() { Id = 2, Number = 2, Name = "Tatami 2", Discipline = CompetitionType.Both, CurrentDiscipline = CompetitionType.Kumite },
+                    new() { Id = 2, Number = 2, Name = "Tatami 2", Discipline = CompetitionType.Both, CurrentDiscipline = CompetitionType.Kata },
                     new() { Id = 3, Number = 3, Name = "Tatami 3 - Kata & Kumité", Discipline = CompetitionType.Kata, CurrentDiscipline = CompetitionType.Kata }
                 };
             }
@@ -487,6 +487,12 @@ public class TournamentService : ITournamentService, IHostedService
             var cat = _categories.FirstOrDefault(c => c.Id == categoryId);
             if (cat == null) return;
 
+            if (tatamiId <= 0)
+            {
+                SetCategoryTatami(categoryId, null);
+                return;
+            }
+
             cat.AssignedTatamiId = tatamiId;
             cat.AssignedTatami = _tatamis.FirstOrDefault(t => t.Id == tatamiId);
 
@@ -525,9 +531,61 @@ public class TournamentService : ITournamentService, IHostedService
             }
             else
             {
+                // Affecter à aucun tatami (catégorie et rencontres non affichées sur les tatamis)
                 cat.AssignedTatamiId = null;
                 cat.AssignedTatami = null;
-                BalanceCategoriesAcrossTatamis(resetManualAssignments: false);
+
+                var matches = _matches.Where(m => m.CategoryId == categoryId).ToList();
+                foreach (var m in matches)
+                {
+                    int oldTatamiId = m.TatamiId ?? 0;
+                    m.TatamiId = null;
+                    m.Tatami = null;
+                    if (oldTatamiId > 0)
+                    {
+                        var oldT = _tatamis.FirstOrDefault(t => t.Id == oldTatamiId);
+                        if (oldT != null)
+                        {
+                            oldT.AssignedKumiteMatches.Remove(m);
+                            if (oldT.CurrentKumiteMatchId == m.Id)
+                            {
+                                var nextM = oldT.AssignedKumiteMatches.FirstOrDefault(x => x.Status != MatchStatus.Finished);
+                                oldT.CurrentKumiteMatchId = nextM?.Id;
+                                oldT.CurrentKumiteMatch = nextM;
+                            }
+                            SaveTatamiStateToDatabase(oldTatamiId);
+                        }
+                    }
+                    SaveMatchStateToDatabase(m.Id);
+                }
+
+                var perfs = _kataPerformances.Where(p => p.CategoryId == categoryId).ToList();
+                foreach (var p in perfs)
+                {
+                    int oldTatamiId = p.TatamiId ?? 0;
+                    p.TatamiId = null;
+                    p.Tatami = null;
+                    if (oldTatamiId > 0)
+                    {
+                        var oldT = _tatamis.FirstOrDefault(t => t.Id == oldTatamiId);
+                        if (oldT != null)
+                        {
+                            oldT.AssignedKataPerformances.Remove(p);
+                            if (oldT.CurrentKataPerformanceId == p.Id)
+                            {
+                                var nextP = oldT.AssignedKataPerformances.FirstOrDefault(x => x.Status != MatchStatus.Finished);
+                                oldT.CurrentKataPerformanceId = nextP?.Id;
+                                oldT.CurrentKataPerformance = nextP;
+                            }
+                            SaveTatamiStateToDatabase(oldTatamiId);
+                        }
+                    }
+                    SaveKataStateToDatabase(p.Id);
+                }
+
+                ApplyChronologicalNumbering();
+                SaveAllToDatabase();
+                NotifyChange();
             }
         }
     }
@@ -640,10 +698,7 @@ public class TournamentService : ITournamentService, IHostedService
             }
             else
             {
-                cat.AssignedTatamiId = null;
-                cat.AssignedTatami = null;
-                ApplyChronologicalNumbering();
-                BalanceCategoriesAcrossTatamis(resetManualAssignments: false);
+                SetCategoryTatami(categoryId, null);
             }
         }
     }
@@ -866,7 +921,16 @@ public class TournamentService : ITournamentService, IHostedService
 
             tatami.CurrentKumiteMatchId = matchId;
             tatami.CurrentKumiteMatch = match;
-            tatami.CurrentDiscipline = CompetitionType.Kumite;
+            
+            // Katas en premier : si tatami mixte et des katas sont encore en attente, conserver le mode Kata
+            if (tatami.Discipline == CompetitionType.Both && !IsKataCompetitionFinished(tatamiId: tatami.Id))
+            {
+                tatami.CurrentDiscipline = CompetitionType.Kata;
+            }
+            else
+            {
+                tatami.CurrentDiscipline = CompetitionType.Kumite;
+            }
 
             if (match != null && match.Status == MatchStatus.Pending)
             {
@@ -1238,6 +1302,17 @@ public class TournamentService : ITournamentService, IHostedService
                     {
                         tatami.CurrentKataPerformanceId = null;
                         tatami.CurrentKataPerformance = null;
+
+                        // Si tatami mixte et plus de Katas en attente sur ce tatami, basculer vers les combats
+                        if (tatami.Discipline == CompetitionType.Both)
+                        {
+                            tatami.CurrentDiscipline = CompetitionType.Kumite;
+                            if (tatami.CurrentKumiteMatch == null && tatami.AssignedKumiteMatches.Count > 0)
+                            {
+                                tatami.CurrentKumiteMatch = tatami.AssignedKumiteMatches.FirstOrDefault(m => m.Status != MatchStatus.Finished) ?? tatami.AssignedKumiteMatches[0];
+                                tatami.CurrentKumiteMatchId = tatami.CurrentKumiteMatch?.Id;
+                            }
+                        }
                     }
 
                     SaveTatamiStateToDatabase(tatami.Id);
@@ -1336,15 +1411,6 @@ public class TournamentService : ITournamentService, IHostedService
     {
         if (_tatamis.Count == 0) return;
 
-        bool hasUnassigned = _matches.Any(m => !m.IsBye && (!m.TatamiId.HasValue || m.TatamiId <= 0 || !_tatamis.Any(t => t.Id == m.TatamiId.Value)))
-                          || _kataPerformances.Any(p => !p.TatamiId.HasValue || p.TatamiId <= 0 || !_tatamis.Any(t => t.Id == p.TatamiId.Value));
-
-        if (hasUnassigned)
-        {
-            BalanceCategoriesAcrossTatamis();
-            return;
-        }
-
         foreach (var t in _tatamis)
         {
             t.AssignedKumiteMatches = _matches.Where(m => m.TatamiId == t.Id && !m.IsBye).OrderBy(m => m.MatchNumber).ToList();
@@ -1430,6 +1496,19 @@ public class TournamentService : ITournamentService, IHostedService
 
                 foreach (var item in dayKumiteCategories)
                 {
+                    if (!resetManualAssignments && !item.Category.AssignedTatamiId.HasValue)
+                    {
+                        // Catégorie affectée à aucun tatami : ne pas l'assigner
+                        var unassignedMatches = _matches.Where(m => m.CategoryId == item.Category.Id).ToList();
+                        foreach (var m in unassignedMatches)
+                        {
+                            m.TatamiId = null;
+                            m.Tatami = null;
+                        }
+                        item.Category.AssignedTatami = null;
+                        continue;
+                    }
+
                     int chosenTatamiId;
                     if (item.Category.AssignedTatamiId.HasValue && kumiteTatamis.Any(t => t.Id == item.Category.AssignedTatamiId.Value))
                     {
@@ -1486,6 +1565,19 @@ public class TournamentService : ITournamentService, IHostedService
 
                 foreach (var item in dayKataCategories)
                 {
+                    if (!resetManualAssignments && !item.Category.AssignedTatamiId.HasValue)
+                    {
+                        // Catégorie affectée à aucun tatami : ne pas l'assigner
+                        var unassignedPerfs = _kataPerformances.Where(p => p.CategoryId == item.Category.Id).ToList();
+                        foreach (var p in unassignedPerfs)
+                        {
+                            p.TatamiId = null;
+                            p.Tatami = null;
+                        }
+                        item.Category.AssignedTatami = null;
+                        continue;
+                    }
+
                     int chosenTatamiId;
                     if (item.Category.AssignedTatamiId.HasValue && kataTatamis.Any(t => t.Id == item.Category.AssignedTatamiId.Value))
                     {
@@ -1570,7 +1662,7 @@ public class TournamentService : ITournamentService, IHostedService
                 Number = newNumber,
                 Name = string.IsNullOrWhiteSpace(name) ? $"Tatami {newNumber}" : name.Trim(),
                 Discipline = discipline,
-                CurrentDiscipline = discipline == CompetitionType.Kata ? CompetitionType.Kata : CompetitionType.Kumite
+                CurrentDiscipline = (discipline == CompetitionType.Both || discipline == CompetitionType.Kata) ? CompetitionType.Kata : CompetitionType.Kumite
             };
 
             _tatamis.Add(tatami);
@@ -1605,7 +1697,7 @@ public class TournamentService : ITournamentService, IHostedService
             tatami.Name = string.IsNullOrWhiteSpace(name) ? tatami.Name : name.Trim();
             tatami.Discipline = discipline;
             if (discipline == CompetitionType.Kumite) tatami.CurrentDiscipline = CompetitionType.Kumite;
-            else if (discipline == CompetitionType.Kata) tatami.CurrentDiscipline = CompetitionType.Kata;
+            else tatami.CurrentDiscipline = CompetitionType.Kata;
 
             if (oldDiscipline != discipline)
             {
@@ -1765,7 +1857,7 @@ public class TournamentService : ITournamentService, IHostedService
                             _tatamis = new List<Tatami>
                             {
                                 new() { Id = 1, Number = 1, Name = "Tatami 1", Discipline = CompetitionType.Kumite, CurrentDiscipline = CompetitionType.Kumite },
-                                new() { Id = 2, Number = 2, Name = "Tatami 2", Discipline = CompetitionType.Both, CurrentDiscipline = CompetitionType.Kumite },
+                                new() { Id = 2, Number = 2, Name = "Tatami 2", Discipline = CompetitionType.Both, CurrentDiscipline = CompetitionType.Kata },
                                 new() { Id = 3, Number = 3, Name = "Tatami 3", Discipline = CompetitionType.Kata, CurrentDiscipline = CompetitionType.Kata }
                             };
                         }
@@ -1783,7 +1875,7 @@ public class TournamentService : ITournamentService, IHostedService
             _tatamis = new List<Tatami>
             {
                 new() { Id = 1, Number = 1, Name = "Tatami 1", Discipline = CompetitionType.Kumite, CurrentDiscipline = CompetitionType.Kumite },
-                new() { Id = 2, Number = 2, Name = "Tatami 2", Discipline = CompetitionType.Both, CurrentDiscipline = CompetitionType.Kumite },
+                new() { Id = 2, Number = 2, Name = "Tatami 2", Discipline = CompetitionType.Both, CurrentDiscipline = CompetitionType.Kata },
                 new() { Id = 3, Number = 3, Name = "Tatami 3", Discipline = CompetitionType.Kata, CurrentDiscipline = CompetitionType.Kata }
             };
 
@@ -2038,6 +2130,62 @@ public class TournamentService : ITournamentService, IHostedService
             }
             catch { }
         });
+    }
+
+    public bool IsKataCompetitionFinished(int? competitionDay = null, int? tatamiId = null)
+    {
+        lock (_lock)
+        {
+            var query = _kataPerformances.AsEnumerable();
+            if (competitionDay.HasValue)
+            {
+                query = query.Where(p => p.CompetitionDay == competitionDay.Value);
+            }
+            if (tatamiId.HasValue)
+            {
+                query = query.Where(p => p.TatamiId == tatamiId.Value);
+            }
+
+            var list = query.ToList();
+            if (list.Count == 0) return true; // S'il n'y a pas de passages Kata, rien ne bloque
+            return list.All(p => p.Status == MatchStatus.Finished);
+        }
+    }
+
+    public int GetPendingKataCount(int? competitionDay = null, int? tatamiId = null)
+    {
+        lock (_lock)
+        {
+            var query = _kataPerformances.AsEnumerable();
+            if (competitionDay.HasValue)
+            {
+                query = query.Where(p => p.CompetitionDay == competitionDay.Value);
+            }
+            if (tatamiId.HasValue)
+            {
+                query = query.Where(p => p.TatamiId == tatamiId.Value);
+            }
+
+            return query.Count(p => p.Status != MatchStatus.Finished);
+        }
+    }
+
+    public int GetTotalKataCount(int? competitionDay = null, int? tatamiId = null)
+    {
+        lock (_lock)
+        {
+            var query = _kataPerformances.AsEnumerable();
+            if (competitionDay.HasValue)
+            {
+                query = query.Where(p => p.CompetitionDay == competitionDay.Value);
+            }
+            if (tatamiId.HasValue)
+            {
+                query = query.Where(p => p.TatamiId == tatamiId.Value);
+            }
+
+            return query.Count();
+        }
     }
 
     private void NotifyChange(int tatamiId = 0)

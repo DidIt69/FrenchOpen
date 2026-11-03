@@ -179,10 +179,11 @@ public class MultiDayAndTatamiTests
         var categories = service.GetCategories();
         Assert.All(categories, c => Assert.NotNull(c.AssignedTatamiId));
 
-        // Test SetCategoryTatami avec auto
+        // Test SetCategoryTatami avec null (Aucun tatami / non affiché)
         var firstCat = categories.First();
         service.SetCategoryTatami(firstCat.Id, null);
-        Assert.NotNull(firstCat.AssignedTatamiId);
+        Assert.Null(firstCat.AssignedTatamiId);
+        Assert.All(service.GetMatches().Where(m => m.CategoryId == firstCat.Id), m => Assert.Null(m.TatamiId));
     }
 
     [Fact]
@@ -325,5 +326,134 @@ public class MultiDayAndTatamiTests
 
         var catH75 = result.Categories.First(c => c.Name == "Senior Hommes -75kg");
         Assert.Equal(1, catH75.OrderIndex);
+    }
+
+    [Fact]
+    public void IsKataCompetitionFinished_ShouldReflectCompletionStatus()
+    {
+        var service = CreateTournamentService();
+        service.ResetTournament();
+
+        // 1. Sans Katas -> Doit être considéré terminé (ne bloque pas les combats)
+        Assert.True(service.IsKataCompetitionFinished());
+        Assert.Equal(0, service.GetPendingKataCount());
+
+        // 2. Avec une catégorie Kata
+        var catKata = new Category { Id = 10, Name = "Kata Test", Type = CompetitionType.Kata, CompetitionDay = 1 };
+        for (int i = 1; i <= 3; i++)
+        {
+            catKata.Competitors.Add(new Competitor { Id = 100 + i, LastName = $"KataFighter{i}", IsKataRegistered = true });
+        }
+        service.GetCategories().Add(catKata);
+        service.GenerateCategoryBracket(10);
+
+        // Maintenant il y a des passages kata en attente -> IsKataCompetitionFinished doit être faux
+        Assert.False(service.IsKataCompetitionFinished());
+        Assert.True(service.GetPendingKataCount() > 0);
+
+        // Noter tous les passages
+        var perfs = service.GetKataPerformances().Where(p => p.CategoryId == 10).ToList();
+        foreach (var p in perfs)
+        {
+            service.SubmitKataScores(p.Id, new List<double> { 70, 75, 72, 80, 74 });
+        }
+
+        // Tous les katas terminés -> IsKataCompetitionFinished doit redevenir vrai
+        Assert.True(service.IsKataCompetitionFinished());
+        Assert.Equal(0, service.GetPendingKataCount());
+    }
+
+    [Fact]
+    public void TatamiWithBothDiscipline_ShouldStartWithKata_AndSwitchToKumiteWhenDone()
+    {
+        var service = CreateTournamentService();
+        service.ResetTournament();
+
+        // Créer un tatami mixte
+        var tatami = service.AddTatami("Tatami Mixte", CompetitionType.Both);
+        Assert.Equal(CompetitionType.Kata, tatami.CurrentDiscipline);
+
+        // Ajouter une catégorie Kata et une catégorie Kumité
+        var catKata = new Category { Id = 20, Name = "Kata Mixte", Type = CompetitionType.Kata, CompetitionDay = 1 };
+        catKata.Competitors.Add(new Competitor { Id = 201, LastName = "K1", IsKataRegistered = true });
+        service.GetCategories().Add(catKata);
+
+        var catKumite = new Category { Id = 21, Name = "Kumite Mixte", Type = CompetitionType.Kumite, CompetitionDay = 1 };
+        catKumite.Competitors.Add(new Competitor { Id = 202, LastName = "F1", IsKumiteRegistered = true });
+        catKumite.Competitors.Add(new Competitor { Id = 203, LastName = "F2", IsKumiteRegistered = true });
+        service.GetCategories().Add(catKumite);
+
+        service.GenerateAllBrackets();
+        service.SetCategoryTatami(20, tatami.Id);
+        service.SetCategoryTatami(21, tatami.Id);
+
+        // Récupérer le tatami mixte et son passage kata
+        var updatedTatami = service.GetTatami(tatami.Id)!;
+        Assert.Equal(CompetitionType.Kata, updatedTatami.CurrentDiscipline);
+
+        var tatamiPerfs = service.GetKataPerformances().Where(p => p.TatamiId == updatedTatami.Id).ToList();
+        Assert.NotEmpty(tatamiPerfs);
+        foreach (var p in tatamiPerfs)
+        {
+            service.SubmitKataScores(p.Id, new List<double> { 70, 75, 72, 80, 74 });
+        }
+
+        // Une fois tous les Katas finis sur ce tatami mixte, il doit basculer en mode Kumité
+        var tatamiAfterKata = service.GetTatami(tatami.Id)!;
+        Assert.Equal(CompetitionType.Kumite, tatamiAfterKata.CurrentDiscipline);
+    }
+
+    [Fact]
+    public void Category_AssignedToNoTatami_ShouldNotAppearOnAnyTatami()
+    {
+        var service = CreateTournamentService();
+        service.ResetTournament();
+
+        var tatami1 = service.AddTatami("Tatami 1", CompetitionType.Kumite);
+        var tatami2 = service.AddTatami("Tatami 2", CompetitionType.Kata);
+
+        var catKumite = new Category { Id = 30, Name = "Kumite Masqué", Type = CompetitionType.Kumite, CompetitionDay = 1 };
+        catKumite.Competitors.Add(new Competitor { Id = 301, LastName = "K1", IsKumiteRegistered = true });
+        catKumite.Competitors.Add(new Competitor { Id = 302, LastName = "K2", IsKumiteRegistered = true });
+        service.GetCategories().Add(catKumite);
+
+        var catKata = new Category { Id = 31, Name = "Kata Masqué", Type = CompetitionType.Kata, CompetitionDay = 1 };
+        catKata.Competitors.Add(new Competitor { Id = 303, LastName = "KT1", IsKataRegistered = true });
+        service.GetCategories().Add(catKata);
+
+        service.GenerateAllBrackets();
+
+        // 1. Désaffecter la catégorie Kumite et la catégorie Kata (Aucun tatami)
+        service.SetCategoryTatami(30, null);
+        service.SetCategoryTatami(31, null);
+
+        var cKumite = service.GetCategory(30)!;
+        var cKata = service.GetCategory(31)!;
+
+        Assert.Null(cKumite.AssignedTatamiId);
+        Assert.Null(cKata.AssignedTatamiId);
+
+        // Vérifier que tous les combats et katas de ces catégories n'ont pas de TatamiId
+        var matches = service.GetMatches().Where(m => m.CategoryId == 30).ToList();
+        Assert.NotEmpty(matches);
+        Assert.All(matches, m => Assert.Null(m.TatamiId));
+
+        var perfs = service.GetKataPerformances().Where(p => p.CategoryId == 31).ToList();
+        Assert.NotEmpty(perfs);
+        Assert.All(perfs, p => Assert.Null(p.TatamiId));
+
+        // Vérifier qu'aucun tatami n'a ces rencontres dans sa liste
+        var allTatamis = service.GetTatamis();
+        foreach (var t in allTatamis)
+        {
+            Assert.DoesNotContain(t.AssignedKumiteMatches, m => m.CategoryId == 30);
+            Assert.DoesNotContain(t.AssignedKataPerformances, p => p.CategoryId == 31);
+        }
+
+        // 2. Vérifier qu'un rééquilibrage non forcé ne réassigne pas ces catégories masquées
+        service.BalanceCategoriesAcrossTatamis(resetManualAssignments: false);
+
+        Assert.Null(service.GetCategory(30)!.AssignedTatamiId);
+        Assert.Null(service.GetCategory(31)!.AssignedTatamiId);
     }
 }

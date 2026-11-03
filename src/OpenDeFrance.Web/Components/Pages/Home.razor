@@ -2,6 +2,7 @@
 @page "/live"
 @rendermode InteractiveServer
 @inject ITournamentService TournamentService
+@inject IJSRuntime JS
 @implements IDisposable
 @inject ILanguageService Lang
 
@@ -38,102 +39,128 @@
                     <div class="card-body p-0">
                         @if (tatami.CurrentDiscipline == CompetitionType.Kumite)
                         {
-                            var match = tatami.CurrentKumiteMatch;
-                            if (match != null)
+                            var isKataFinished = TournamentService.IsKataCompetitionFinished();
+                            if (!isKataFinished)
                             {
-                                <!-- Current Kumite Match Banner -->
-                                <div class="p-3 bg-light border-bottom">
-                                    <div class="d-flex justify-content-between align-items-center mb-2">
-                                        <span class="badge bg-warning text-dark fw-bold">COMBAT EN COURS • J@match.CompetitionDay • #@match.MatchNumber</span>
-                                        <span class="badge bg-secondary">@match.RoundName</span>
-                                    </div>
-                                    <h6 class="fw-bold text-primary mb-2">@match.Category?.Name</h6>
-
-                                    <!-- Fighters Aka vs Shiro -->
-                                    <div class="row g-2 text-center align-items-center mb-2">
-                                        <div class="col-5 p-2 rounded bg-danger text-white">
-                                            <div class="small fw-bold">AKA (ROUGE)</div>
-                                            <div class="fw-bold text-truncate small" title="@match.AkaDisplayName">@match.AkaDisplayName</div>
-                                            <small class="d-block text-white-50 text-truncate">@(match.AkaCompetitor != null ? $"{match.AkaCompetitor.CountryFlag} {match.AkaCompetitor.Club}" : "")</small>
-                                            <div class="mt-1 badge bg-dark text-nowrap" style="font-size: 0.75rem;">
-                                                W: @match.AkaWazaAri | I: @match.AkaIppon
-                                            </div>
-                                        </div>
-
-                                        <div class="col-2 fw-bold text-muted small">VS</div>
-
-                                        <div class="col-5 p-2 rounded bg-dark text-white">
-                                            <div class="small fw-bold text-white-50">SHIRO (BLANC)</div>
-                                            <div class="fw-bold text-truncate small" title="@match.ShiroDisplayName">@match.ShiroDisplayName</div>
-                                            <small class="d-block text-white-50 text-truncate">@(match.ShiroCompetitor != null ? $"{match.ShiroCompetitor.CountryFlag} {match.ShiroCompetitor.Club}" : "")</small>
-                                            <div class="mt-1 badge bg-secondary text-nowrap" style="font-size: 0.75rem;">
-                                                W: @match.ShiroWazaAri | I: @match.ShiroIppon
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <!-- Live Timer -->
-                                    <div class="d-flex justify-content-between align-items-center mt-2 pt-2 border-top">
-                                        <span class="font-monospace fs-4 fw-bold @(match.IsTimerRunning ? "text-success" : "text-muted")">
-                                            ⏱️ @FormatSeconds(match.RemainingSeconds)
-                                        </span>
-                                        @if (match.ExtensionsCount > 0)
-                                        {
-                                            <span class="badge bg-danger">@match.CurrentPeriodName</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="badge @(match.IsTimerRunning ? "bg-success" : "bg-warning text-dark")">
-                                                @(match.IsTimerRunning ? "En combat" : "Arrêté")
-                                            </span>
-                                        }
-                                    </div>
+                                var pendingKatas = TournamentService.GetPendingKataCount();
+                                <div class="p-4 text-center py-5">
+                                    <div class="fs-1 mb-2">🥋</div>
+                                    <h5 class="fw-bold text-dark mb-1">@Lang["KataInProgressFightsPending"]</h5>
+                                    <p class="text-muted small mb-3">
+                                        @Lang["KataFirstNotice"]
+                                    </p>
+                                    <span class="badge bg-primary px-3 py-2">
+                                        ⏳ @pendingKatas @Lang["PendingKataRemaining"]
+                                    </span>
                                 </div>
                             }
                             else
                             {
-                                <div class="p-4 text-center text-muted">
-                                    <em>Aucun combat en cours sur ce tatami</em>
-                                </div>
-                            }
-
-                            <!-- Upcoming Matches on this Tatami -->
-                            <div class="p-3">
-                                <h6 class="text-uppercase text-secondary fw-bold small mb-2">
-                                    ⏭️ Prochains combats sur ce tatami
-                                </h6>
-                                @{
-                                    var upcoming = tatami.AssignedKumiteMatches
-                                        .Where(m => m.Status != MatchStatus.Finished && m.Id != match?.Id)
-                                        .OrderBy(m => m.MatchNumber)
-                                        .Take(3)
-                                        .ToList();
-                                }
-                                @if (upcoming.Count == 0)
+                                var match = tatami.CurrentKumiteMatch;
+                                if (match != null)
                                 {
-                                    <div class="text-muted small">Aucun autre combat programmé pour le moment.</div>
+                                    <!-- Current Kumite Match Banner -->
+                                    <div class="p-3 bg-light border-bottom">
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <span class="badge bg-warning text-dark fw-bold">COMBAT EN COURS • J@match.CompetitionDay • #@match.MatchNumber</span>
+                                            <span class="badge bg-secondary">@match.RoundName</span>
+                                        </div>
+                                        <h6 class="fw-bold text-primary mb-2">@match.Category?.Name</h6>
+
+                                        <!-- Fighters Aka vs Shiro -->
+                                        <div class="row g-2 text-center align-items-center mb-2">
+                                            <div class="col-5 p-2 rounded bg-danger text-white overflow-hidden">
+                                                <div class="small fw-bold">AKA (ROUGE)</div>
+                                                <div class="auto-scroll-container fw-bold small" title="@match.AkaDisplayName">
+                                                    <span class="auto-scroll-content">@match.AkaDisplayName</span>
+                                                </div>
+                                                <div class="auto-scroll-container text-white-50 small" title="@(match.AkaCompetitor != null ? $"{match.AkaCompetitor.CountryFlag} {match.AkaCompetitor.Club}" : "")">
+                                                    <span class="auto-scroll-content">@(match.AkaCompetitor != null ? $"{match.AkaCompetitor.CountryFlag} {match.AkaCompetitor.Club}" : "")</span>
+                                                </div>
+                                                <div class="mt-1 badge bg-dark text-nowrap" style="font-size: 0.75rem;">
+                                                    W: @match.AkaWazaAri | I: @match.AkaIppon
+                                                </div>
+                                            </div>
+
+                                            <div class="col-2 fw-bold text-muted small">VS</div>
+
+                                            <div class="col-5 p-2 rounded bg-dark text-white overflow-hidden">
+                                                <div class="small fw-bold text-white-50">SHIRO (BLANC)</div>
+                                                <div class="auto-scroll-container fw-bold small" title="@match.ShiroDisplayName">
+                                                    <span class="auto-scroll-content">@match.ShiroDisplayName</span>
+                                                </div>
+                                                <div class="auto-scroll-container text-white-50 small" title="@(match.ShiroCompetitor != null ? $"{match.ShiroCompetitor.CountryFlag} {match.ShiroCompetitor.Club}" : "")">
+                                                    <span class="auto-scroll-content">@(match.ShiroCompetitor != null ? $"{match.ShiroCompetitor.CountryFlag} {match.ShiroCompetitor.Club}" : "")</span>
+                                                </div>
+                                                <div class="mt-1 badge bg-secondary text-nowrap" style="font-size: 0.75rem;">
+                                                    W: @match.ShiroWazaAri | I: @match.ShiroIppon
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Live Timer -->
+                                        <div class="d-flex justify-content-between align-items-center mt-2 pt-2 border-top">
+                                            <span class="font-monospace fs-4 fw-bold @(match.IsTimerRunning ? "text-success" : "text-muted")">
+                                                ⏱️ @FormatSeconds(match.RemainingSeconds)
+                                            </span>
+                                            @if (match.ExtensionsCount > 0)
+                                            {
+                                                <span class="badge bg-danger">@match.CurrentPeriodName</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge @(match.IsTimerRunning ? "bg-success" : "bg-warning text-dark")">
+                                                    @(match.IsTimerRunning ? "En combat" : "Arrêté")
+                                                </span>
+                                            }
+                                        </div>
+                                    </div>
                                 }
                                 else
                                 {
-                                    <ul class="list-group list-group-flush">
-                                        @foreach (var up in upcoming)
-                                        {
-                                            <li class="list-group-item px-0 py-2">
-                                                <div class="d-flex justify-content-between align-items-start">
-                                                    <div>
-                                                        <span class="badge bg-secondary me-1">#@up.MatchNumber</span>
-                                                        <strong>@up.AkaDisplayName</strong>
-                                                        <span class="text-muted">vs</span>
-                                                        <strong>@up.ShiroDisplayName</strong>
-                                                    </div>
-                                                    <small class="badge bg-light text-dark">@up.RoundName</small>
-                                                </div>
-                                                <small class="text-muted d-block">@up.Category?.Name</small>
-                                            </li>
-                                        }
-                                    </ul>
+                                    <div class="p-4 text-center text-muted">
+                                        <em>Aucun combat en cours sur ce tatami</em>
+                                    </div>
                                 }
-                            </div>
+
+                                <!-- Upcoming Matches on this Tatami -->
+                                <div class="p-3">
+                                    <h6 class="text-uppercase text-secondary fw-bold small mb-2">
+                                        ⏭️ Prochains combats sur ce tatami
+                                    </h6>
+                                    @{
+                                        var upcoming = tatami.AssignedKumiteMatches
+                                            .Where(m => m.Status != MatchStatus.Finished && m.Id != match?.Id)
+                                            .OrderBy(m => m.MatchNumber)
+                                            .Take(3)
+                                            .ToList();
+                                    }
+                                    @if (upcoming.Count == 0)
+                                    {
+                                        <div class="text-muted small">Aucun autre combat programmé pour le moment.</div>
+                                    }
+                                    else
+                                    {
+                                        <ul class="list-group list-group-flush">
+                                            @foreach (var up in upcoming)
+                                            {
+                                                <li class="list-group-item px-0 py-2">
+                                                    <div class="d-flex justify-content-between align-items-start">
+                                                        <div>
+                                                            <span class="badge bg-secondary me-1">#@up.MatchNumber</span>
+                                                            <strong>@up.AkaDisplayName</strong>
+                                                            <span class="text-muted">vs</span>
+                                                            <strong>@up.ShiroDisplayName</strong>
+                                                        </div>
+                                                        <small class="badge bg-light text-dark">@up.RoundName</small>
+                                                    </div>
+                                                    <small class="text-muted d-block">@up.Category?.Name</small>
+                                                </li>
+                                            }
+                                        </ul>
+                                    }
+                                </div>
+                            }
                         }
                         else
                         {
@@ -146,16 +173,20 @@
                                         <span class="badge bg-primary">@(Lang["KataInProgress"]) • @(Lang["Day"])@(kata.CompetitionDay) • Passage #@kata.PerformanceOrder</span>
                                         <span class="badge bg-secondary">@(kata.Round == KataRound.Tour1 ? Lang["Turn1"] : Lang["Turn2Final"])</span>
                                     </div>
-                                    <h5 class="fw-bold mb-1">@kata.CompetitorDisplayName</h5>
-                                    <div class="text-muted small mb-2 d-flex align-items-center gap-1 flex-wrap">
+                                    <div class="auto-scroll-container mb-1" title="@kata.CompetitorDisplayName">
+                                        <h5 class="fw-bold mb-0 auto-scroll-content">@kata.CompetitorDisplayName</h5>
+                                    </div>
+                                    <div class="text-muted small mb-2 d-flex align-items-center gap-1 text-nowrap flex-nowrap" style="overflow: hidden; width: 100%; min-width: 0;">
                                         @if (kata.Competitor != null)
                                         {
                                             <img src="@kata.Competitor.FlagImageUrl"
                                                  alt="@kata.Competitor.Country"
                                                  title="@kata.Competitor.Country"
-                                                 class="border rounded-1 me-1"
+                                                 class="border rounded-1 me-1 flex-shrink-0"
                                                  style="width: 22px; height: 15px; object-fit: cover; vertical-align: middle; box-shadow: 0 1px 2px rgba(0,0,0,0.15);" />
-                                            <span>@kata.Competitor.Club • @kata.Competitor.GradeName</span>
+                                            <div class="auto-scroll-container flex-grow-1" style="min-width: 0;" title="@kata.Competitor.Club • @kata.Competitor.GradeName">
+                                                <span class="auto-scroll-content">@kata.Competitor.Club • @kata.Competitor.GradeName</span>
+                                            </div>
                                         }
                                         else
                                         {
@@ -171,7 +202,7 @@
                                     <div class="d-flex justify-content-between align-items-center">
                                         <span class="text-muted small">@Lang["Notes"] : @((kata.ScoresDisplay == "NotNotes")?Lang["NotNotes"]:kata.ScoresDisplay)</span>
                                         <span class="fs-6 fw-bold text-primary">
-                                            @(kata.FinalScore > 0 ? $"{kata.FinalScore:0} pts" : Lang["WaitingNotes"])
+                                            @(kata.FinalScore > 0 ? $"{kata.FinalScore:0} pts" : "")
                                         </span>
                                     </div>
                                 </div>
@@ -214,14 +245,16 @@
                                                 </div>
                                                 @if (up.Competitor != null)
                                                 {
-                                                    <img 
-                                                        src="@up.Competitor.FlagImageUrl"
-                                                        alt="@up.Competitor.Country"
-                                                        title="@up.Competitor.Country"
-                                                        class="border rounded-1 me-1"
-                                                        style="width: 22px; height: 15px; object-fit: cover; vertical-align: middle; box-shadow: 0 1px 2px rgba(0,0,0,0.15);" 
-                                                    />
-                                                    <small class="text-muted">@up.Competitor.Club • @up.Competitor.GradeName</small>
+                                                    <div class="d-flex align-items-center gap-1 mt-1 text-nowrap" style="overflow: hidden; max-width: 100%;">
+                                                        <img src="@up.Competitor.FlagImageUrl"
+                                                             alt="@up.Competitor.Country"
+                                                             title="@up.Competitor.Country"
+                                                             class="border rounded-1 me-1 flex-shrink-0"
+                                                             style="width: 20px; height: 14px; object-fit: cover; vertical-align: middle; box-shadow: 0 1px 2px rgba(0,0,0,0.15);" />
+                                                        <div class="auto-scroll-container flex-grow-1" title="@up.Competitor.Club • @up.Competitor.GradeName">
+                                                            <small class="text-muted auto-scroll-content">@up.Competitor.Club • @up.Competitor.GradeName</small>
+                                                        </div>
+                                                    </div>
                                                 }
                                             </li>
                                         }
@@ -230,13 +263,6 @@
                             </div>
                         }
                     </div>
-
-                    <!-- <div class="card-footer bg-white border-top-0 d-flex justify-content-between align-items-center">
-                        <a href="tatami/@tatami.Id/controller" class="btn btn-sm btn-outline-secondary">
-                            ⚙️ Table de Marque
-                        </a>
-                        <small class="text-muted">Tatami @tatami.Number</small>
-                    </div> -->
                 </div>
             </div>
         }
@@ -459,6 +485,15 @@
     private async void HandleLanguageChanged()
     {
         await InvokeAsync(StateHasChanged);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("autoScrollManager.update");
+        }
+        catch { }
     }
 
     private string FormatSeconds(int seconds)

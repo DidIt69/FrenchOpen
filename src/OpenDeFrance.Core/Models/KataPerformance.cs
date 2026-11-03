@@ -37,7 +37,13 @@ public class KataPerformance
 
     public MatchStatus Status { get; set; } = MatchStatus.Pending;
 
-    public string ScoresDisplay => JudgeScores.Count > 0 
-        ? string.Join(" | ", JudgeScores.Select(s => s.ToString("0"))) 
-        : "NotNotes";
+    public string ScoresDisplay => GetScoresDisplay();
+
+    public string GetScoresDisplay(OpenDeFrance.Core.Services.ILanguageService? lang = null)
+    {
+        if (JudgeScores.Count > 0)
+            return string.Join(" | ", JudgeScores.Select(s => s.ToString("0")));
+
+        return lang?["NoScore"] ?? "Pas de note";
+    }
 }

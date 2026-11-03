@@ -22,7 +22,7 @@
                     @foreach (var cat in categories.OrderBy(c => c.CompetitionDay).ThenBy(c => c.OrderIndex).ThenBy(c => c.Name))
                     {
                         <option value="@cat.Id">
-                            [#@cat.OrderIndex] 📅 J@(cat.CompetitionDay) • @(cat.Type == CompetitionType.Kumite ? "🥊" : "🥋") @cat.Name
+                            [#@cat.OrderIndex] 📅 J@(cat.CompetitionDay) • @(cat.Type == CompetitionType.Kumite ? "🥊" : "🥋") @cat.Name @(!cat.AssignedTatamiId.HasValue ? "(🚫 Sans tatami)" : "")
                         </option>
                     }
                 </select>
@@ -65,8 +65,16 @@
                             var assignedT = tatamis.FirstOrDefault(t => t.Id == selectedCategory.AssignedTatamiId.Value);
                             <span class="badge bg-info text-dark border fw-bold">🥋 @(assignedT?.Name ?? $"Tatami #{selectedCategory.AssignedTatamiId}")</span>
                         }
+                        else
+                        {
+                            <span class="badge bg-secondary text-white border fw-bold">🚫 Aucun tatami (Non affiché)</span>
+                        }
                         @if (selectedCategory.Type == CompetitionType.Kumite)
                         {
+                            @if (!TournamentService.IsKataCompetitionFinished())
+                            {
+                                <span class="badge bg-primary text-white border" title="Les katas se déroulent en premier">🥋 Début après épreuves Kata</span>
+                            }
                             @if (selectedCategory.HasBronzeMatch)
                             {
                                 <span class="badge bg-warning text-dark border">🥉 Petite finale (3e place)</span>
@@ -108,10 +116,11 @@
                         }
 
                         <div class="d-flex align-items-center gap-1 bg-secondary-subtle text-dark px-2 py-1 rounded">
-                            <small class="fw-bold">Tout assigner au :</small>
+                            <small class="fw-bold">Tatami :</small>
                             <select class="form-select form-select-sm py-0 px-1 border-primary" style="width: auto; height: 26px;"
+                                    value="@(selectedCategory.AssignedTatamiId ?? 0)"
                                     @onchange="(e) => BulkAssignTatami(selectedCategory.Id, e)">
-                                <option value="">Choisir Tatami...</option>
+                                <option value="0">🚫 Aucun tatami (Non affiché)</option>
                                 @foreach (var t in tatamis)
                                 {
                                     <option value="@t.Id">@t.Name</option>
@@ -772,9 +781,18 @@
     {
         if (int.TryParse(e.Value?.ToString(), out int tatamiId))
         {
-            TournamentService.AssignCategoryMatchesToTatami(categoryId, tatamiId);
-            var t = tatamis.FirstOrDefault(x => x.Id == tatamiId);
-            statusFeedback = $"Tous les combats de la catégorie ont été assignés au {t?.Name ?? $"Tatami {tatamiId}"}.";
+            if (tatamiId > 0)
+            {
+                TournamentService.AssignCategoryMatchesToTatami(categoryId, tatamiId);
+                var t = tatamis.FirstOrDefault(x => x.Id == tatamiId);
+                statusFeedback = $"Toutes les rencontres de la catégorie ont été assignées au {t?.Name ?? $"Tatami {tatamiId}"}.";
+            }
+            else
+            {
+                TournamentService.SetCategoryTatami(categoryId, null);
+                statusFeedback = "Catégorie retirée des tatamis (non affichée sur les tatamis).";
+            }
+            RefreshData();
             isErrorFeedback = false;
         }
     }

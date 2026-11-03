@@ -59,6 +59,16 @@
 
         @if (tatami.CurrentDiscipline == CompetitionType.Kumite)
         {
+            @if (!TournamentService.IsKataCompetitionFinished())
+            {
+                <div class="alert alert-warning border-warning d-flex align-items-center gap-2 mb-3 shadow-sm py-2 px-3">
+                    <span class="fs-4">🥋</span>
+                    <div>
+                        <strong>Épreuves Kata en cours :</strong> Les katas se déroulent en premier (@TournamentService.GetPendingKataCount() restant(s)). Les combats ne doivent être lancés qu'une fois la compétition Kata terminée.
+                    </div>
+                </div>
+            }
+
             var match = tatami.CurrentKumiteMatch;
             if (match == null)
             {

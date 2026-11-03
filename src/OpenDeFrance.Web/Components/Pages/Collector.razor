@@ -106,6 +106,20 @@
     </div>
 
     <!-- Compteurs rapides -->
+    @if (!TournamentService.IsKataCompetitionFinished(selectedDayFilter > 0 ? selectedDayFilter : null))
+    {
+        var pendingKatas = TournamentService.GetPendingKataCount(selectedDayFilter > 0 ? selectedDayFilter : null);
+        <div class="alert alert-warning border-warning d-flex align-items-center gap-3 mb-3 shadow-sm py-2 px-3">
+            <span class="fs-3">🥋</span>
+            <div>
+                <div class="fw-bold">Phase Kata en cours — Les épreuves Kata se déroulent en premier</div>
+                <div class="small text-dark">
+                    Seuls les passages Kata sont actuellement appelés (@pendingKatas restant(s)). Les combats de Kumité apparaîtront automatiquement dès la fin des épreuves Kata.
+                </div>
+            </div>
+        </div>
+    }
+
     <div class="row g-2 mb-3">
         <div class="col-4 col-md-4">
             <div class="p-2 rounded bg-danger text-white text-center shadow-sm">
@@ -346,11 +360,68 @@
     private void BuildCollectorList()
     {
         var items = new List<CollectorItem>();
+        bool isKataFinished = TournamentService.IsKataCompetitionFinished(selectedDayFilter > 0 ? selectedDayFilter : null);
 
         foreach (var t in tatamis)
         {
-            // --- 1. Rencontres Kumité sur ce tatami ---
-            if (t.Discipline == CompetitionType.Kumite || t.Discipline == CompetitionType.Both)
+            // --- 1. Passages Kata sur ce tatami (en premier) ---
+            if (t.Discipline == CompetitionType.Kata || t.Discipline == CompetitionType.Both)
+            {
+                var kataPending = t.AssignedKataPerformances
+                    .Where(p => p.Status != MatchStatus.Finished)
+                    .OrderBy(p => p.CompetitionDay)
+                    .ThenBy(p => p.Round)
+                    .ThenBy(p => p.PerformanceOrder)
+                    .ToList();
+
+                int queuePos = 0;
+                foreach (var p in kataPending.Take(6)) // Prendre les 6 prochains passages Kata
+                {
+                    bool isCurrent = t.CurrentKataPerformanceId == p.Id;
+                    CollectorUrgency urgency;
+
+                    if (isCurrent)
+                    {
+                        urgency = CollectorUrgency.Current;
+                    }
+                    else if (queuePos == 0)
+                    {
+                        urgency = CollectorUrgency.NextUp;
+                    }
+                    else
+                    {
+                        urgency = CollectorUrgency.Upcoming;
+                    }
+
+                    items.Add(new CollectorItem
+                    {
+                        Key = $"p_{p.Id}",
+                        TatamiId = t.Id,
+                        TatamiName = t.Name,
+                        CompetitionDay = p.CompetitionDay,
+                        OrderNumber = p.PerformanceOrder,
+                        IsKata = true,
+                        CategoryName = p.Category?.Name ?? "Kata",
+                        RoundName = p.Round == KataRound.Tour1 ? "1er Tour" : "2e Tour (Finale)",
+                        BibNumber = p.Competitor?.BibNumber,
+                        FullName = p.CompetitorDisplayName,
+                        Club = p.Competitor?.Club ?? "Club inconnu",
+                        Country = p.Competitor?.Country ?? "",
+                        CountryFlag = p.Competitor?.CountryFlag ?? "🏳️",
+                        KataName = p.KataName,
+                        Urgency = urgency,
+                        QueuePosition = queuePos + 1
+                    });
+
+                    if (!isCurrent)
+                    {
+                        queuePos++;
+                    }
+                }
+            }
+
+            // --- 2. Rencontres Kumité sur ce tatami (UNIQUEMENT si les Katas sont finis !) ---
+            if (isKataFinished && (t.Discipline == CompetitionType.Kumite || t.Discipline == CompetitionType.Both))
             {
                 var kumitePending = t.AssignedKumiteMatches
                     .Where(m => m.Status != MatchStatus.Finished)
@@ -424,62 +495,6 @@
                             QueuePosition = queuePos + 1
                         });
                     }
-
-                    if (!isCurrent)
-                    {
-                        queuePos++;
-                    }
-                }
-            }
-
-            // --- 2. Passages Kata sur ce tatami ---
-            if (t.Discipline == CompetitionType.Kata || t.Discipline == CompetitionType.Both)
-            {
-                var kataPending = t.AssignedKataPerformances
-                    .Where(p => p.Status != MatchStatus.Finished)
-                    .OrderBy(p => p.CompetitionDay)
-                    .ThenBy(p => p.Round)
-                    .ThenBy(p => p.PerformanceOrder)
-                    .ToList();
-
-                int queuePos = 0;
-                foreach (var p in kataPending.Take(6)) // Prendre les 6 prochains passages Kata
-                {
-                    bool isCurrent = t.CurrentKataPerformanceId == p.Id;
-                    CollectorUrgency urgency;
-
-                    if (isCurrent)
-                    {
-                        urgency = CollectorUrgency.Current;
-                    }
-                    else if (queuePos == 0)
-                    {
-                        urgency = CollectorUrgency.NextUp;
-                    }
-                    else
-                    {
-                        urgency = CollectorUrgency.Upcoming;
-                    }
-
-                    items.Add(new CollectorItem
-                    {
-                        Key = $"p_{p.Id}",
-                        TatamiId = t.Id,
-                        TatamiName = t.Name,
-                        CompetitionDay = p.CompetitionDay,
-                        OrderNumber = p.PerformanceOrder,
-                        IsKata = true,
-                        CategoryName = p.Category?.Name ?? "Kata",
-                        RoundName = p.Round == KataRound.Tour1 ? "1er Tour" : "2e Tour (Finale)",
-                        BibNumber = p.Competitor?.BibNumber,
-                        FullName = p.CompetitorDisplayName,
-                        Club = p.Competitor?.Club ?? "Club inconnu",
-                        Country = p.Competitor?.Country ?? "",
-                        CountryFlag = p.Competitor?.CountryFlag ?? "🏳️",
-                        KataName = p.KataName,
-                        Urgency = urgency,
-                        QueuePosition = queuePos + 1
-                    });
 
                     if (!isCurrent)
                     {

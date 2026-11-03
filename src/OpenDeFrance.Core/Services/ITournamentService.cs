@@ -62,4 +62,9 @@ public interface ITournamentService
     void SubmitKataScores(int performanceId, List<double> scores);
     void QualifyKataRound1(int categoryId);
     void FinalizeKataRound2(int categoryId);
+
+    // Statut Compétition Kata vs Kumite (Katas en premier)
+    bool IsKataCompetitionFinished(int? competitionDay = null, int? tatamiId = null);
+    int GetPendingKataCount(int? competitionDay = null, int? tatamiId = null);
+    int GetTotalKataCount(int? competitionDay = null, int? tatamiId = null);
 }
