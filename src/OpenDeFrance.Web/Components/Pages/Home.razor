@@ -372,7 +372,7 @@
                                 @foreach (var cat in FilteredCategoryChoices)
                                 {
                                     bool isChecked = selectedCategoryIds.Contains(cat.Id);
-                                    int count = GetCategoryItemCount(cat.Id);
+                                    int compCount = GetCategoryCompetitorCount(cat);
                                     <label class="list-group-item list-group-item-action py-1 px-2 border-0 d-flex align-items-center gap-2 rounded user-select-none"
                                            style="cursor: pointer;">
                                         <input class="form-check-input m-0 flex-shrink-0" type="checkbox"
@@ -385,7 +385,9 @@
                                             <span class="badge bg-light text-dark border" style="font-size: 0.65rem;">J@(cat.CompetitionDay)</span>
                                             <span class="text-truncate" title="@cat.Name">@cat.Name</span>
                                         </div>
-                                        <span class="badge bg-secondary-subtle text-secondary-emphasis" style="font-size: 0.65rem;">@count</span>
+                                        <span class="badge bg-secondary-subtle text-secondary-emphasis" style="font-size: 0.65rem;" title="@($"{compCount} compétiteur(s)")">
+                                            @compCount @(compCount > 1 ? "inscrits" : "inscrit")
+                                        </span>
                                     </label>
                                 }
                                 @if (!FilteredCategoryChoices.Any())
@@ -549,6 +551,7 @@
 
     private List<Tatami> tatamis = new();
     private List<Category> categories = new();
+    private List<Competitor> allCompetitors = new();
     private List<KumiteMatch> allMatches = new();
     private List<KataPerformance> allKatas = new();
     private string searchTerm = string.Empty;
@@ -574,7 +577,7 @@
         public string WinnerInfo { get; set; } = string.Empty;
         public int DurationSeconds { get; set; }
         public MatchStatus Status { get; set; }
-        public string Score {get;set;}
+        public string Score { get; set; } = string.Empty;
     }
 
     protected override void OnParametersSet()
@@ -652,6 +655,22 @@
         disciplineFilter = "all";
     }
 
+    private int GetCategoryCompetitorCount(Category cat)
+    {
+        int count = cat.Competitors != null ? cat.Competitors.Count : 0;
+        if (count > 0) return count;
+
+        int fromAll = allCompetitors.Count(c => c.Categories != null && c.Categories.Any(cat2 => cat2.Id == cat.Id));
+        if (fromAll > 0) return fromAll;
+
+        int fromKatas = allKatas.Where(k => k.CategoryId == cat.Id && k.CompetitorId.HasValue).Select(k => k.CompetitorId!.Value).Distinct().Count();
+        if (fromKatas > 0) return fromKatas;
+
+        var akaIds = allMatches.Where(m => m.CategoryId == cat.Id && m.AkaCompetitorId.HasValue).Select(m => m.AkaCompetitorId!.Value);
+        var shiroIds = allMatches.Where(m => m.CategoryId == cat.Id && m.ShiroCompetitorId.HasValue).Select(m => m.ShiroCompetitorId!.Value);
+        return akaIds.Concat(shiroIds).Distinct().Count();
+    }
+
     private int GetCategoryItemCount(int catId) =>
         allMatches.Count(m => m.CategoryId == catId && !m.IsBye) + allKatas.Count(k => k.CategoryId == catId);
 
@@ -659,7 +678,7 @@
     {
         get
         {
-            var list = categories.AsEnumerable();
+            var list = categories.Where(c => GetCategoryCompetitorCount(c) > 0);
             if (disciplineFilter == "kata")
             {
                 list = list.Where(c => c.Type == CompetitionType.Kata);
@@ -705,6 +724,7 @@
         categories = TournamentService.GetCategories();
         allMatches = TournamentService.GetMatches();
         allKatas = TournamentService.GetKataPerformances();
+        allCompetitors = TournamentService.GetCompetitors();
     }
 
     private async void HandleStateChanged()
