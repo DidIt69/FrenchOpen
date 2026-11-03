@@ -402,7 +402,7 @@
                         OrderNumber = p.PerformanceOrder,
                         IsKata = true,
                         CategoryName = p.Category?.Name ?? "Kata",
-                        RoundName = p.Round == KataRound.Tour1 ? "1er Tour" : "2e Tour (Finale)",
+                        RoundName = p.Round == KataRound.Turn1 ? "1er Tour" : "2e Tour (Finale)",
                         BibNumber = p.Competitor?.BibNumber,
                         FullName = p.CompetitorDisplayName,
                         Club = p.Competitor?.Club ?? "Club inconnu",

@@ -53,7 +53,7 @@ public class KataTournamentManager : IKataTournamentManager
                 Category = category,
                 CompetitorId = comp.Id,
                 Competitor = comp,
-                Round = KataRound.Tour1,
+                Round = KataRound.Turn1,
                 KataName = category.KataRound1MandatoryKata,
                 PerformanceOrder = order++,
                 Status = MatchStatus.Pending
@@ -72,7 +72,7 @@ public class KataTournamentManager : IKataTournamentManager
             {
                 CategoryId = category.Id,
                 Category = category,
-                Round = KataRound.Tour2,
+                Round = KataRound.Turn2,
                 KataName = category.KataRound2MandatoryKata,
                 PerformanceOrder = i,
                 Status = MatchStatus.Pending
@@ -81,19 +81,68 @@ public class KataTournamentManager : IKataTournamentManager
         return list;
     }
 
+    /// <summary>
+    /// Compare deux performances pour l'ordre de passage du Tour 2 :
+    /// Ordre croissant (le compétiteur avec le moins de points passe en premier).
+    /// En cas d'égalité sur FinalScore : celui qui a la plus petite note dans les différents juges passe en premier.
+    /// Si encore égalité : comparaison note par note en ordre croissant des notes de juges.
+    /// </summary>
+    public static int CompareForRound2Order(KataPerformance a, KataPerformance b)
+    {
+        // 1. Note finale (FinalScore) croissant : le plus petit score passe en premier
+        int scoreComp = a.FinalScore.CompareTo(b.FinalScore);
+        if (scoreComp != 0) return scoreComp;
+
+        // 2. En cas d'ex-aequo : comparer les notes individuelles des juges triées par ordre croissant
+        // Celui qui a la plus petite note passe en premier
+        var aScores = a.JudgeScores != null && a.JudgeScores.Count > 0 ? a.JudgeScores.OrderBy(s => s).ToList() : new List<double>();
+        var bScores = b.JudgeScores != null && b.JudgeScores.Count > 0 ? b.JudgeScores.OrderBy(s => s).ToList() : new List<double>();
+
+        int count = Math.Min(aScores.Count, bScores.Count);
+        for (int i = 0; i < count; i++)
+        {
+            int noteComp = aScores[i].CompareTo(bScores[i]);
+            if (noteComp != 0) return noteComp; // plus petite note passe en premier
+        }
+
+        int countComp = aScores.Count.CompareTo(bScores.Count);
+        if (countComp != 0) return countComp;
+
+        // 3. Dernier recours : Grade (le plus petit grade passe en premier) ou Id
+        int aGrade = a.Competitor != null ? (int)a.Competitor.Grade : 0;
+        int bGrade = b.Competitor != null ? (int)b.Competitor.Grade : 0;
+        int gradeComp = aGrade.CompareTo(bGrade);
+        if (gradeComp != 0) return gradeComp;
+
+        return a.Id.CompareTo(b.Id);
+    }
+
     public void AssignRound2Qualifiers(List<KataPerformance> qualifiedRound1, List<KataPerformance> round2Slots)
     {
         var finalists = qualifiedRound1
-            .Where(p => p.IsQualifiedForTour2 && p.Competitor != null)
-            .OrderBy(p => p.RankInRound)
-            .Reverse()
+            .Where(p => p.IsQualifiedForTour2 && (p.Competitor != null || p.CompetitorId.HasValue))
+            .OrderBy(p => p, Comparer<KataPerformance>.Create(CompareForRound2Order))
             .ToList();
 
-        for (int i = 0; i < round2Slots.Count && i < finalists.Count; i++)
+        for (int i = 0; i < round2Slots.Count; i++)
         {
-            round2Slots[i].CompetitorId = finalists[i].CompetitorId;
-            round2Slots[i].Competitor = finalists[i].Competitor;
-            round2Slots[i].Status = MatchStatus.Pending;
+            if (round2Slots[i].Status == MatchStatus.Finished || round2Slots[i].Status == MatchStatus.InProgress)
+            {
+                continue;
+            }
+
+            if (i < finalists.Count)
+            {
+                round2Slots[i].CompetitorId = finalists[i].CompetitorId;
+                round2Slots[i].Competitor = finalists[i].Competitor;
+                round2Slots[i].Status = MatchStatus.Pending;
+            }
+            else
+            {
+                round2Slots[i].CompetitorId = null;
+                round2Slots[i].Competitor = null;
+                round2Slots[i].Status = MatchStatus.Pending;
+            }
         }
     }
 
@@ -141,13 +190,13 @@ public class KataTournamentManager : IKataTournamentManager
     }
 
     /// <summary>
-    /// Classe les compétiteurs du tour 1 et qualifie les 4 ou 5 meilleurs pour le tour 2
+    /// Classe les compétiteurs du tour 1 et qualifie les N meilleurs pour le tour 2.
+    /// Classement du 1er au dernier selon le score et départage par les notes individuelles.
     /// </summary>
     public List<KataPerformance> FinalizeRound1AndQualify(Category category, List<KataPerformance> round1Performances)
     {
         var ranked = round1Performances
-            .OrderByDescending(p => p.FinalScore)
-            .ThenByDescending(p => p.Competitor != null ? (int)p.Competitor.Grade : 0)
+            .OrderBy(p => p, Comparer<KataPerformance>.Create((a, b) => -CompareForRound2Order(a, b)))
             .ToList();
 
         int rank = 1;
@@ -165,14 +214,13 @@ public class KataTournamentManager : IKataTournamentManager
 
     /// <summary>
     /// Génère le Tour 2 (Finale) avec le Kata imposé du tour 2.
-    /// Ordre de passage : inverse du classement du tour 1 (le 4e passe en 1er, le 1er passe en dernier).
+    /// Ordre de passage : le qualifié avec le moins de points (ou plus petite note individuelle) passe en premier.
     /// </summary>
     public List<KataPerformance> InitializeRound2(Category category, List<KataPerformance> qualifiedRound1Performances)
     {
         var finalists = qualifiedRound1Performances
             .Where(p => p.IsQualifiedForTour2 && p.Competitor != null)
-            .OrderBy(p => p.RankInRound) // 1er, 2e, 3e, 4e
-            .Reverse() // Inverse: 4e, 3e, 2e, 1er
+            .OrderBy(p => p, Comparer<KataPerformance>.Create(CompareForRound2Order))
             .ToList();
 
         var round2List = new List<KataPerformance>();
@@ -186,7 +234,7 @@ public class KataTournamentManager : IKataTournamentManager
                 Category = category,
                 CompetitorId = r1.CompetitorId,
                 Competitor = r1.Competitor,
-                Round = KataRound.Tour2,
+                Round = KataRound.Turn2,
                 KataName = category.KataRound2MandatoryKata,
                 PerformanceOrder = order++,
                 Status = MatchStatus.Pending
@@ -202,8 +250,7 @@ public class KataTournamentManager : IKataTournamentManager
     public List<KataPerformance> FinalizeRound2(List<KataPerformance> round2Performances)
     {
         var ranked = round2Performances
-            .OrderByDescending(p => p.FinalScore)
-            .ThenByDescending(p => p.Competitor != null ? (int)p.Competitor.Grade : 0)
+            .OrderBy(p => p, Comparer<KataPerformance>.Create((a, b) => -CompareForRound2Order(a, b)))
             .ToList();
 
         int rank = 1;

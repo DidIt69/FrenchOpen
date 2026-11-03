@@ -415,7 +415,7 @@
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            @foreach (var p in categoryKataPerformances.Where(x => x.Round == KataRound.Tour1).OrderBy(x => x.PerformanceOrder))
+                                            @foreach (var p in categoryKataPerformances.Where(x => x.Round == KataRound.Turn1).OrderBy(x => x.PerformanceOrder))
                                             {
                                                 bool canDragKata = isAdmin && p.Status != MatchStatus.Finished;
                                                 bool isKataHover = dragHoverTarget == $"kata_{p.Id}";
@@ -510,7 +510,7 @@
                                         </thead>
                                         <tbody>
                                             @{
-                                                var tour2List = categoryKataPerformances.Where(x => x.Round == KataRound.Tour2).OrderBy(x => x.RankInRound ?? 999).ToList();
+                                                var tour2List = categoryKataPerformances.Where(x => x.Round == KataRound.Turn2).OrderBy(x => x.RankInRound ?? 999).ToList();
                                             }
                                             @if (tour2List.Count == 0)
                                             {

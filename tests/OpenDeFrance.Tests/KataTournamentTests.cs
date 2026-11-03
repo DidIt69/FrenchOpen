@@ -87,7 +87,7 @@ public class KataTournamentTests
     }
 
     [Fact]
-    public void InitializeRound2_ShouldReverseOrderOfPassage()
+    public void InitializeRound2_ShouldStartWithLowestScoreCompetitor()
     {
         var cat = new Category
         {
@@ -98,21 +98,103 @@ public class KataTournamentTests
 
         var r1 = new List<KataPerformance>
         {
-            new() { CompetitorId = 1, RankInRound = 1, IsQualifiedForTour2 = true, Competitor = new Competitor { Id = 1 } },
-            new() { CompetitorId = 2, RankInRound = 2, IsQualifiedForTour2 = true, Competitor = new Competitor { Id = 2 } },
-            new() { CompetitorId = 3, RankInRound = 3, IsQualifiedForTour2 = true, Competitor = new Competitor { Id = 3 } },
-            new() { CompetitorId = 4, RankInRound = 4, IsQualifiedForTour2 = true, Competitor = new Competitor { Id = 4 } }
+            new() { CompetitorId = 1, FinalScore = 230, RankInRound = 1, IsQualifiedForTour2 = true, Competitor = new Competitor { Id = 1 } },
+            new() { CompetitorId = 2, FinalScore = 225, RankInRound = 2, IsQualifiedForTour2 = true, Competitor = new Competitor { Id = 2 } },
+            new() { CompetitorId = 3, FinalScore = 220, RankInRound = 3, IsQualifiedForTour2 = true, Competitor = new Competitor { Id = 3 } },
+            new() { CompetitorId = 4, FinalScore = 215, RankInRound = 4, IsQualifiedForTour2 = true, Competitor = new Competitor { Id = 4 } }
         };
 
         var r2 = _manager.InitializeRound2(cat, r1);
 
         Assert.Equal(4, r2.Count);
-        // Le 4e passe en 1er, le 1er passe en 4e
+        // Le 4e (215 pts - moins de points) passe en 1er, le 1er (230 pts) passe en dernier
         Assert.Equal(4, r2[0].CompetitorId);
         Assert.Equal(3, r2[1].CompetitorId);
         Assert.Equal(2, r2[2].CompetitorId);
         Assert.Equal(1, r2[3].CompetitorId);
         Assert.Equal("Saifa", r2[0].KataName);
+    }
+
+    [Fact]
+    public void AssignRound2Qualifiers_WithTieInFinalScore_LowestJudgeNotePassesFirst()
+    {
+        var cat = new Category
+        {
+            Id = 1,
+            Name = "Senior Kata",
+            KataQualifiersCount = 2
+        };
+
+        // Deux compétiteurs avec le même FinalScore = 220
+        // Compétiteur 1 : notes [72, 73, 75] (min = 72)
+        // Compétiteur 2 : notes [70, 75, 75] (min = 70) -> a la note la plus basse (70), donc doit passer en PREMIER au tour 2
+        var p1 = new KataPerformance
+        {
+            Id = 1,
+            CompetitorId = 1,
+            FinalScore = 220,
+            JudgeScores = new List<double> { 72, 73, 75 },
+            IsQualifiedForTour2 = true,
+            Competitor = new Competitor { Id = 1, LastName = "Dupont" }
+        };
+        var p2 = new KataPerformance
+        {
+            Id = 2,
+            CompetitorId = 2,
+            FinalScore = 220,
+            JudgeScores = new List<double> { 70, 75, 75 },
+            IsQualifiedForTour2 = true,
+            Competitor = new Competitor { Id = 2, LastName = "Martin" }
+        };
+
+        var round2Slots = new List<KataPerformance>
+        {
+            new() { Round = KataRound.Turn2, PerformanceOrder = 1 },
+            new() { Round = KataRound.Turn2, PerformanceOrder = 2 }
+        };
+
+        _manager.AssignRound2Qualifiers(new List<KataPerformance> { p1, p2 }, round2Slots);
+
+        // Compétiteur 2 a la plus petite note (70 < 72), donc passe en premier
+        Assert.Equal(2, round2Slots[0].CompetitorId);
+        Assert.Equal(1, round2Slots[1].CompetitorId);
+    }
+
+    [Fact]
+    public void FinalizeRound1AndQualify_WithTieInFinalScore_HighestMinimumNoteRanksBetter()
+    {
+        var cat = new Category
+        {
+            Id = 1,
+            Name = "Senior Kata",
+            KataQualifiersCount = 2
+        };
+
+        // Compétiteur 1 : notes [72, 73, 75] (min = 72)
+        // Compétiteur 2 : notes [70, 75, 75] (min = 70)
+        // Compétiteur 1 a de meilleures notes individuelles minimales -> Rank 1
+        // Compétiteur 2 -> Rank 2
+        var p1 = new KataPerformance
+        {
+            Id = 1,
+            CompetitorId = 1,
+            FinalScore = 220,
+            JudgeScores = new List<double> { 72, 73, 75 },
+            Competitor = new Competitor { Id = 1, LastName = "Dupont" }
+        };
+        var p2 = new KataPerformance
+        {
+            Id = 2,
+            CompetitorId = 2,
+            FinalScore = 220,
+            JudgeScores = new List<double> { 70, 75, 75 },
+            Competitor = new Competitor { Id = 2, LastName = "Martin" }
+        };
+
+        var ranked = _manager.FinalizeRound1AndQualify(cat, new List<KataPerformance> { p2, p1 });
+
+        Assert.Equal(1, ranked.First(p => p.CompetitorId == 1).RankInRound);
+        Assert.Equal(2, ranked.First(p => p.CompetitorId == 2).RankInRound);
     }
 
     [Fact]
@@ -138,5 +220,103 @@ public class KataTournamentTests
             var c2 = perfs[i + 1].Competitor!;
             Assert.NotEqual(c1.Country, c2.Country);
         }
+    }
+
+    [Fact]
+    public void FinalizeRound1AndQualify_WhenOnlyFirstCompetitorHasScore_OnlyFirstCompetitorIsQualified()
+    {
+        var cat = new Category
+        {
+            Id = 1,
+            Name = "Senior Kata",
+            KataQualifiersCount = 4
+        };
+
+        var p1 = new KataPerformance { Id = 1, CompetitorId = 1, FinalScore = 222, Competitor = new Competitor { Id = 1, LastName = "A" } };
+        var p2 = new KataPerformance { Id = 2, CompetitorId = 2, FinalScore = 0, Competitor = new Competitor { Id = 2, LastName = "B" } };
+        var p3 = new KataPerformance { Id = 3, CompetitorId = 3, FinalScore = 0, Competitor = new Competitor { Id = 3, LastName = "C" } };
+        var p4 = new KataPerformance { Id = 4, CompetitorId = 4, FinalScore = 0, Competitor = new Competitor { Id = 4, LastName = "D" } };
+
+        var ranked = _manager.FinalizeRound1AndQualify(cat, new List<KataPerformance> { p1, p2, p3, p4 });
+
+        // Seul le compétiteur avec un score > 0 est qualifié pour le Tour 2
+        Assert.Single(ranked, p => p.IsQualifiedForTour2);
+        Assert.True(ranked.First(p => p.CompetitorId == 1).IsQualifiedForTour2);
+        Assert.False(ranked.First(p => p.CompetitorId == 2).IsQualifiedForTour2);
+        Assert.False(ranked.First(p => p.CompetitorId == 3).IsQualifiedForTour2);
+        Assert.False(ranked.First(p => p.CompetitorId == 4).IsQualifiedForTour2);
+    }
+
+    [Fact]
+    public void AssignRound2Qualifiers_WhenOnlyFirstCompetitorHasScore_AssignsToTour2SlotAndOthersStayEmpty()
+    {
+        var cat = new Category
+        {
+            Id = 1,
+            Name = "Senior Kata",
+            KataQualifiersCount = 4
+        };
+
+        var p1 = new KataPerformance { Id = 1, CompetitorId = 1, FinalScore = 222, Competitor = new Competitor { Id = 1, LastName = "A" } };
+        var p2 = new KataPerformance { Id = 2, CompetitorId = 2, FinalScore = 0, Competitor = new Competitor { Id = 2, LastName = "B" } };
+        var p3 = new KataPerformance { Id = 3, CompetitorId = 3, FinalScore = 0, Competitor = new Competitor { Id = 3, LastName = "C" } };
+        var p4 = new KataPerformance { Id = 4, CompetitorId = 4, FinalScore = 0, Competitor = new Competitor { Id = 4, LastName = "D" } };
+
+        var round1 = _manager.FinalizeRound1AndQualify(cat, new List<KataPerformance> { p1, p2, p3, p4 });
+
+        var round2Slots = new List<KataPerformance>
+        {
+            new() { Id = 101, Round = KataRound.Turn2, PerformanceOrder = 1 },
+            new() { Id = 102, Round = KataRound.Turn2, PerformanceOrder = 2 },
+            new() { Id = 103, Round = KataRound.Turn2, PerformanceOrder = 3 },
+            new() { Id = 104, Round = KataRound.Turn2, PerformanceOrder = 4 }
+        };
+
+        _manager.AssignRound2Qualifiers(round1, round2Slots);
+
+        // Le premier créneau du Tour 2 doit contenir le compétiteur 1
+        Assert.Equal(1, round2Slots[0].CompetitorId);
+        Assert.Equal("A", round2Slots[0].Competitor?.LastName);
+
+        // Les 3 autres créneaux restent vides
+        Assert.Null(round2Slots[1].CompetitorId);
+        Assert.Null(round2Slots[2].CompetitorId);
+        Assert.Null(round2Slots[3].CompetitorId);
+    }
+
+    [Fact]
+    public void AssignRound2Qualifiers_ProgressiveGrading_PlacesCompetitorsInLowestScoreFirstOrder()
+    {
+        var cat = new Category
+        {
+            Id = 1,
+            Name = "Senior Kata",
+            KataQualifiersCount = 2
+        };
+
+        var round2Slots = new List<KataPerformance>
+        {
+            new() { Id = 101, Round = KataRound.Turn2, PerformanceOrder = 1 },
+            new() { Id = 102, Round = KataRound.Turn2, PerformanceOrder = 2 }
+        };
+
+        // Étape 1 : Seul le compétiteur 1 passe avec 230 pts
+        var p1 = new KataPerformance { Id = 1, CompetitorId = 1, FinalScore = 230, Competitor = new Competitor { Id = 1, LastName = "A" } };
+        var p2 = new KataPerformance { Id = 2, CompetitorId = 2, FinalScore = 0, Competitor = new Competitor { Id = 2, LastName = "B" } };
+        var r1 = _manager.FinalizeRound1AndQualify(cat, new List<KataPerformance> { p1, p2 });
+        _manager.AssignRound2Qualifiers(r1, round2Slots);
+
+        Assert.Equal(1, round2Slots[0].CompetitorId);
+        Assert.Null(round2Slots[1].CompetitorId);
+
+        // Étape 2 : Le compétiteur 2 passe avec 215 pts (moins de points que p1)
+        p2.FinalScore = 215;
+        r1 = _manager.FinalizeRound1AndQualify(cat, new List<KataPerformance> { p1, p2 });
+        _manager.AssignRound2Qualifiers(r1, round2Slots);
+
+        // Le compétiteur 2 (215 pts) a moins de points -> commence le tour 2 (Slot 0)
+        // Le compétiteur 1 (230 pts) a plus de points -> passe ensuite (Slot 1)
+        Assert.Equal(2, round2Slots[0].CompetitorId);
+        Assert.Equal(1, round2Slots[1].CompetitorId);
     }
 }

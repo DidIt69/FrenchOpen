@@ -444,7 +444,7 @@
                             <span class="badge bg-warning text-dark fs-6 animate-pulse">● EN DIRECT</span>
                             <span class="badge bg-light text-primary fw-bold fs-6">Passage #@kata.PerformanceOrder</span>
                             <strong class="fs-5">@kata.Category?.Name</strong>
-                            <span class="badge bg-light text-dark">@(kata.Round == KataRound.Tour1 ? "Tour 1 (Éliminatoire)" : "Tour 2 (Finale)")</span>
+                            <span class="badge bg-light text-dark">@(kata.Round == KataRound.Turn1 ? "Tour 1 (Éliminatoire)" : "Tour 2 (Finale)")</span>
                         </div>
                         <button class="btn btn-sm btn-outline-light" @onclick="() => CopyKataToClipboard(kata)">
                             📋 Copier Titre Stream
@@ -574,7 +574,7 @@
                                     <td><strong>#@p.PerformanceOrder</strong></td>
                                     <td><span class="badge bg-light text-dark border">📅 J@p.CompetitionDay</span></td>
                                     <td>
-                                        <span class="badge @(p.Round == KataRound.Tour1 ? "bg-info text-dark" : "bg-warning text-dark")">
+                                        <span class="badge @(p.Round == KataRound.Turn1 ? "bg-info text-dark" : "bg-warning text-dark")">
                                             @p.Round
                                         </span>
                                     </td>

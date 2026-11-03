@@ -14,7 +14,7 @@ public class KataPerformance
     public int? CompetitorId { get; set; }
     public Competitor? Competitor { get; set; }
 
-    public KataRound Round { get; set; } = KataRound.Tour1;
+    public KataRound Round { get; set; } = KataRound.Turn1;
     public string KataName { get; set; } = string.Empty;
     public int PerformanceOrder { get; set; } = 1;
     public int GlobalMatchNumber { get; set; } = 0;

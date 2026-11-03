@@ -341,7 +341,7 @@
                     @if (kata != null)
                     {
                         <span class="badge bg-light text-primary fs-6">
-                            Passage #@kata.PerformanceOrder - @(kata.Round == KataRound.Tour1 ? "Tour 1" : "Tour 2 (Finale)")
+                            Passage #@kata.PerformanceOrder - @(kata.Round == KataRound.Turn1 ? "Tour 1" : "Tour 2 (Finale)")
                         </span>
                     }
                 </div>
@@ -454,11 +454,11 @@
                                     <td>#@p.PerformanceOrder</td>
                                     <td><span class="badge bg-light text-dark border">J@p.CompetitionDay</span></td>
                                     <td>
-                                        <span class="badge @(p.Round == KataRound.Tour1 ? "bg-info text-dark" : "bg-warning text-dark")">
+                                        <span class="badge @(p.Round == KataRound.Turn1 ? "bg-info text-dark" : "bg-warning text-dark")">
                                             @p.Round
                                         </span>
                                     </td>
-                                    <td>@p.Competitor?.FullName</td>
+                                    <td>@(p.Competitor != null ? p.Competitor.FullName : "(En attente de qualification)")</td>
                                     <td>@p.Competitor?.Club</td>
                                     <td>@p.KataName</td>
                                     <td><small class="text-muted">@p.ScoresDisplay</small></td>
@@ -510,6 +510,7 @@
     {
         RefreshData();
         TournamentService.OnTatamiUpdated += HandleTatamiUpdated;
+        TournamentService.OnStateChanged += HandleStateChanged;
     }
 
     protected override void OnParametersSet()
@@ -604,6 +605,7 @@
                 judgeInputScores[i] = Math.Clamp(Math.Round(judgeInputScores[i]), 55, 100);
             }
             TournamentService.SubmitKataScores(tatami.CurrentKataPerformanceId.Value, judgeInputScores.ToList());
+            RefreshData();
         }
     }
 
@@ -640,9 +642,16 @@
         return $"{m:00}:{s:00}";
     }
 
+    private async void HandleStateChanged()
+    {
+        RefreshData();
+        await InvokeAsync(StateHasChanged);
+    }
+
     public void Dispose()
     {
         TournamentService.OnTatamiUpdated -= HandleTatamiUpdated;
+        TournamentService.OnStateChanged -= HandleStateChanged;
     }
 }
 

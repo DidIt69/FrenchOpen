@@ -111,6 +111,111 @@ public class TournamentService : ITournamentService, IHostedService
     public KumiteMatch? GetMatch(int matchId) => _matches.FirstOrDefault(m => m.Id == matchId);
     public List<KataPerformance> GetKataPerformances() => _kataPerformances;
 
+    public Competitor AddCompetitor(Competitor competitor, List<int>? categoryIds = null)
+    {
+        lock (_lock)
+        {
+            int nextId = _competitors.Count > 0 ? _competitors.Max(c => c.Id) + 1 : 1;
+            competitor.Id = nextId;
+            competitor.FirstName = competitor.FirstName?.Trim() ?? "";
+            competitor.LastName = competitor.LastName?.Trim() ?? "";
+            competitor.Country = string.IsNullOrWhiteSpace(competitor.Country) ? "France" : competitor.Country.Trim();
+            competitor.Club = competitor.Club?.Trim() ?? "";
+
+            _competitors.Add(competitor);
+
+            if (categoryIds != null && categoryIds.Count > 0)
+            {
+                foreach (var catId in categoryIds)
+                {
+                    var cat = _categories.FirstOrDefault(c => c.Id == catId);
+                    if (cat != null)
+                    {
+                        if (!cat.Competitors.Any(c => c.Id == competitor.Id)) cat.Competitors.Add(competitor);
+                        if (!competitor.Categories.Any(c => c.Id == cat.Id)) competitor.Categories.Add(cat);
+                    }
+                }
+            }
+
+            SaveAllToDatabase();
+            NotifyChange();
+            return competitor;
+        }
+    }
+
+    public void UpdateCompetitor(Competitor updated, List<int>? categoryIds = null)
+    {
+        lock (_lock)
+        {
+            var comp = _competitors.FirstOrDefault(c => c.Id == updated.Id);
+            if (comp == null) return;
+
+            comp.BibNumber = updated.BibNumber;
+            comp.FirstName = updated.FirstName?.Trim() ?? "";
+            comp.LastName = updated.LastName?.Trim() ?? "";
+            comp.Country = string.IsNullOrWhiteSpace(updated.Country) ? "France" : updated.Country.Trim();
+            comp.Club = updated.Club?.Trim() ?? "";
+            comp.BirthDate = updated.BirthDate;
+            comp.Age = updated.Age;
+            comp.Weight = updated.Weight;
+            comp.Grade = updated.Grade;
+            comp.Gender = updated.Gender;
+            comp.IsKumiteRegistered = updated.IsKumiteRegistered;
+            comp.IsKataRegistered = updated.IsKataRegistered;
+
+            if (categoryIds != null)
+            {
+                foreach (var cat in _categories)
+                {
+                    bool shouldBeInCat = categoryIds.Contains(cat.Id);
+                    bool isInCat = cat.Competitors.Any(c => c.Id == comp.Id);
+
+                    if (shouldBeInCat && !isInCat)
+                    {
+                        cat.Competitors.Add(comp);
+                    }
+                    else if (!shouldBeInCat && isInCat)
+                    {
+                        cat.Competitors.RemoveAll(c => c.Id == comp.Id);
+                    }
+
+                    bool inCompCat = comp.Categories.Any(c => c.Id == cat.Id);
+                    if (shouldBeInCat && !inCompCat)
+                    {
+                        comp.Categories.Add(cat);
+                    }
+                    else if (!shouldBeInCat && inCompCat)
+                    {
+                        comp.Categories.RemoveAll(c => c.Id == cat.Id);
+                    }
+                }
+            }
+
+            SaveAllToDatabase();
+            NotifyChange();
+        }
+    }
+
+    public bool DeleteCompetitor(int competitorId)
+    {
+        lock (_lock)
+        {
+            var comp = _competitors.FirstOrDefault(c => c.Id == competitorId);
+            if (comp == null) return false;
+
+            _competitors.Remove(comp);
+            foreach (var cat in _categories)
+            {
+                cat.Competitors.RemoveAll(c => c.Id == competitorId);
+            }
+
+            SaveAllToDatabase();
+            NotifyChange();
+            return true;
+        }
+    }
+
+
     public void SeedSampleData()
     {
         lock (_lock)
@@ -152,6 +257,22 @@ public class TournamentService : ITournamentService, IHostedService
         {
             _competitors = importResult.Competitors;
             _categories = importResult.Categories;
+
+            var importCompDict = _competitors.ToDictionary(c => c.Id);
+            foreach (var cat in _categories)
+            {
+                for (int i = 0; i < cat.Competitors.Count; i++)
+                {
+                    if (importCompDict.TryGetValue(cat.Competitors[i].Id, out var sharedComp))
+                    {
+                        cat.Competitors[i] = sharedComp;
+                        if (!sharedComp.Categories.Any(c => c.Id == cat.Id))
+                        {
+                            sharedComp.Categories.Add(cat);
+                        }
+                    }
+                }
+            }
             _matches.Clear();
             _kataPerformances.Clear();
 
@@ -312,14 +433,40 @@ public class TournamentService : ITournamentService, IHostedService
     }
 
     /// <summary>
-    /// Numérote l'ensemble des tirages chronologiquement selon la règle :
+    /// Numérote l'ensemble des tirages chronologiquement par tatami selon la règle :
+    /// - Indépendamment sur chaque tatami (les numéros démarrent à 1 sur chaque tatami)
     /// - Par jour de compétition (Jour 1, Jour 2, etc.)
-    /// - D'abord tous les katas (1er tour, puis finales), ordonnés par ordre des catégories
-    /// - Puis les combats du tour le plus éloigné vers les finales, ordonnés par ordre des catégories
+    /// - Pour les katas : chaque catégorie termine ses 2 tours (Tour 1 puis Finale) avant de passer à la suivante
+    /// - Puis les combats du tatami du tour le plus éloigné vers les finales, ordonnés par ordre des catégories
+    /// - Les rencontres non assignées à un tatami (ou tatami null) sont également numérotées séquentiellement
     /// </summary>
     private void ApplyChronologicalNumbering()
     {
-        int currentNumber = 1;
+        // 0. Synchroniser TatamiId depuis les catégories si non renseigné
+        foreach (var m in _matches)
+        {
+            if (!m.TatamiId.HasValue)
+            {
+                var cat = _categories.FirstOrDefault(c => c.Id == m.CategoryId);
+                if (cat?.AssignedTatamiId.HasValue == true)
+                {
+                    m.TatamiId = cat.AssignedTatamiId.Value;
+                    m.Tatami = cat.AssignedTatami ?? _tatamis.FirstOrDefault(t => t.Id == m.TatamiId.Value);
+                }
+            }
+        }
+        foreach (var p in _kataPerformances)
+        {
+            if (!p.TatamiId.HasValue)
+            {
+                var cat = _categories.FirstOrDefault(c => c.Id == p.CategoryId);
+                if (cat?.AssignedTatamiId.HasValue == true)
+                {
+                    p.TatamiId = cat.AssignedTatamiId.Value;
+                    p.Tatami = cat.AssignedTatami ?? _tatamis.FirstOrDefault(t => t.Id == p.TatamiId.Value);
+                }
+            }
+        }
 
         var allDays = _categories.Select(c => c.CompetitionDay)
             .Concat(_matches.Select(m => m.CompetitionDay))
@@ -329,53 +476,83 @@ public class TournamentService : ITournamentService, IHostedService
             .OrderBy(d => d)
             .ToList();
 
-        foreach (var day in allDays)
+        // Tatamis ordonnés par numéro/Id
+        var tatamiIds = _tatamis.OrderBy(t => t.Number).ThenBy(t => t.Id).Select(t => (int?)t.Id).ToList();
+
+        // S'il existe des rencontres sans tatami assigné (ou aucun tatami configuré)
+        bool hasUnassigned = _matches.Any(m => !m.TatamiId.HasValue) || _kataPerformances.Any(p => !p.TatamiId.HasValue);
+        if (hasUnassigned || tatamiIds.Count == 0)
         {
-            // 1. Katas : Tous les 1ers tours du jour
-            var kataTour1 = _kataPerformances
-                .Where(p => p.Round == KataRound.Tour1 && p.CompetitionDay == day)
-                .OrderBy(p => GetCategoryOrderIndex(p.CategoryId))
-                .ThenBy(p => p.PerformanceOrder)
-                .ToList();
+            tatamiIds.Add(null);
+        }
 
-            foreach (var p in kataTour1)
+        foreach (var tatamiId in tatamiIds)
+        {
+            int tatamiNumber = 1;
+
+            foreach (var day in allDays)
             {
-                p.PerformanceOrder = currentNumber;
-                p.GlobalMatchNumber = currentNumber;
-                currentNumber++;
-            }
+                // 1. Katas : Pour chaque catégorie Kata, on termine ses 2 tours (Tour 1 puis Finale) avant de passer à la suivante
+                var dayKataCategoryIds = _kataPerformances
+                    .Where(p => p.TatamiId == tatamiId && p.CompetitionDay == day)
+                    .Select(p => p.CategoryId)
+                    .Distinct()
+                    .OrderBy(catId => GetCategoryOrderIndex(catId))
+                    .ThenBy(catId => catId)
+                    .ToList();
 
-            // 2. Katas : Tous les 2es tours (Finales) du jour
-            var kataTour2 = _kataPerformances
-                .Where(p => p.Round == KataRound.Tour2 && p.CompetitionDay == day)
-                .OrderBy(p => GetCategoryOrderIndex(p.CategoryId))
-                .ThenBy(p => p.PerformanceOrder)
-                .ToList();
-
-            foreach (var p in kataTour2)
-            {
-                p.PerformanceOrder = currentNumber;
-                p.GlobalMatchNumber = currentNumber;
-                currentNumber++;
-            }
-
-            // 3. Combats Kumité du jour : du tour le plus éloigné vers la finale
-            var dayMatches = _matches.Where(m => m.CompetitionDay == day).ToList();
-            if (dayMatches.Count > 0)
-            {
-                int maxRoundFromFinal = dayMatches.Max(m => m.RoundFromFinal);
-
-                for (int r = maxRoundFromFinal; r >= 0; r--)
+                foreach (var catId in dayKataCategoryIds)
                 {
-                    var matchesInThisRound = dayMatches
-                        .Where(m => m.RoundFromFinal == r)
-                        .OrderBy(m => GetCategoryOrderIndex(m.CategoryId))
-                        .ThenBy(m => m.Id)
+                    // Tour 1 de la catégorie
+                    var catTour1 = _kataPerformances
+                        .Where(p => p.TatamiId == tatamiId && p.CompetitionDay == day && p.CategoryId == catId && p.Round == KataRound.Turn1)
+                        .OrderBy(p => p.PerformanceOrder)
+                        .ThenBy(p => p.Id)
                         .ToList();
 
-                    foreach (var match in matchesInThisRound)
+                    foreach (var p in catTour1)
                     {
-                        match.MatchNumber = currentNumber++;
+                        p.PerformanceOrder = tatamiNumber;
+                        p.GlobalMatchNumber = tatamiNumber;
+                        tatamiNumber++;
+                    }
+
+                    // Tour 2 (Finale) de la catégorie
+                    var catTour2 = _kataPerformances
+                        .Where(p => p.TatamiId == tatamiId && p.CompetitionDay == day && p.CategoryId == catId && p.Round == KataRound.Turn2)
+                        .OrderBy(p => p.PerformanceOrder)
+                        .ThenBy(p => p.Id)
+                        .ToList();
+
+                    foreach (var p in catTour2)
+                    {
+                        p.PerformanceOrder = tatamiNumber;
+                        p.GlobalMatchNumber = tatamiNumber;
+                        tatamiNumber++;
+                    }
+                }
+
+                // 2. Combats Kumité du jour sur ce tatami : du tour le plus éloigné vers la finale
+                var dayMatches = _matches
+                    .Where(m => m.TatamiId == tatamiId && m.CompetitionDay == day)
+                    .ToList();
+
+                if (dayMatches.Count > 0)
+                {
+                    int maxRoundFromFinal = dayMatches.Max(m => m.RoundFromFinal);
+
+                    for (int r = maxRoundFromFinal; r >= 0; r--)
+                    {
+                        var matchesInThisRound = dayMatches
+                            .Where(m => m.RoundFromFinal == r)
+                            .OrderBy(m => GetCategoryOrderIndex(m.CategoryId))
+                            .ThenBy(m => m.Id)
+                            .ToList();
+
+                        foreach (var match in matchesInThisRound)
+                        {
+                            match.MatchNumber = tatamiNumber++;
+                        }
                     }
                 }
             }
@@ -513,6 +690,8 @@ public class TournamentService : ITournamentService, IHostedService
                 }
             }
 
+            ApplyChronologicalNumbering();
+            DistributeToTatamis();
             SaveAllToDatabase();
             NotifyChange();
         }
@@ -1281,6 +1460,20 @@ public class TournamentService : ITournamentService, IHostedService
             _kataManager.CalculateScore(perf, scores);
             SaveKataStateToDatabase(perf.Id);
 
+            // Dès qu'une note est saisie au Tour 1, mettre à jour immédiatement les qualifiés et l'ordre de passage du Tour 2
+            if (perf.Round == KataRound.Turn1)
+            {
+                QualifyKataRound1(perf.CategoryId);
+            }
+            else if (perf.Round == KataRound.Turn2)
+            {
+                var catT2 = _kataPerformances.Where(p => p.CategoryId == perf.CategoryId && p.Round == KataRound.Turn2).ToList();
+                if (catT2.Count > 0 && catT2.All(p => p.Status == MatchStatus.Finished))
+                {
+                    FinalizeKataRound2(perf.CategoryId);
+                }
+            }
+
             // Passer automatiquement au passage Kata suivant disponible sur ce tatami
             if (perf.TatamiId.HasValue)
             {
@@ -1330,21 +1523,34 @@ public class TournamentService : ITournamentService, IHostedService
             var category = _categories.FirstOrDefault(c => c.Id == categoryId);
             if (category == null) return;
 
-            var r1Perfs = _kataPerformances.Where(p => p.CategoryId == categoryId && p.Round == KataRound.Tour1).ToList();
+            var r1Perfs = _kataPerformances.Where(p => p.CategoryId == categoryId && p.Round == KataRound.Turn1).ToList();
+            foreach (var r1 in r1Perfs)
+            {
+                if (r1.Competitor == null && r1.CompetitorId.HasValue)
+                {
+                    r1.Competitor = _competitors.FirstOrDefault(c => c.Id == r1.CompetitorId.Value);
+                }
+            }
+
             _kataManager.FinalizeRound1AndQualify(category, r1Perfs);
+
+            foreach (var r1 in r1Perfs)
+            {
+                SaveKataStateToDatabase(r1.Id);
+            }
 
             int qualifiersCount = Math.Min(category.KataQualifiersCount > 0 ? category.KataQualifiersCount : 4, r1Perfs.Count);
 
             // Utiliser les créneaux Tour 2 déjà prévus et numérotés
             var existingT2 = _kataPerformances
-                .Where(p => p.CategoryId == categoryId && p.Round == KataRound.Tour2)
+                .Where(p => p.CategoryId == categoryId && p.Round == KataRound.Turn2)
                 .OrderBy(p => p.PerformanceOrder)
                 .ToList();
 
             bool t2Started = existingT2.Any(p => p.Status == MatchStatus.Finished || p.Status == MatchStatus.InProgress);
             if (!t2Started && existingT2.Count != qualifiersCount)
             {
-                _kataPerformances.RemoveAll(p => p.CategoryId == categoryId && p.Round == KataRound.Tour2);
+                _kataPerformances.RemoveAll(p => p.CategoryId == categoryId && p.Round == KataRound.Turn2);
                 int nextId = _kataPerformances.Count > 0 ? _kataPerformances.Max(p => p.Id) + 1 : 1;
                 existingT2 = _kataManager.InitializeRound2Placeholders(category, qualifiersCount);
                 foreach (var p in existingT2)
@@ -1370,29 +1576,56 @@ public class TournamentService : ITournamentService, IHostedService
                     _kataPerformances.Add(p);
                 }
                 ApplyChronologicalNumbering();
+                existingT2 = r2Perfs;
+            }
+
+            foreach (var t2 in existingT2)
+            {
+                if (t2.Competitor == null && t2.CompetitorId.HasValue)
+                {
+                    t2.Competitor = _competitors.FirstOrDefault(c => c.Id == t2.CompetitorId.Value);
+                }
+                SaveKataStateToDatabase(t2.Id);
             }
 
             category.KataPerformances = _kataPerformances.Where(p => p.CategoryId == categoryId).ToList();
 
-            // Attribuer au tatami Kata
-            var kataTatami = _tatamis.FirstOrDefault(t => t.CurrentDiscipline == CompetitionType.Kata) ?? _tatamis.LastOrDefault();
-            if (kataTatami != null)
+            // Attribuer au bon tatami (même tatami que le Tour 1 ou la catégorie)
+            int? targetTatamiId = category.AssignedTatamiId 
+                ?? r1Perfs.FirstOrDefault(p => p.TatamiId.HasValue)?.TatamiId 
+                ?? _tatamis.FirstOrDefault(t => t.CurrentDiscipline == CompetitionType.Kata)?.Id 
+                ?? _tatamis.LastOrDefault()?.Id;
+
+            if (targetTatamiId.HasValue)
             {
-                var catT2 = _kataPerformances.Where(p => p.CategoryId == categoryId && p.Round == KataRound.Tour2).ToList();
-                foreach (var p in catT2)
+                var targetTatami = _tatamis.FirstOrDefault(t => t.Id == targetTatamiId.Value);
+                if (targetTatami != null)
                 {
-                    p.TatamiId = kataTatami.Id;
-                    p.Tatami = kataTatami;
-                    if (!kataTatami.AssignedKataPerformances.Any(x => x.Id == p.Id))
+                    var catT2 = _kataPerformances.Where(p => p.CategoryId == categoryId && p.Round == KataRound.Turn2).ToList();
+                    foreach (var p in catT2)
                     {
-                        kataTatami.AssignedKataPerformances.Add(p);
+                        p.TatamiId = targetTatami.Id;
+                        p.Tatami = targetTatami;
+                        if (!targetTatami.AssignedKataPerformances.Any(x => x.Id == p.Id))
+                        {
+                            targetTatami.AssignedKataPerformances.Add(p);
+                        }
                     }
+                    targetTatami.AssignedKataPerformances = targetTatami.AssignedKataPerformances.OrderBy(p => p.PerformanceOrder).ToList();
                 }
-                kataTatami.AssignedKataPerformances = kataTatami.AssignedKataPerformances.OrderBy(p => p.PerformanceOrder).ToList();
+            }
+
+            // Mettre à jour les AssignedKataPerformances de tous les tatamis
+            foreach (var t in _tatamis)
+            {
+                t.AssignedKataPerformances = _kataPerformances
+                    .Where(p => p.TatamiId == t.Id)
+                    .OrderBy(p => p.PerformanceOrder)
+                    .ToList();
             }
 
             SaveAllToDatabase();
-            NotifyChange();
+            NotifyChange(targetTatamiId ?? 0);
         }
     }
 
@@ -1400,7 +1633,7 @@ public class TournamentService : ITournamentService, IHostedService
     {
         lock (_lock)
         {
-            var r2Perfs = _kataPerformances.Where(p => p.CategoryId == categoryId && p.Round == KataRound.Tour2).ToList();
+            var r2Perfs = _kataPerformances.Where(p => p.CategoryId == categoryId && p.Round == KataRound.Turn2).ToList();
             _kataManager.FinalizeRound2(r2Perfs);
             SaveAllToDatabase();
             NotifyChange();
@@ -1611,6 +1844,8 @@ public class TournamentService : ITournamentService, IHostedService
                 }
             }
 
+            ApplyChronologicalNumbering();
+
             // Trier les combats et katas sur chaque tatami par ordre chronologique
             foreach (var t in _tatamis)
             {
@@ -1761,12 +1996,12 @@ public class TournamentService : ITournamentService, IHostedService
             if (qualifiersCount < 1) qualifiersCount = 1;
             category.KataQualifiersCount = qualifiersCount;
 
-            var catT2 = _kataPerformances.Where(p => p.CategoryId == categoryId && p.Round == KataRound.Tour2).ToList();
+            var catT2 = _kataPerformances.Where(p => p.CategoryId == categoryId && p.Round == KataRound.Turn2).ToList();
             bool t2Started = catT2.Any(p => p.Status == MatchStatus.Finished || p.Status == MatchStatus.InProgress);
 
             if (!t2Started)
             {
-                var catT1 = _kataPerformances.Where(p => p.CategoryId == categoryId && p.Round == KataRound.Tour1).ToList();
+                var catT1 = _kataPerformances.Where(p => p.CategoryId == categoryId && p.Round == KataRound.Turn1).ToList();
                 bool t1Started = catT1.Any(p => p.Status == MatchStatus.Finished || p.Status == MatchStatus.InProgress);
 
                 if (!t1Started)
@@ -1778,7 +2013,7 @@ public class TournamentService : ITournamentService, IHostedService
                     int catCompetitorsCount = category.Competitors.Count;
                     int actualQualifiersCount = Math.Min(qualifiersCount, catCompetitorsCount > 0 ? catCompetitorsCount : qualifiersCount);
 
-                    _kataPerformances.RemoveAll(p => p.CategoryId == categoryId && p.Round == KataRound.Tour2);
+                    _kataPerformances.RemoveAll(p => p.CategoryId == categoryId && p.Round == KataRound.Turn2);
                     int startId = _kataPerformances.Count > 0 ? _kataPerformances.Max(p => p.Id) + 1 : 1;
                     var newT2 = _kataManager.InitializeRound2Placeholders(category, actualQualifiersCount);
                     foreach (var p in newT2)
@@ -1826,6 +2061,22 @@ public class TournamentService : ITournamentService, IHostedService
                     {
                         _competitors = db.Competitors.AsNoTracking().ToList();
                         _categories = db.Categories.AsNoTracking().Include(c => c.Competitors).ToList();
+
+                        var compDict = _competitors.ToDictionary(c => c.Id);
+                        foreach (var cat in _categories)
+                        {
+                            for (int i = 0; i < cat.Competitors.Count; i++)
+                            {
+                                if (compDict.TryGetValue(cat.Competitors[i].Id, out var sharedComp))
+                                {
+                                    cat.Competitors[i] = sharedComp;
+                                    if (!sharedComp.Categories.Any(c => c.Id == cat.Id))
+                                    {
+                                        sharedComp.Categories.Add(cat);
+                                    }
+                                }
+                            }
+                        }
                         _matches = db.KumiteMatches.AsNoTracking()
                             .Include(m => m.AkaCompetitor)
                             .Include(m => m.ShiroCompetitor)
@@ -1860,6 +2111,35 @@ public class TournamentService : ITournamentService, IHostedService
                                 new() { Id = 2, Number = 2, Name = "Tatami 2", Discipline = CompetitionType.Both, CurrentDiscipline = CompetitionType.Kata },
                                 new() { Id = 3, Number = 3, Name = "Tatami 3", Discipline = CompetitionType.Kata, CurrentDiscipline = CompetitionType.Kata }
                             };
+                        }
+
+                        // Mettre à jour les qualifiés Tour 2 pour les catégories Kata ayant déjà des scores
+                        var kataCatsWithScores = _kataPerformances
+                            .Where(p => p.Round == KataRound.Turn1 && p.FinalScore > 0)
+                            .Select(p => p.CategoryId)
+                            .Distinct()
+                            .ToList();
+
+                        foreach (var catId in kataCatsWithScores)
+                        {
+                            var cat = _categories.FirstOrDefault(c => c.Id == catId);
+                            if (cat != null)
+                            {
+                                var r1 = _kataPerformances.Where(p => p.CategoryId == catId && p.Round == KataRound.Turn1).ToList();
+                                _kataManager.FinalizeRound1AndQualify(cat, r1);
+                                var t2 = _kataPerformances.Where(p => p.CategoryId == catId && p.Round == KataRound.Turn2).OrderBy(p => p.PerformanceOrder).ToList();
+                                if (t2.Count > 0)
+                                {
+                                    _kataManager.AssignRound2Qualifiers(r1, t2);
+                                    foreach (var p2 in t2)
+                                    {
+                                        if (p2.Competitor == null && p2.CompetitorId.HasValue)
+                                        {
+                                            p2.Competitor = _competitors.FirstOrDefault(c => c.Id == p2.CompetitorId.Value);
+                                        }
+                                    }
+                                }
+                            }
                         }
 
                         DistributeToTatamis();
@@ -2191,9 +2471,6 @@ public class TournamentService : ITournamentService, IHostedService
     private void NotifyChange(int tatamiId = 0)
     {
         OnStateChanged?.Invoke();
-        if (tatamiId > 0)
-        {
-            OnTatamiUpdated?.Invoke(tatamiId);
-        }
+        OnTatamiUpdated?.Invoke(tatamiId);
     }
 }

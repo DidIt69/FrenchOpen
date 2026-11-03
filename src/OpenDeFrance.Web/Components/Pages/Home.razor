@@ -23,11 +23,50 @@
         </div>
     </div>
 
+    <!-- Tatami Filter Bar -->
+    <div class="card shadow-sm border-0 mb-4 bg-light">
+        <div class="card-body py-2 px-3 d-flex align-items-center flex-wrap gap-2">
+            <span class="fw-bold text-dark d-flex align-items-center gap-1 small me-1">
+                <span>🥋</span> <span>@Lang["FilterByTatami"]</span>
+            </span>
+            <button class="btn btn-sm @(selectedTatamiIds.Count == 0 ? "btn-dark fw-bold" : "btn-outline-dark")"
+                    @onclick="SelectAllTatamis">
+                @Lang["AllTatamis"] (@tatamis.Count)
+            </button>
+            @foreach (var t in tatamis)
+            {
+                bool isSelected = selectedTatamiIds.Contains(t.Id);
+                <button class="btn btn-sm @(isSelected ? "btn-primary fw-bold shadow-sm" : "btn-outline-primary")"
+                        @onclick="() => ToggleTatamiSelection(t.Id)">
+                    @(isSelected ? "✓ " : "")@t.Name
+                </button>
+            }
+            @if (selectedTatamiIds.Count > 0)
+            {
+                <button class="btn btn-sm btn-link text-muted text-decoration-none ms-auto"
+                        @onclick="SelectAllTatamis">
+                    ✕ @Lang["ResetFilter"]
+                </button>
+            }
+        </div>
+    </div>
+
     <!-- Multi-Tatamis Live Grid -->
-    <div class="row g-4 mb-5">
-        @foreach (var tatami in tatamis)
-        {
-            <div class="col-lg-4 col-md-6">
+    @if (!DisplayedTatamis.Any())
+    {
+        <div class="alert alert-info text-center py-4 mb-5 shadow-sm">
+            <em>Aucun tatami sélectionné ou disponible.</em>
+            <div class="mt-2">
+                <button class="btn btn-sm btn-primary" @onclick="SelectAllTatamis">@Lang["AllTatamis"]</button>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="row g-4 mb-5">
+            @foreach (var tatami in DisplayedTatamis)
+            {
+                <div class="@GetTatamiColClass()">
                 <div class="card h-100 shadow border-0 overflow-hidden">
                     <!-- Tatami Header -->
                     <div class="card-header py-3 d-flex justify-content-between align-items-center @(tatami.CurrentDiscipline == CompetitionType.Kumite ? "bg-dark text-white" : "bg-primary text-white")">
@@ -170,8 +209,8 @@
                             {
                                 <div class="p-3 bg-light border-bottom">
                                     <div class="d-flex justify-content-between align-items-center mb-2">
-                                        <span class="badge bg-primary">@(Lang["KataInProgress"]) • @(Lang["Day"])@(kata.CompetitionDay) • Passage #@kata.PerformanceOrder</span>
-                                        <span class="badge bg-secondary">@(kata.Round == KataRound.Tour1 ? Lang["Turn1"] : Lang["Turn2Final"])</span>
+                                        <span class="badge bg-primary">@(Lang[kata.Category.Name])</span>
+                                        <span class="badge bg-secondary">@(kata.Round == KataRound.Turn1 ? Lang["Turn1"] : Lang["Turn2Final"])</span>
                                     </div>
                                     <div class="auto-scroll-container mb-1" title="@kata.CompetitorDisplayName">
                                         <h5 class="fw-bold mb-0 auto-scroll-content">@kata.CompetitorDisplayName</h5>
@@ -241,7 +280,7 @@
                                                         <span class="badge bg-info text-dark me-1">#@up.PerformanceOrder</span>
                                                         <strong>@up.CompetitorDisplayName</strong>
                                                     </div>
-                                                    <span class="badge bg-light text-dark">@up.Round</span>
+                                                    <span class="badge bg-light text-dark">@(Lang[up.Round.ToString()])</span>
                                                 </div>
                                                 @if (up.Competitor != null)
                                                 {
@@ -266,37 +305,159 @@
                 </div>
             </div>
         }
-    </div>
+        </div>
+    }
 
     <!-- Search & Full Upcoming Matches Board -->
     <div class="card shadow-sm border-0">
         <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
-            <h5 class="mb-0 fw-bold">@Lang["Program"]</h5>
-            <div class="d-flex gap-2 align-items-center">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <h5 class="mb-0 fw-bold">@Lang["Program"]</h5>
+                @if (selectedTatamiIds.Count > 0)
+                {
+                    <span class="badge bg-warning text-dark small">
+                        @(selectedTatamiIds.Count == 1
+                            ? (tatamis.FirstOrDefault(t => t.Id == selectedTatamiIds.First())?.Name ?? "Tatami filtré")
+                            : $"{selectedTatamiIds.Count} tatamis filtrés")
+                    </span>
+                }
+                @if (selectedCategoryIds.Count > 0)
+                {
+                    <span class="badge bg-info text-dark small">
+                        @selectedCategoryIds.Count @Lang["CategoriesFiltered"]
+                    </span>
+                }
+            </div>
+            <div class="d-flex gap-2 align-items-center flex-wrap">
                 <div class="btn-group btn-group-sm">
                     <button class="btn @(disciplineFilter == "all" ? "btn-warning" : "btn-outline-light")" @onclick='() => disciplineFilter = "all"'>@Lang["All"]</button>
                     <button class="btn @(disciplineFilter == "kata" ? "btn-warning" : "btn-outline-light")" @onclick='() => disciplineFilter = "kata"'>@Lang["Katas"]</button>
                     <button class="btn @(disciplineFilter == "kumite" ? "btn-warning" : "btn-outline-light")" @onclick='() => disciplineFilter = "kumite"'>@Lang["Kumites"]</button>
                 </div>
+
+                <!-- Category Multi-Select Dropdown -->
+                <div class="dropdown position-relative">
+                    <button class="btn btn-sm @(selectedCategoryIds.Count > 0 ? "btn-warning text-dark fw-bold" : "btn-outline-light") dropdown-toggle d-flex align-items-center gap-1"
+                            type="button"
+                            @onclick="ToggleCategoryDropdown">
+                        <span>📂</span>
+                        <span>@(selectedCategoryIds.Count == 0 ? Lang["AllCategories"] : $"{selectedCategoryIds.Count} {Lang["CategoriesFiltered"]}")</span>
+                    </button>
+                    @if (isCategoryDropdownOpen)
+                    {
+                        <div class="dropdown-menu show shadow-lg p-2 border position-absolute"
+                             style="min-width: 340px; max-height: 420px; overflow-y: auto; right: 0; left: auto; z-index: 1060;">
+                            <div class="d-flex justify-content-between align-items-center mb-2 px-1">
+                                <span class="fw-bold text-dark small">📂 @Lang["FilterByCategory"]</span>
+                                <button type="button" class="btn-close" style="font-size: 0.65rem;" @onclick="CloseCategoryDropdown" aria-label="Fermer"></button>
+                            </div>
+                            <div class="p-1 mb-2 border-bottom">
+                                <input type="text" class="form-control form-control-sm mb-2"
+                                       placeholder="@Lang["Search"]"
+                                       @bind="categorySearchTerm" @bind:event="oninput" />
+                                <div class="d-flex justify-content-between align-items-center gap-1">
+                                    <button class="btn btn-xs btn-outline-primary py-0 px-2"
+                                            style="font-size: 0.75rem;"
+                                            @onclick="SelectAllCategories">
+                                        ✓ @Lang["SelectAll"]
+                                    </button>
+                                    <button class="btn btn-xs btn-outline-secondary py-0 px-2"
+                                            style="font-size: 0.75rem;"
+                                            @onclick="ClearCategorySelection">
+                                        ✕ @Lang["DeselectAll"]
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="list-group list-group-flush small" style="max-height: 280px; overflow-y: auto;">
+                                @foreach (var cat in FilteredCategoryChoices)
+                                {
+                                    bool isChecked = selectedCategoryIds.Contains(cat.Id);
+                                    int count = GetCategoryItemCount(cat.Id);
+                                    <label class="list-group-item list-group-item-action py-1 px-2 border-0 d-flex align-items-center gap-2 rounded user-select-none"
+                                           style="cursor: pointer;">
+                                        <input class="form-check-input m-0 flex-shrink-0" type="checkbox"
+                                               checked="@isChecked"
+                                               @onchange="() => ToggleCategorySelection(cat.Id)" />
+                                        <div class="d-flex align-items-center gap-1 flex-grow-1 text-truncate">
+                                            <span class="badge @(cat.Type == CompetitionType.Kumite ? "bg-danger" : "bg-primary")" style="font-size: 0.65rem;">
+                                                @(cat.Type == CompetitionType.Kumite ? "🥊" : "🥋")
+                                            </span>
+                                            <span class="badge bg-light text-dark border" style="font-size: 0.65rem;">J@(cat.CompetitionDay)</span>
+                                            <span class="text-truncate" title="@cat.Name">@cat.Name</span>
+                                        </div>
+                                        <span class="badge bg-secondary-subtle text-secondary-emphasis" style="font-size: 0.65rem;">@count</span>
+                                    </label>
+                                }
+                                @if (!FilteredCategoryChoices.Any())
+                                {
+                                    <div class="text-muted text-center py-2 small">
+                                        <em>Aucune catégorie</em>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+
                 <input type="text" class="form-control form-control-sm" placeholder="@(Lang["Search"])"
-                       @bind="searchTerm" @bind:event="oninput" style="min-width: 200px;" />
+                       @bind="searchTerm" @bind:event="oninput" style="min-width: 180px;" />
             </div>
         </div>
+
+        @if (selectedCategoryIds.Count > 0)
+        {
+            <div class="bg-light px-3 py-2 border-bottom d-flex align-items-center flex-wrap gap-1">
+                <span class="small text-muted me-1 fw-bold">📂 @Lang["FilterByCategory"]</span>
+                @foreach (var catId in selectedCategoryIds.ToList())
+                {
+                    var cat = categories.FirstOrDefault(c => c.Id == catId);
+                    if (cat != null)
+                    {
+                        <span class="badge @(cat.Type == CompetitionType.Kumite ? "bg-danger" : "bg-primary") text-white d-inline-flex align-items-center gap-1 py-1 px-2 shadow-sm" style="font-size: 0.8rem;">
+                            <span>@(cat.Type == CompetitionType.Kumite ? "🥊" : "🥋") @cat.Name</span>
+                            <button type="button" class="btn-close btn-close-white ms-1" style="font-size: 0.55rem;"
+                                    aria-label="Supprimer" @onclick="() => ToggleCategorySelection(cat.Id)"></button>
+                        </span>
+                    }
+                }
+                <button class="btn btn-sm btn-link text-danger p-0 ms-2 text-decoration-none small fw-bold"
+                        @onclick="ClearCategorySelection">
+                    ✕ @Lang["ResetFilter"]
+                </button>
+            </div>
+        }
+
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
                 <thead class="table-light">
                     <tr>
-                        <th>Ordre</th>
-                        <th>Type</th>
-                        <th>Tatami</th>
-                        <th>Catégorie</th>
-                        <th>Tour / Phase</th>
-                        <th>Compétiteur(s)</th>
-                        <th>Détails</th>
-                        <th>Statut</th>
+                        <th>@Lang["Order"]</th>
+                        <th>@Lang["Type"]</th>
+                        <th>@Lang["Tatami"]</th>
+                        <th>@Lang["Category"]</th>
+                        <th>@Lang["Turn"]</th>
+                        <th>@Lang["Competitor(s)"]</th>
+                        <th>@Lang["Details"]</th>
+                        <th>@Lang["Status"]</th>
                     </tr>
                 </thead>
                 <tbody>
+                    @if (!UnifiedSchedule.Any())
+                    {
+                        <tr>
+                            <td colspan="8" class="text-center py-4 text-muted">
+                                <em>Aucune rencontre ou kata ne correspond aux filtres sélectionnés.</em>
+                                @if (selectedCategoryIds.Count > 0 || selectedTatamiIds.Count > 0 || !string.IsNullOrWhiteSpace(searchTerm))
+                                {
+                                    <div class="mt-2">
+                                        <button class="btn btn-sm btn-outline-secondary" @onclick="ResetAllProgramFilters">
+                                            Réinitialiser les filtres
+                                        </button>
+                                    </div>
+                                }
+                            </td>
+                        </tr>
+                    }
                     @foreach (var item in UnifiedSchedule)
                     {
                         <tr>
@@ -321,7 +482,13 @@
                                     <span class="text-muted">-</span>
                                 }
                             </td>
-                            <td>@item.CategoryName</td>
+                            <td>
+                                <span class="badge bg-light text-dark border" style="cursor: pointer;"
+                                      title="Filtrer uniquement sur cette catégorie"
+                                      @onclick="() => FilterSingleCategory(item.CategoryId)">
+                                    @Lang[item.CategoryName]
+                                </span>
+                            </td>
                             <td><span class="badge bg-light text-dark border">@item.RoundName</span></td>
                             <td>
                                 @if (item.IsKata)
@@ -340,7 +507,7 @@
                             <td>
                                 @if (item.IsKata)
                                 {
-                                    <span class="text-muted small">Kata : @item.KataName</span>
+                                    <span class="text-muted small">Score : @item.Score</span>
                                 }
                                 else
                                 {
@@ -377,15 +544,25 @@
 </div>
 
 @code {
+    [SupplyParameterFromQuery(Name = "tatami")]
+    public int? QueryTatamiId { get; set; }
+
     private List<Tatami> tatamis = new();
+    private List<Category> categories = new();
     private List<KumiteMatch> allMatches = new();
     private List<KataPerformance> allKatas = new();
     private string searchTerm = string.Empty;
     private string disciplineFilter = "all";
+    private HashSet<int> selectedTatamiIds = new();
+    private HashSet<int> selectedCategoryIds = new();
+    private bool isCategoryDropdownOpen = false;
+    private string categorySearchTerm = string.Empty;
 
     public class ScheduleItem
     {
         public int Number { get; set; }
+        public int? TatamiId { get; set; }
+        public int CategoryId { get; set; }
         public bool IsKata { get; set; }
         public string TatamiName { get; set; } = string.Empty;
         public string CategoryName { get; set; } = string.Empty;
@@ -397,6 +574,122 @@
         public string WinnerInfo { get; set; } = string.Empty;
         public int DurationSeconds { get; set; }
         public MatchStatus Status { get; set; }
+        public string Score {get;set;}
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (QueryTatamiId.HasValue && tatamis.Any(t => t.Id == QueryTatamiId.Value))
+        {
+            selectedTatamiIds.Clear();
+            selectedTatamiIds.Add(QueryTatamiId.Value);
+        }
+    }
+
+    private void SelectAllTatamis()
+    {
+        selectedTatamiIds.Clear();
+    }
+
+    private void ToggleTatamiSelection(int tatamiId)
+    {
+        if (selectedTatamiIds.Contains(tatamiId))
+        {
+            selectedTatamiIds.Remove(tatamiId);
+        }
+        else
+        {
+            selectedTatamiIds.Add(tatamiId);
+        }
+    }
+
+    private void ToggleCategoryDropdown()
+    {
+        isCategoryDropdownOpen = !isCategoryDropdownOpen;
+    }
+
+    private void CloseCategoryDropdown()
+    {
+        isCategoryDropdownOpen = false;
+    }
+
+    private void ToggleCategorySelection(int categoryId)
+    {
+        if (selectedCategoryIds.Contains(categoryId))
+        {
+            selectedCategoryIds.Remove(categoryId);
+        }
+        else
+        {
+            selectedCategoryIds.Add(categoryId);
+        }
+    }
+
+    private void FilterSingleCategory(int categoryId)
+    {
+        selectedCategoryIds.Clear();
+        selectedCategoryIds.Add(categoryId);
+    }
+
+    private void SelectAllCategories()
+    {
+        foreach (var cat in FilteredCategoryChoices)
+        {
+            selectedCategoryIds.Add(cat.Id);
+        }
+    }
+
+    private void ClearCategorySelection()
+    {
+        selectedCategoryIds.Clear();
+    }
+
+    private void ResetAllProgramFilters()
+    {
+        selectedCategoryIds.Clear();
+        selectedTatamiIds.Clear();
+        searchTerm = string.Empty;
+        disciplineFilter = "all";
+    }
+
+    private int GetCategoryItemCount(int catId) =>
+        allMatches.Count(m => m.CategoryId == catId && !m.IsBye) + allKatas.Count(k => k.CategoryId == catId);
+
+    private IEnumerable<Category> FilteredCategoryChoices
+    {
+        get
+        {
+            var list = categories.AsEnumerable();
+            if (disciplineFilter == "kata")
+            {
+                list = list.Where(c => c.Type == CompetitionType.Kata);
+            }
+            else if (disciplineFilter == "kumite")
+            {
+                list = list.Where(c => c.Type == CompetitionType.Kumite);
+            }
+
+            if (!string.IsNullOrWhiteSpace(categorySearchTerm))
+            {
+                string term = categorySearchTerm.Trim().ToLowerInvariant();
+                list = list.Where(c => c.Name.ToLowerInvariant().Contains(term));
+            }
+
+            return list.OrderBy(c => c.CompetitionDay).ThenBy(c => c.OrderIndex).ThenBy(c => c.Name);
+        }
+    }
+
+    private IEnumerable<Tatami> DisplayedTatamis =>
+        selectedTatamiIds.Count == 0
+            ? tatamis
+            : tatamis.Where(t => selectedTatamiIds.Contains(t.Id));
+
+    private string GetTatamiColClass()
+    {
+        int count = DisplayedTatamis.Count();
+        if (count == 1) return "col-lg-6 col-md-8 mx-auto";
+        if (count == 2) return "col-lg-6 col-md-6";
+        return "col-lg-4 col-md-6";
     }
 
     protected override void OnInitialized()
@@ -409,6 +702,7 @@
     private void RefreshData()
     {
         tatamis = TournamentService.GetTatamis();
+        categories = TournamentService.GetCategories();
         allMatches = TournamentService.GetMatches();
         allKatas = TournamentService.GetKataPerformances();
     }
@@ -430,16 +724,32 @@
             {
                 foreach (var k in allKatas)
                 {
+                    int? tatamiId = k.TatamiId ?? k.Category?.AssignedTatamiId;
+                    if (selectedTatamiIds.Count > 0 && (!tatamiId.HasValue || !selectedTatamiIds.Contains(tatamiId.Value)))
+                    {
+                        continue;
+                    }
+
+                    if (selectedCategoryIds.Count > 0 && !selectedCategoryIds.Contains(k.CategoryId))
+                    {
+                        continue;
+                    }
+
+                    string tName = k.Tatami?.Name ?? tatamis.FirstOrDefault(t => t.Id == tatamiId)?.Name ?? (tatamiId.HasValue ? $"Tatami {tatamiId}" : "-");
+
                     items.Add(new ScheduleItem
                     {
                         Number = k.PerformanceOrder,
+                        TatamiId = tatamiId,
+                        CategoryId = k.CategoryId,
                         IsKata = true,
-                        TatamiName = k.Tatami?.Name ?? "Tatami 3",
+                        TatamiName = tName,
                         CategoryName = k.Category?.Name ?? "Kata",
-                        RoundName = k.Round == KataRound.Tour1 ? "1er Tour (Éliminatoire)" : "2e Tour (Finale)",
+                        RoundName = k.Round == KataRound.Turn1 ? Lang["Turn1"] : Lang["Turn2"],
                         KataCompetitorName = k.CompetitorDisplayName,
                         KataName = k.KataName,
-                        Status = k.Status
+                        Status = k.Status,
+                        Score = k.FinalScore.ToString()
                     });
                 }
             }
@@ -449,11 +759,26 @@
             {
                 foreach (var m in allMatches.Where(m => !m.IsBye))
                 {
+                    int? tatamiId = m.TatamiId ?? m.Category?.AssignedTatamiId;
+                    if (selectedTatamiIds.Count > 0 && (!tatamiId.HasValue || !selectedTatamiIds.Contains(tatamiId.Value)))
+                    {
+                        continue;
+                    }
+
+                    if (selectedCategoryIds.Count > 0 && !selectedCategoryIds.Contains(m.CategoryId))
+                    {
+                        continue;
+                    }
+
+                    string tName = m.Tatami?.Name ?? tatamis.FirstOrDefault(t => t.Id == tatamiId)?.Name ?? (tatamiId.HasValue ? $"Tatami {tatamiId}" : "-");
+
                     items.Add(new ScheduleItem
                     {
                         Number = m.MatchNumber,
+                        TatamiId = tatamiId,
+                        CategoryId = m.CategoryId,
                         IsKata = false,
-                        TatamiName = m.Tatami?.Name ?? "-",
+                        TatamiName = tName,
                         CategoryName = m.Category?.Name ?? "Kumité",
                         RoundName = m.RoundName,
                         AkaName = m.AkaDisplayName,

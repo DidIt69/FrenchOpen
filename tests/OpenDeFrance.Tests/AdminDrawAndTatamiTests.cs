@@ -168,7 +168,7 @@ public class AdminDrawAndTatamiTests
         var (service, _, dbPath) = CreateTestEnvironment();
         try
         {
-            var perfs = service.GetKataPerformances().Where(p => p.Round == KataRound.Tour1).ToList();
+            var perfs = service.GetKataPerformances().Where(p => p.Round == KataRound.Turn1).ToList();
             Assert.True(perfs.Count >= 2);
 
             var p1 = perfs[0];
@@ -294,7 +294,7 @@ public class AdminDrawAndTatamiTests
 
             // Par défaut, vérifions le nombre de qualifiés (généralement 4)
             var initialT2Slots = service.GetKataPerformances()
-                .Where(p => p.CategoryId == catId && p.Round == KataRound.Tour2)
+                .Where(p => p.CategoryId == catId && p.Round == KataRound.Turn2)
                 .ToList();
             int initialExpected = Math.Min(kataCat.KataQualifiersCount, kataCat.Competitors.Count);
             Assert.Equal(initialExpected, initialT2Slots.Count);
@@ -306,7 +306,7 @@ public class AdminDrawAndTatamiTests
             Assert.Equal(2, updatedCat.KataQualifiersCount);
 
             var updatedT2Slots = service.GetKataPerformances()
-                .Where(p => p.CategoryId == catId && p.Round == KataRound.Tour2)
+                .Where(p => p.CategoryId == catId && p.Round == KataRound.Turn2)
                 .ToList();
             Assert.Equal(2, updatedT2Slots.Count);
         }

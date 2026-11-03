@@ -19,6 +19,11 @@ public interface ITournamentService
     KumiteMatch? GetMatch(int matchId);
     List<KataPerformance> GetKataPerformances();
 
+    // Gestion des Compétiteurs
+    Competitor AddCompetitor(Competitor competitor, List<int>? categoryIds = null);
+    void UpdateCompetitor(Competitor competitor, List<int>? categoryIds = null);
+    bool DeleteCompetitor(int competitorId);
+
     // Setup & Tirages
     void SeedSampleData();
     void ResetTournament();

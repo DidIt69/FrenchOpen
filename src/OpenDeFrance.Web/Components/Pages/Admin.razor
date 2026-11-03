@@ -398,7 +398,7 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        @foreach (var p in categoryKataPerformances.Where(x => x.Round == KataRound.Tour1).OrderBy(x => x.PerformanceOrder))
+                                        @foreach (var p in categoryKataPerformances.Where(x => x.Round == KataRound.Turn1).OrderBy(x => x.PerformanceOrder))
                                         {
                                             bool canDragKata = p.Status != MatchStatus.Finished;
                                             bool isKataHover = dragHoverTarget == $"admin_kata_{p.Id}";
@@ -1179,10 +1179,59 @@
     @if (activeTab == "competitors")
     {
         <div class="card shadow-sm border-0">
-            <div class="card-header bg-light py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
-                <h5 class="mb-0 fw-bold">👥 Liste des Compétiteurs Inscrits</h5>
-                <input type="text" class="form-control form-control-sm w-auto" placeholder="Filtrer..."
-                       @bind="competitorFilter" @bind:event="oninput" />
+            <div class="card-header bg-light py-3">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                    <h5 class="mb-0 fw-bold">👥 Liste des Compétiteurs Inscrits (@FilteredCompetitors.Count() / @competitors.Count)</h5>
+                    <button class="btn btn-sm btn-primary" @onclick="OpenAddCompetitorModal">
+                        ➕ Nouveau Compétiteur
+                    </button>
+                </div>
+                <div class="row g-2 align-items-center">
+                    <div class="col-md-4 col-sm-6">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-white">🔍</span>
+                            <input type="text" class="form-control" placeholder="Rechercher (nom, dossard, club, pays...)..."
+                                   @bind="competitorFilter" @bind:event="oninput" />
+                            @if (!string.IsNullOrEmpty(competitorFilter))
+                            {
+                                <button class="btn btn-outline-secondary" @onclick="() => competitorFilter = string.Empty">✕</button>
+                            }
+                        </div>
+                    </div>
+                    <div class="col-md-4 col-sm-6">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-white">📂 Catégorie</span>
+                            <select class="form-select" @bind="selectedCompetitorCategoryFilter">
+                                <option value="0">Toutes les catégories (@categories.Count)</option>
+                                @foreach (var cat in categories.OrderBy(c => c.CompetitionDay).ThenBy(c => c.OrderIndex).ThenBy(c => c.Name))
+                                {
+                                    <option value="@cat.Id">
+                                        [J@(cat.CompetitionDay)] @(cat.Type == CompetitionType.Kumite ? "🥊" : "🥋") @cat.Name (@cat.Competitors.Count inscrits)
+                                    </option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-2 col-sm-6">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-white">Discipline</span>
+                            <select class="form-select" @bind="selectedCompetitorDisciplineFilter">
+                                <option value="all">Toutes</option>
+                                <option value="kumite">🥊 Kumité</option>
+                                <option value="kata">🥋 Kata</option>
+                                <option value="both">🥊+🥋 Les deux</option>
+                            </select>
+                        </div>
+                    </div>
+                    @if (!string.IsNullOrEmpty(competitorFilter) || selectedCompetitorCategoryFilter != 0 || selectedCompetitorDisciplineFilter != "all")
+                    {
+                        <div class="col-auto">
+                            <button class="btn btn-sm btn-outline-secondary" @onclick="ResetCompetitorFilters">
+                                Réinitialiser filtres
+                            </button>
+                        </div>
+                    }
+                </div>
             </div>
             <div class="table-responsive" style="max-height: 550px; overflow-y: auto;">
                 <table class="table table-hover align-middle mb-0">
@@ -1197,11 +1246,16 @@
                             <th>Grade</th>
                             <th>Poids</th>
                             <th>Disciplines</th>
+                            <th>Catégories</th>
+                            <th class="text-end">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach (var c in FilteredCompetitors)
                         {
+                            var compCats = categories
+                                .Where(cat => cat.Competitors.Any(comp => comp.Id == c.Id) || c.Categories.Any(cat2 => cat2.Id == cat.Id))
+                                .ToList();
                             <tr>
                                 <td>
                                     <span class="badge bg-warning text-dark fw-bold px-2 py-1">
@@ -1209,11 +1263,22 @@
                                     </span>
                                 </td>
                                 <td><strong>@c.FullName</strong></td>
-                                <td><span class="badge bg-light text-dark border">@c.CountryWithFlag</span></td>
+                                <td>
+                                    <span class="badge bg-light text-dark border">
+                                        <img src="@c.FlagImageUrl" alt="" style="width: 16px; height: 11px; margin-right: 4px; vertical-align: middle;" />
+                                        @c.Country
+                                    </span>
+                                </td>
                                 <td>@c.Club</td>
                                 <td>@(c.Gender == Gender.Female ? "Femme" : "Homme")</td>
-                                <td>@c.Age ans</td>
-                                <td><span class="badge bg-secondary">@c.Grade</span></td>
+                                <td>
+                                    @c.Age ans
+                                    @if (c.BirthDate.HasValue)
+                                    {
+                                        <div class="text-muted small">@c.BirthDate.Value.ToString("dd/MM/yyyy")</div>
+                                    }
+                                </td>
+                                <td><span class="badge bg-secondary">@c.Grade (@c.GradeName)</span></td>
                                 <td>@c.Weight:F1 kg</td>
                                 <td>
                                     @if (c.IsKumiteRegistered)
@@ -1225,10 +1290,197 @@
                                         <span class="badge bg-primary">Kata</span>
                                     }
                                 </td>
+                                <td>
+                                    @if (compCats.Count > 0)
+                                    {
+                                        @foreach (var cat in compCats)
+                                        {
+                                            <span class="badge @(cat.Type == CompetitionType.Kumite ? "bg-danger" : "bg-primary") me-1 small">
+                                                @cat.Name
+                                            </span>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted small">Aucune</span>
+                                    }
+                                </td>
+                                <td class="text-end text-nowrap">
+                                    <button class="btn btn-sm btn-outline-primary" @onclick="() => OpenEditCompetitorModal(c)">
+                                        ✏️ Modifier
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger ms-1" @onclick="() => ConfirmDeleteCompetitor(c.Id)" title="Supprimer">
+                                        🗑️
+                                    </button>
+                                </td>
                             </tr>
                         }
                     </tbody>
                 </table>
+            </div>
+        </div>
+    }
+
+    <!-- MODAL D'EDITION / AJOUT DE COMPETITEUR -->
+    @if (isCompetitorModalOpen && editingCompetitor != null)
+    {
+        <div class="modal fade show d-block" style="background-color: rgba(0,0,0,0.5);" tabindex="-1">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title fw-bold">
+                            @(isNewCompetitor ? "➕ Nouveau Compétiteur" : $"✏️ Modifier le Compétiteur : {editingCompetitor.FullName}")
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" @onclick="CloseCompetitorModal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold">N° Dossard</label>
+                                <input type="number" class="form-control" @bind="editingCompetitor.BibNumber" placeholder="Ex: 101" />
+                            </div>
+                            <div class="col-md-5">
+                                <label class="form-label fw-bold">Nom *</label>
+                                <input type="text" class="form-control" @bind="editingCompetitor.LastName" placeholder="Nom de famille" required />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold">Prénom *</label>
+                                <input type="text" class="form-control" @bind="editingCompetitor.FirstName" placeholder="Prénom" required />
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold">Pays</label>
+                                <input type="text" class="form-control" list="competitorCountries" @bind="editingCompetitor.Country" placeholder="France, Espagne, Japon..." />
+                                <datalist id="competitorCountries">
+                                    <option value="France" />
+                                    <option value="Espagne" />
+                                    <option value="Japon" />
+                                    <option value="Pologne" />
+                                    <option value="Belgique" />
+                                    <option value="Suisse" />
+                                    <option value="Italie" />
+                                    <option value="Allemagne" />
+                                    <option value="Royaume-Uni" />
+                                    <option value="Pays-Bas" />
+                                    <option value="Brésil" />
+                                    <option value="États-Unis" />
+                                    <option value="Canada" />
+                                    <option value="Portugal" />
+                                    <option value="Suède" />
+                                    <option value="Norvège" />
+                                    <option value="Danemark" />
+                                    <option value="Irlande" />
+                                    <option value="Roumanie" />
+                                    <option value="Bulgarie" />
+                                    <option value="Hongrie" />
+                                    <option value="Grèce" />
+                                    <option value="Turquie" />
+                                    <option value="Kazakhstan" />
+                                    <option value="Géorgie" />
+                                    <option value="Lituanie" />
+                                    <option value="Lettonie" />
+                                    <option value="Estonie" />
+                                </datalist>
+                                <small class="text-muted">Aperçu : @editingCompetitor.CountryFlag @editingCompetitor.Country</small>
+                            </div>
+
+                            <div class="col-md-5">
+                                <label class="form-label fw-bold">Club / Dojo</label>
+                                <input type="text" class="form-control" @bind="editingCompetitor.Club" placeholder="Nom du club ou dojo" />
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold">Sexe</label>
+                                <select class="form-select" @bind="editingCompetitor.Gender">
+                                    <option value="@Gender.Male">Homme</option>
+                                    <option value="@Gender.Female">Femme</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold">Date de naissance</label>
+                                <input type="date" class="form-control"
+                                       value="@(editingCompetitor.BirthDate?.ToString("yyyy-MM-dd"))"
+                                       @onchange="HandleBirthDateChange" />
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold">Âge (ans)</label>
+                                <input type="number" class="form-control" @bind="editingCompetitor.Age" min="0" max="120" />
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold">Poids (kg)</label>
+                                <input type="number" step="0.1" class="form-control" @bind="editingCompetitor.Weight" min="0" max="300" />
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Grade / Ceinture</label>
+                                <select class="form-select" @bind="editingCompetitor.Grade">
+                                    @foreach (BeltGrade grade in Enum.GetValues<BeltGrade>())
+                                    {
+                                        <option value="@grade">@grade (@Competitor.GetGradeName(grade))</option>
+                                    }
+                                </select>
+                            </div>
+
+                            <div class="col-md-6 d-flex align-items-center gap-4 pt-4">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="checkKumite" @bind="editingCompetitor.IsKumiteRegistered" />
+                                    <label class="form-check-label fw-bold" for="checkKumite">🥊 Inscrit Kumité</label>
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="checkKata" @bind="editingCompetitor.IsKataRegistered" />
+                                    <label class="form-check-label fw-bold" for="checkKata">🥋 Inscrit Kata</label>
+                                </div>
+                            </div>
+
+                            <div class="col-12">
+                                <label class="form-label fw-bold">Affectation aux catégories</label>
+                                <div class="border rounded p-2 bg-light" style="max-height: 220px; overflow-y: auto;">
+                                    @if (categories.Count == 0)
+                                    {
+                                        <span class="text-muted small">Aucune catégorie existante.</span>
+                                    }
+                                    else
+                                    {
+                                        <div class="row g-2">
+                                            @foreach (var cat in categories.OrderBy(c => c.CompetitionDay).ThenBy(c => c.OrderIndex).ThenBy(c => c.Name))
+                                            {
+                                                bool isChecked = editingCompetitorCategoryIds.Contains(cat.Id);
+                                                <div class="col-md-6">
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="checkbox" id="cat_@cat.Id"
+                                                               checked="@isChecked"
+                                                               @onchange="(e) => ToggleCompetitorCategory(cat.Id, e)" />
+                                                        <label class="form-check-label small" for="cat_@cat.Id">
+                                                            <span class="badge @(cat.Type == CompetitionType.Kumite ? "bg-danger" : "bg-primary") me-1">
+                                                                @(cat.Type == CompetitionType.Kumite ? "Kumité" : "Kata")
+                                                            </span>
+                                                            <strong>@cat.Name</strong> (J@(cat.CompetitionDay))
+                                                        </label>
+                                                    </div>
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        @if (!isNewCompetitor)
+                        {
+                            <button type="button" class="btn btn-outline-danger me-auto" @onclick="() => ConfirmDeleteCompetitor(editingCompetitor.Id)">
+                                🗑️ Supprimer
+                            </button>
+                        }
+                        <button type="button" class="btn btn-secondary" @onclick="CloseCompetitorModal">Annuler</button>
+                        <button type="button" class="btn btn-success fw-bold" @onclick="SaveCompetitor">
+                            💾 Enregistrer
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     }
@@ -1747,18 +1999,186 @@
         isError = false;
     }
 
+    // Competitor editing & filtering state
+    private bool isCompetitorModalOpen = false;
+    private bool isNewCompetitor = false;
+    private Competitor? editingCompetitor;
+    private HashSet<int> editingCompetitorCategoryIds = new();
+    private int selectedCompetitorCategoryFilter = 0;
+    private string selectedCompetitorDisciplineFilter = "all";
+
+    private void ResetCompetitorFilters()
+    {
+        competitorFilter = string.Empty;
+        selectedCompetitorCategoryFilter = 0;
+        selectedCompetitorDisciplineFilter = "all";
+    }
+
+    private void OpenAddCompetitorModal()
+    {
+        isNewCompetitor = true;
+        editingCompetitor = new Competitor
+        {
+            Country = "France",
+            Gender = Gender.Male,
+            Grade = BeltGrade.White,
+            IsKumiteRegistered = true,
+            IsKataRegistered = false
+        };
+        editingCompetitorCategoryIds.Clear();
+        if (selectedCompetitorCategoryFilter > 0)
+        {
+            editingCompetitorCategoryIds.Add(selectedCompetitorCategoryFilter);
+        }
+        isCompetitorModalOpen = true;
+    }
+
+    private void OpenEditCompetitorModal(Competitor c)
+    {
+        isNewCompetitor = false;
+        editingCompetitor = new Competitor
+        {
+            Id = c.Id,
+            BibNumber = c.BibNumber,
+            FirstName = c.FirstName,
+            LastName = c.LastName,
+            Country = c.Country,
+            Club = c.Club,
+            BirthDate = c.BirthDate,
+            Age = c.Age,
+            Weight = c.Weight,
+            Grade = c.Grade,
+            Gender = c.Gender,
+            IsKumiteRegistered = c.IsKumiteRegistered,
+            IsKataRegistered = c.IsKataRegistered
+        };
+
+        var compCats = categories
+            .Where(cat => cat.Competitors.Any(comp => comp.Id == c.Id) || c.Categories.Any(cat2 => cat2.Id == cat.Id))
+            .Select(cat => cat.Id)
+            .ToList();
+        editingCompetitorCategoryIds = new HashSet<int>(compCats);
+        isCompetitorModalOpen = true;
+    }
+
+    private void CloseCompetitorModal()
+    {
+        isCompetitorModalOpen = false;
+        editingCompetitor = null;
+        editingCompetitorCategoryIds.Clear();
+    }
+
+    private void HandleBirthDateChange(ChangeEventArgs e)
+    {
+        if (editingCompetitor != null && DateTime.TryParse(e.Value?.ToString(), out var dt))
+        {
+            editingCompetitor.BirthDate = dt;
+            int age = DateTime.Today.Year - dt.Year;
+            if (dt.Date > DateTime.Today.AddYears(-age)) age--;
+            if (age >= 0) editingCompetitor.Age = age;
+        }
+        else if (editingCompetitor != null)
+        {
+            editingCompetitor.BirthDate = null;
+        }
+    }
+
+    private void ToggleCompetitorCategory(int categoryId, ChangeEventArgs e)
+    {
+        bool isChecked = (bool)(e.Value ?? false);
+        if (isChecked)
+        {
+            editingCompetitorCategoryIds.Add(categoryId);
+        }
+        else
+        {
+            editingCompetitorCategoryIds.Remove(categoryId);
+        }
+    }
+
+    private void SaveCompetitor()
+    {
+        if (editingCompetitor == null) return;
+
+        if (string.IsNullOrWhiteSpace(editingCompetitor.LastName) || string.IsNullOrWhiteSpace(editingCompetitor.FirstName))
+        {
+            statusMessage = "Erreur : Le nom et le prénom du compétiteur sont obligatoires.";
+            isError = true;
+            return;
+        }
+
+        if (isNewCompetitor)
+        {
+            TournamentService.AddCompetitor(editingCompetitor, editingCompetitorCategoryIds.ToList());
+            statusMessage = $"Compétiteur {editingCompetitor.FullName} ajouté avec succès !";
+        }
+        else
+        {
+            TournamentService.UpdateCompetitor(editingCompetitor, editingCompetitorCategoryIds.ToList());
+            statusMessage = $"Compétiteur {editingCompetitor.FullName} modifié avec succès !";
+        }
+
+        isError = false;
+        CloseCompetitorModal();
+        RefreshData();
+    }
+
+    private void ConfirmDeleteCompetitor(int competitorId)
+    {
+        var comp = competitors.FirstOrDefault(c => c.Id == competitorId);
+        string name = comp?.FullName ?? "le compétiteur";
+
+        bool deleted = TournamentService.DeleteCompetitor(competitorId);
+        if (deleted)
+        {
+            statusMessage = $"Compétiteur {name} supprimé avec succès.";
+            isError = false;
+        }
+        CloseCompetitorModal();
+        RefreshData();
+    }
+
     private IEnumerable<Competitor> FilteredCompetitors
     {
         get
         {
-            if (string.IsNullOrWhiteSpace(competitorFilter)) return competitors;
-            string term = competitorFilter.Trim().ToLowerInvariant();
-            return competitors.Where(c =>
-                c.FullName.ToLowerInvariant().Contains(term) ||
-                (c.BibNumber.HasValue && c.BibNumber.Value.ToString().Contains(term)) ||
-                c.Country.ToLowerInvariant().Contains(term) ||
-                c.Club.ToLowerInvariant().Contains(term) ||
-                c.Grade.ToString().ToLowerInvariant().Contains(term));
+            var result = competitors.AsEnumerable();
+
+            if (selectedCompetitorCategoryFilter > 0)
+            {
+                result = result.Where(c =>
+                    c.Categories.Any(cat => cat.Id == selectedCompetitorCategoryFilter) ||
+                    categories.Any(cat => cat.Id == selectedCompetitorCategoryFilter && cat.Competitors.Any(comp => comp.Id == c.Id)));
+            }
+
+            if (selectedCompetitorDisciplineFilter == "kumite")
+            {
+                result = result.Where(c => c.IsKumiteRegistered);
+            }
+            else if (selectedCompetitorDisciplineFilter == "kata")
+            {
+                result = result.Where(c => c.IsKataRegistered);
+            }
+            else if (selectedCompetitorDisciplineFilter == "both")
+            {
+                result = result.Where(c => c.IsKumiteRegistered && c.IsKataRegistered);
+            }
+
+            if (!string.IsNullOrWhiteSpace(competitorFilter))
+            {
+                string term = competitorFilter.Trim().ToLowerInvariant();
+                result = result.Where(c =>
+                    c.FullName.ToLowerInvariant().Contains(term) ||
+                    (c.BibNumber.HasValue && c.BibNumber.Value.ToString().Contains(term)) ||
+                    c.Country.ToLowerInvariant().Contains(term) ||
+                    c.Club.ToLowerInvariant().Contains(term) ||
+                    c.Grade.ToString().ToLowerInvariant().Contains(term) ||
+                    Competitor.GetGradeName(c.Grade).ToLowerInvariant().Contains(term) ||
+                    c.Categories.Any(cat => cat.Name.ToLowerInvariant().Contains(term)) ||
+                    categories.Any(cat => cat.Competitors.Any(comp => comp.Id == c.Id) && cat.Name.ToLowerInvariant().Contains(term)));
+            }
+
+            return result;
         }
     }
 
