@@ -2242,7 +2242,10 @@ public class TournamentService : ITournamentService, IHostedService
 
             if (isSqlServer)
             {
-                // SQL Server : vider les tables dans l'ordre FK (sans détruire la DB)
+                // SQL Server avec NoAction : nullifier d'abord les FK circulaires entre Tatamis et KumiteMatches/KataPerformances,
+                // puis supprimer dans l'ordre FK correct
+                db.Database.ExecuteSqlRaw("UPDATE [Tatamis] SET [CurrentKumiteMatchId] = NULL, [CurrentKataPerformanceId] = NULL");
+                db.Database.ExecuteSqlRaw("UPDATE [KumiteMatches] SET [NextMatchId] = NULL, [BronzeMatchId] = NULL");
                 db.Database.ExecuteSqlRaw("DELETE FROM [CategoryCompetitor]");
                 db.Database.ExecuteSqlRaw("DELETE FROM [KataPerformances]");
                 db.Database.ExecuteSqlRaw("DELETE FROM [KumiteMatches]");
@@ -2403,6 +2406,21 @@ public class TournamentService : ITournamentService, IHostedService
                 Status = p.Status
             }).ToList();
             db.KataPerformances.AddRange(dbKataPerfs);
+            db.SaveChanges();
+
+            // 3ème passe : relier CurrentKumiteMatchId et CurrentKataPerformanceId des Tatamis
+            // (différé car les KumiteMatches et KataPerformances doivent exister en BD d'abord)
+            for (int i = 0; i < dbTatamis.Count; i++)
+            {
+                var src = _tatamis[i];
+                var currentMatchId = src.CurrentKumiteMatch?.Id ?? src.CurrentKumiteMatchId;
+                if (currentMatchId.HasValue && dbMatches.Any(m => m.Id == currentMatchId.Value))
+                    dbTatamis[i].CurrentKumiteMatchId = currentMatchId.Value;
+
+                var currentKataId = src.CurrentKataPerformance?.Id ?? src.CurrentKataPerformanceId;
+                if (currentKataId.HasValue && dbKataPerfs.Any(p => p.Id == currentKataId.Value))
+                    dbTatamis[i].CurrentKataPerformanceId = currentKataId.Value;
+            }
             db.SaveChanges();
         }
         catch (Exception ex)

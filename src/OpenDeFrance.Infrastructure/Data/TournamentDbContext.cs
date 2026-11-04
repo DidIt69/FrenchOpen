@@ -65,30 +65,32 @@ public class TournamentDbContext : DbContext
             .OnDelete(DeleteBehavior.Restrict);
 
         // Tatami <-> KumiteMatch
+        // NoAction pour éviter les cycles/multi-cascade-paths sur SQL Server
         modelBuilder.Entity<Tatami>()
             .HasOne(t => t.CurrentKumiteMatch)
             .WithMany()
             .HasForeignKey(t => t.CurrentKumiteMatchId)
-            .OnDelete(DeleteBehavior.SetNull);
+            .OnDelete(DeleteBehavior.NoAction);
 
         modelBuilder.Entity<KumiteMatch>()
             .HasOne(m => m.Tatami)
             .WithMany(t => t.AssignedKumiteMatches)
             .HasForeignKey(m => m.TatamiId)
-            .OnDelete(DeleteBehavior.SetNull);
+            .OnDelete(DeleteBehavior.NoAction);
 
         // Tatami <-> KataPerformance
+        // NoAction pour éviter les cycles/multi-cascade-paths sur SQL Server
         modelBuilder.Entity<Tatami>()
             .HasOne(t => t.CurrentKataPerformance)
             .WithMany()
             .HasForeignKey(t => t.CurrentKataPerformanceId)
-            .OnDelete(DeleteBehavior.SetNull);
+            .OnDelete(DeleteBehavior.NoAction);
 
         modelBuilder.Entity<KataPerformance>()
             .HasOne(p => p.Tatami)
             .WithMany(t => t.AssignedKataPerformances)
             .HasForeignKey(p => p.TatamiId)
-            .OnDelete(DeleteBehavior.SetNull);
+            .OnDelete(DeleteBehavior.NoAction);
 
         // Store Kata JudgeScores as JSON or comma-separated string in SQLite
         modelBuilder.Entity<KataPerformance>()
