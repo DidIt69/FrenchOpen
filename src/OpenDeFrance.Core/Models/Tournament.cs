@@ -6,6 +6,7 @@ public class Tournament
     public string Name { get; set; } = "Open de France de Karaté Kyokushinkai";
     public DateTime Date { get; set; } = DateTime.Today;
     public int DaysCount { get; set; } = 2; // Nombre de jours de la compétition (ex: Samedi et Dimanche)
+    public int? ActiveDay { get; set; } = null; // Jour actif défini par l'admin (null = tous les jours)
     public string Location { get; set; } = "Paris, France";
     public int TatamisCount { get; set; } = 3;
 

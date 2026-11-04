@@ -1,4 +1,6 @@
 @inherits LayoutComponentBase
+@inject ILanguageService Lang
+@implements IDisposable
 
 <div class="page">
     <div class="sidebar @(isSidebarOpenMobile ? "show-mobile" : "") @(isSidebarCollapsedDesktop ? "collapsed-desktop" : "")">
@@ -15,7 +17,7 @@
             <div class="d-flex align-items-center gap-2">
                 <button class="btn btn-sm btn-outline-secondary toggle-sidebar-btn d-flex align-items-center gap-1" @onclick="ToggleSidebar" title="Menu">
                     <span class="fs-6">☰</span>
-                    <span class="fw-bold d-none d-md-inline">@(isSidebarCollapsedDesktop ? "Afficher le menu" : "Masquer le menu")</span>
+                    <span class="fw-bold d-none d-md-inline">@(isSidebarCollapsedDesktop ? Lang["ShowMenu"] : Lang["HideMenu"])</span>
                 </button>
             </div>
 
@@ -61,5 +63,20 @@
     private void CloseMobileSidebar()
     {
         isSidebarOpenMobile = false;
+    }
+
+    protected override void OnInitialized()
+    {
+        Lang.OnLanguageChanged += HandleLanguageChanged;
+    }
+
+    public void Dispose()
+    {
+        Lang.OnLanguageChanged -= HandleLanguageChanged;
+    }
+
+    private async void HandleLanguageChanged()
+    {
+        await InvokeAsync(StateHasChanged);
     }
 }

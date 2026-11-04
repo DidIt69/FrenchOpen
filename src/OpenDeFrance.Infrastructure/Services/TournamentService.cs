@@ -849,6 +849,19 @@ public class TournamentService : ITournamentService, IHostedService
         lock (_lock)
         {
             _tournament.DaysCount = Math.Max(1, daysCount);
+            // Si le jour actif dépasse le nouveau nombre de jours, le réinitialiser
+            if (_tournament.ActiveDay.HasValue && _tournament.ActiveDay.Value > _tournament.DaysCount)
+                _tournament.ActiveDay = null;
+            SaveAllToDatabase();
+            NotifyChange();
+        }
+    }
+
+    public void SetActiveDay(int? day)
+    {
+        lock (_lock)
+        {
+            _tournament.ActiveDay = day;
             SaveAllToDatabase();
             NotifyChange();
         }
@@ -2090,6 +2103,19 @@ public class TournamentService : ITournamentService, IHostedService
 
                     if (db.Competitors.Any() && db.Categories.Any())
                     {
+                        // Charger les settings du Tournament (DaysCount, ActiveDay…)
+                        var dbTournament = db.Tournaments.AsNoTracking().FirstOrDefault();
+                        if (dbTournament != null)
+                        {
+                            _tournament.Id = dbTournament.Id;
+                            _tournament.Name = dbTournament.Name;
+                            _tournament.Date = dbTournament.Date;
+                            _tournament.DaysCount = dbTournament.DaysCount;
+                            _tournament.ActiveDay = dbTournament.ActiveDay;
+                            _tournament.Location = dbTournament.Location;
+                            _tournament.TatamisCount = dbTournament.TatamisCount;
+                        }
+
                         _competitors = db.Competitors.AsNoTracking().ToList();
                         _categories = db.Categories.AsNoTracking().Include(c => c.Competitors).ToList();
 
@@ -2209,8 +2235,41 @@ public class TournamentService : ITournamentService, IHostedService
             var db = scope.ServiceProvider.GetService<TournamentDbContext>();
             if (db == null) return;
 
-            db.Database.EnsureDeleted();
+            // Créer les tables si elles n'existent pas encore (premier démarrage)
             db.Database.EnsureCreated();
+
+            bool isSqlServer = db.Database.ProviderName?.Contains("SqlServer") == true;
+
+            if (isSqlServer)
+            {
+                // SQL Server : vider les tables dans l'ordre FK (sans détruire la DB)
+                db.Database.ExecuteSqlRaw("DELETE FROM [CategoryCompetitor]");
+                db.Database.ExecuteSqlRaw("DELETE FROM [KataPerformances]");
+                db.Database.ExecuteSqlRaw("DELETE FROM [KumiteMatches]");
+                db.Database.ExecuteSqlRaw("DELETE FROM [Categories]");
+                db.Database.ExecuteSqlRaw("DELETE FROM [Competitors]");
+                db.Database.ExecuteSqlRaw("DELETE FROM [Tatamis]");
+                db.Database.ExecuteSqlRaw("DELETE FROM [Tournaments]");
+            }
+            else
+            {
+                // SQLite (tests) : recréer la DB
+                db.Database.EnsureDeleted();
+                db.Database.EnsureCreated();
+            }
+
+            // Sauvegarder le Tournament (DaysCount, ActiveDay, etc.)
+            db.Tournaments.Add(new Tournament
+            {
+                Id = _tournament.Id > 0 ? _tournament.Id : 1,
+                Name = _tournament.Name,
+                Date = _tournament.Date,
+                DaysCount = _tournament.DaysCount,
+                ActiveDay = _tournament.ActiveDay,
+                Location = _tournament.Location,
+                TatamisCount = _tournament.TatamisCount
+            });
+            db.SaveChanges();
 
             var dbCompetitors = _competitors.Select(c => new Competitor
             {

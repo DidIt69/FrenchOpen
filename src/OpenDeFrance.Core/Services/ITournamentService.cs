@@ -42,6 +42,7 @@ public interface ITournamentService
     void SetCategoryOrderIndex(int categoryId, int orderIndex);
     void MoveCategoryOrder(int categoryId, int direction);
     void SetTournamentDaysCount(int daysCount);
+    void SetActiveDay(int? day);
     void SetCategoryDayAndTatami(int categoryId, int dayNumber, int tatamiId);
     void SetMatchDay(int matchId, int dayNumber);
     void SetKataDay(int performanceId, int dayNumber);

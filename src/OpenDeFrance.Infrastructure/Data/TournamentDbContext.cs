@@ -23,7 +23,8 @@ public class TournamentDbContext : DbContext
         // Many-to-many: Category <-> Competitor
         modelBuilder.Entity<Category>()
             .HasMany(c => c.Competitors)
-            .WithMany(comp => comp.Categories);
+            .WithMany(comp => comp.Categories)
+            .UsingEntity(j => j.ToTable("CategoryCompetitor"));
 
         // Category <-> AssignedTatami
         modelBuilder.Entity<Category>()

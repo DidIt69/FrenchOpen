@@ -16,6 +16,20 @@
         <div class="d-flex align-items-center gap-3 flex-wrap">
             <LanguageSwitcher />
 
+            @* Filtre par jour *@
+            <div class="d-flex align-items-center gap-2">
+                <label class="form-label mb-0 fw-bold">📅 @Lang["Day"] :</label>
+                <select class="form-select" style="min-width: 130px;"
+                        @bind="SelectedDayStr" @bind:after="OnDayChanged">
+                    <option value="">@Lang["AllDays"]</option>
+                    @foreach (var day in AvailableDays)
+                    {
+                        <option value="@day">J@(day)</option>
+                    }
+                </select>
+            </div>
+
+            @* Filtre par catégorie *@
             <div class="d-flex align-items-center gap-2">
                 <label class="form-label mb-0 fw-bold">@Lang["Category"] :</label>
                 <select class="form-select" @bind="selectedCategoryId" @bind:after="OnCategoryChanged" style="min-width: 280px;">
@@ -27,6 +41,11 @@
                     }
                 </select>
             </div>
+
+            @* Bouton Rafraîchir *@
+            <button class="btn btn-outline-secondary" @onclick="ManualRefresh" title="@Lang["Refresh"]">
+                🔄
+            </button>
         </div>
     </div>
 
@@ -571,11 +590,25 @@
 
     private bool isAdmin = false;
     private List<Category> categories = new();
+    private List<Category> allCategoriesWithCompetitors = new();
     private List<Tatami> tatamis = new();
     private Category? selectedCategory;
     private int selectedCategoryId;
+    private int? selectedDay = null; // null = tous les jours
+
+    private string SelectedDayStr
+    {
+        get => selectedDay.HasValue ? selectedDay.Value.ToString() : "";
+        set => selectedDay = string.IsNullOrEmpty(value) ? null : int.Parse(value);
+    }
     private List<KumiteMatch> categoryMatches = new();
     private List<KataPerformance> categoryKataPerformances = new();
+
+    private List<int> AvailableDays => allCategoriesWithCompetitors
+        .Select(c => c.CompetitionDay)
+        .Distinct()
+        .OrderBy(d => d)
+        .ToList();
 
     // Drag & Drop State
     private int? draggingKumiteMatchId;
@@ -601,8 +634,33 @@
     private void RefreshData()
     {
         tatamis = TournamentService.GetTatamis();
-        categories = TournamentService.GetCategories().OrderBy(c => c.CompetitionDay).ThenBy(c => c.OrderIndex).ThenBy(c => c.Name).ToList();
+        var allCompetitors = TournamentService.GetCompetitors();
+        var allMatches = TournamentService.GetMatches();
+        var allKatas = TournamentService.GetKataPerformances();
 
+        // Toutes les catégories ayant au moins un compétiteur (sans filtre jour)
+        allCategoriesWithCompetitors = TournamentService.GetCategories()
+            .Where(c =>
+            {
+                int count = c.Competitors != null ? c.Competitors.Count : 0;
+                if (count > 0) return true;
+                count = allCompetitors.Count(comp => comp.Categories != null && comp.Categories.Any(cat2 => cat2.Id == c.Id));
+                if (count > 0) return true;
+                count = allKatas.Where(k => k.CategoryId == c.Id && k.CompetitorId.HasValue).Select(k => k.CompetitorId!.Value).Distinct().Count();
+                if (count > 0) return true;
+                int aka = allMatches.Count(m => m.CategoryId == c.Id && m.AkaCompetitorId.HasValue);
+                int shiro = allMatches.Count(m => m.CategoryId == c.Id && m.ShiroCompetitorId.HasValue);
+                return (aka + shiro) > 0;
+            })
+            .OrderBy(c => c.CompetitionDay).ThenBy(c => c.OrderIndex).ThenBy(c => c.Name)
+            .ToList();
+
+        // Appliquer le filtre jour
+        categories = selectedDay.HasValue
+            ? allCategoriesWithCompetitors.Where(c => c.CompetitionDay == selectedDay.Value).ToList()
+            : allCategoriesWithCompetitors;
+
+        // Si la catégorie sélectionnée n'est plus dans le filtre, réinitialiser
         if (categories.Count > 0 && selectedCategory == null)
         {
             selectedCategoryId = categories[0].Id;
@@ -611,6 +669,11 @@
         else if (selectedCategory != null)
         {
             selectedCategory = categories.FirstOrDefault(c => c.Id == selectedCategoryId);
+            if (selectedCategory == null && categories.Count > 0)
+            {
+                selectedCategoryId = categories[0].Id;
+                selectedCategory = categories[0];
+            }
         }
 
         if (selectedCategory != null)
@@ -623,6 +686,18 @@
     private void OnCategoryChanged()
     {
         selectedCategory = categories.FirstOrDefault(c => c.Id == selectedCategoryId);
+        RefreshData();
+    }
+
+    private void OnDayChanged()
+    {
+        // La catégorie sélectionnée sera réinitialisée si elle n'est plus dans le filtre
+        selectedCategory = null;
+        RefreshData();
+    }
+
+    private void ManualRefresh()
+    {
         RefreshData();
     }
 

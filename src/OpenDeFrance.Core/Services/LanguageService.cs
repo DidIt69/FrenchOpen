@@ -165,6 +165,8 @@ public class LanguageService : ILanguageService
         ["AllTatamis"] = new() { ["fr"] = "Tous les tatamis", ["en"] = "All tatamis" },
         ["FilterByCategory"] = new() { ["fr"] = "Filtrer par Catégorie :", ["en"] = "Filter by Category:" },
         ["AllCategories"] = new() { ["fr"] = "Toutes les catégories", ["en"] = "All categories" },
+        ["AllDays"] = new() { ["fr"] = "Tous les jours", ["en"] = "All days" },
+        ["Refresh"] = new() { ["fr"] = "Rafraîchir", ["en"] = "Refresh" },
         ["SelectAll"] = new() { ["fr"] = "Tout sélectionner", ["en"] = "Select all" },
         ["DeselectAll"] = new() { ["fr"] = "Tout désélectionner", ["en"] = "Deselect all" },
         ["CategoriesFiltered"] = new() { ["fr"] = "catégorie(s)", ["en"] = "category(ies)" },
@@ -177,6 +179,10 @@ public class LanguageService : ILanguageService
         ["Details"] = new() { ["fr"] = "Détails", ["en"] = "Details" },
         ["Status"] = new() { ["fr"] = "Statut", ["en"] = "Status" },
         ["Coming"] = new() { ["fr"] = "À venir", ["en"] = "Coming" },
+        ["ShowFinished"] = new() { ["fr"] = "Afficher terminés", ["en"] = "Show finished" },
+        ["HideFinished"] = new() { ["fr"] = "Masquer terminés", ["en"] = "Hide finished" },
+        ["ShowMenu"] = new() { ["fr"] = "Afficher le menu", ["en"] = "Show menu" },
+        ["HideMenu"] = new() { ["fr"] = "Cacher le menu", ["en"] = "Hide menu" },
 
         // General / Nav
         ["AppTitle"] = new() { ["fr"] = "Kyokushin Open", ["en"] = "Kyokushin Open" },

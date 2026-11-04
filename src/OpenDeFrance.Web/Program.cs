@@ -36,12 +36,12 @@ builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddSingleton<IAuthService, AuthService>();
 builder.Services.AddScoped<ILanguageService, LanguageService>();
 
-// SQLite Database (Local or Azure App Service storage)
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
-    ?? "Data Source=tournament.db";
+// Azure SQL Server Database
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? throw new InvalidOperationException("La connection string 'DefaultConnection' est manquante dans appsettings.json.");
 
 builder.Services.AddDbContext<TournamentDbContext>(options =>
-    options.UseSqlite(connectionString));
+    options.UseSqlServer(connectionString));
 
 // Domain & Infrastructure Services
 builder.Services.AddSingleton<IKumiteBracketGenerator, KumiteBracketGenerator>();

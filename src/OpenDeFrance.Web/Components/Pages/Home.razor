@@ -23,9 +23,20 @@
         </div>
     </div>
 
+    <!-- Bannière Jour Actif -->
+    @if (activeDay.HasValue)
+    {
+        <div class="alert alert-warning d-flex align-items-center gap-2 py-2 mb-3 shadow-sm border-0 border-start border-4 border-warning">
+            <span class="fs-5">🗓️</span>
+            <div>
+                <strong>Affichage filtré — Jour @activeDay</strong>
+                <span class="text-muted ms-2 small">Seuls les éléments du Jour @activeDay sont visibles. L'administrateur peut modifier ce filtre.</span>
+            </div>
+        </div>
+    }
+
     <!-- Tatami Filter Bar -->
-    <div class="card shadow-sm border-0 mb-4 bg-light">
-        <div class="card-body py-2 px-3 d-flex align-items-center flex-wrap gap-2">
+    <div class="card shadow-sm border-0 mb-4 bg-light">        <div class="card-body py-2 px-3 d-flex align-items-center flex-wrap gap-2">
             <span class="fw-bold text-dark d-flex align-items-center gap-1 small me-1">
                 <span>🥋</span> <span>@Lang["FilterByTatami"]</span>
             </span>
@@ -373,7 +384,8 @@
                                 {
                                     bool isChecked = selectedCategoryIds.Contains(cat.Id);
                                     int compCount = GetCategoryCompetitorCount(cat);
-                                    <label class="list-group-item list-group-item-action py-1 px-2 border-0 d-flex align-items-center gap-2 rounded user-select-none"
+                                    bool catFinished = IsCategoryFinished(cat);
+                                    <label class="list-group-item list-group-item-action py-1 px-2 border-0 d-flex align-items-center gap-2 rounded user-select-none @(catFinished ? "opacity-50" : "")"
                                            style="cursor: pointer;">
                                         <input class="form-check-input m-0 flex-shrink-0" type="checkbox"
                                                checked="@isChecked"
@@ -383,11 +395,15 @@
                                                 @(cat.Type == CompetitionType.Kumite ? "🥊" : "🥋")
                                             </span>
                                             <span class="badge bg-light text-dark border" style="font-size: 0.65rem;">J@(cat.CompetitionDay)</span>
-                                            <span class="text-truncate" title="@cat.Name">@cat.Name</span>
+                                            <span class="text-truncate @(catFinished ? "text-decoration-line-through text-muted" : "")" title="@cat.Name">@cat.Name</span>
                                         </div>
                                         <span class="badge bg-secondary-subtle text-secondary-emphasis" style="font-size: 0.65rem;" title="@($"{compCount} compétiteur(s)")">
                                             @compCount @(compCount > 1 ? "inscrits" : "inscrit")
                                         </span>
+                                        @if (catFinished)
+                                        {
+                                            <span class="badge bg-success-subtle text-success-emphasis" style="font-size: 0.6rem;">✅ Terminé</span>
+                                        }
                                     </label>
                                 }
                                 @if (!FilteredCategoryChoices.Any())
@@ -400,6 +416,13 @@
                         </div>
                     }
                 </div>
+
+                <!-- Filter Hide/Show Finished -->
+                <button class="btn btn-sm @(hideFinished ? "btn-outline-light" : "btn-warning text-dark fw-bold") d-flex align-items-center gap-1"
+                        @onclick="() => hideFinished = !hideFinished"
+                        title="@(hideFinished ? Lang["ShowFinished"] : Lang["HideFinished"])">
+                    <span>@(hideFinished ? $"👁️ {Lang["ShowFinished"]}" + (GetFinishedCount() > 0 ? $" ({GetFinishedCount()})" : "") : $"👁️‍🗨️ {Lang["HideFinished"]}")</span>
+                </button>
 
                 <input type="text" class="form-control form-control-sm" placeholder="@(Lang["Search"])"
                        @bind="searchTerm" @bind:event="oninput" style="min-width: 180px;" />
@@ -449,12 +472,18 @@
                         <tr>
                             <td colspan="8" class="text-center py-4 text-muted">
                                 <em>Aucune rencontre ou kata ne correspond aux filtres sélectionnés.</em>
-                                @if (selectedCategoryIds.Count > 0 || selectedTatamiIds.Count > 0 || !string.IsNullOrWhiteSpace(searchTerm))
+                                @if (selectedCategoryIds.Count > 0 || selectedTatamiIds.Count > 0 || !string.IsNullOrWhiteSpace(searchTerm) || hideFinished)
                                 {
-                                    <div class="mt-2">
+                                    <div class="mt-2 d-flex justify-content-center gap-2">
                                         <button class="btn btn-sm btn-outline-secondary" @onclick="ResetAllProgramFilters">
                                             Réinitialiser les filtres
                                         </button>
+                                        @if (hideFinished && GetFinishedCount() > 0)
+                                        {
+                                            <button class="btn btn-sm btn-outline-primary" @onclick="() => hideFinished = false">
+                                                👁️ Afficher les @GetFinishedCount() terminés
+                                            </button>
+                                        }
                                     </div>
                                 }
                             </td>
@@ -509,7 +538,9 @@
                             <td>
                                 @if (item.IsKata)
                                 {
-                                    <span class="text-muted small">Score : @item.Score</span>
+                                    <span class="text-muted" style="font-size:0.7em;">(@item.Notes)</span>
+                                    <span class="text-muted small">&nbsp;</span>
+                                    <span class="text-muted">@item.Score</span>
                                 }
                                 else
                                 {
@@ -554,8 +585,10 @@
     private List<Competitor> allCompetitors = new();
     private List<KumiteMatch> allMatches = new();
     private List<KataPerformance> allKatas = new();
+    private int? activeDay = null; // Jour actif défini par l'admin (null = tous)
     private string searchTerm = string.Empty;
     private string disciplineFilter = "all";
+    private bool hideFinished = true;
     private HashSet<int> selectedTatamiIds = new();
     private HashSet<int> selectedCategoryIds = new();
     private bool isCategoryDropdownOpen = false;
@@ -578,6 +611,7 @@
         public int DurationSeconds { get; set; }
         public MatchStatus Status { get; set; }
         public string Score { get; set; } = string.Empty;
+        public string Notes { get; set; } = string.Empty;
     }
 
     protected override void OnParametersSet()
@@ -653,7 +687,11 @@
         selectedTatamiIds.Clear();
         searchTerm = string.Empty;
         disciplineFilter = "all";
+        hideFinished = true;
     }
+
+    private int GetFinishedCount() =>
+        allMatches.Count(m => !m.IsBye && m.Status == MatchStatus.Finished) + allKatas.Count(k => k.Status == MatchStatus.Finished);
 
     private int GetCategoryCompetitorCount(Category cat)
     {
@@ -674,11 +712,29 @@
     private int GetCategoryItemCount(int catId) =>
         allMatches.Count(m => m.CategoryId == catId && !m.IsBye) + allKatas.Count(k => k.CategoryId == catId);
 
+    private bool IsCategoryFinished(Category cat)
+    {
+        var matches = allMatches.Where(m => m.CategoryId == cat.Id && !m.IsBye).ToList();
+        var katas = allKatas.Where(k => k.CategoryId == cat.Id).ToList();
+        int total = matches.Count + katas.Count;
+        if (total == 0) return false;
+        int finished = matches.Count(m => m.Status == MatchStatus.Finished)
+                     + katas.Count(k => k.Status == MatchStatus.Finished);
+        return finished == total;
+    }
+
     private IEnumerable<Category> FilteredCategoryChoices
     {
         get
         {
             var list = categories.Where(c => GetCategoryCompetitorCount(c) > 0);
+
+            // Filtre jour actif
+            if (activeDay.HasValue)
+            {
+                list = list.Where(c => c.CompetitionDay == activeDay.Value);
+            }
+
             if (disciplineFilter == "kata")
             {
                 list = list.Where(c => c.Type == CompetitionType.Kata);
@@ -725,6 +781,7 @@
         allMatches = TournamentService.GetMatches();
         allKatas = TournamentService.GetKataPerformances();
         allCompetitors = TournamentService.GetCompetitors();
+        activeDay = TournamentService.GetTournament().ActiveDay;
     }
 
     private async void HandleStateChanged()
@@ -744,6 +801,9 @@
             {
                 foreach (var k in allKatas)
                 {
+                    // Filtre jour actif
+                    if (activeDay.HasValue && k.CompetitionDay != activeDay.Value) continue;
+
                     int? tatamiId = k.TatamiId ?? k.Category?.AssignedTatamiId;
                     if (selectedTatamiIds.Count > 0 && (!tatamiId.HasValue || !selectedTatamiIds.Contains(tatamiId.Value)))
                     {
@@ -769,7 +829,8 @@
                         KataCompetitorName = k.CompetitorDisplayName,
                         KataName = k.KataName,
                         Status = k.Status,
-                        Score = k.FinalScore.ToString()
+                        Score = k.FinalScore.ToString(),
+                        Notes = k.GetScoresDisplay(Lang)
                     });
                 }
             }
@@ -779,6 +840,9 @@
             {
                 foreach (var m in allMatches.Where(m => !m.IsBye))
                 {
+                    // Filtre jour actif
+                    if (activeDay.HasValue && m.CompetitionDay != activeDay.Value) continue;
+
                     int? tatamiId = m.TatamiId ?? m.Category?.AssignedTatamiId;
                     if (selectedTatamiIds.Count > 0 && (!tatamiId.HasValue || !selectedTatamiIds.Contains(tatamiId.Value)))
                     {
@@ -810,8 +874,14 @@
                 }
             }
 
-            // Recherche
+            // Recherche et filtres de statut
             var query = items.AsEnumerable();
+
+            if (hideFinished)
+            {
+                query = query.Where(i => i.Status != MatchStatus.Finished);
+            }
+
             if (!string.IsNullOrWhiteSpace(searchTerm))
             {
                 string term = searchTerm.Trim().ToLowerInvariant();
