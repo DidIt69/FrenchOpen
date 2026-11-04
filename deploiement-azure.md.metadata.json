@@ -1,0 +1,5 @@
+{
+  "summary":  "Guide complet de déploiement Azure pour l'application Open de France Kyokushinkai : estimation des coûts (~17€/mois App Service B1 + SQL Basic), commandes Azure CLI, configuration GitHub Actions CI/CD, et options alternatives (Container Apps).",
+  "updatedAt":  "2026-11-04T08:25:13.518643100Z",
+  "userFacing":  true
+}

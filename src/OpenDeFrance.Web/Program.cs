@@ -36,12 +36,18 @@ builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddSingleton<IAuthService, AuthService>();
 builder.Services.AddScoped<ILanguageService, LanguageService>();
 
-// Azure SQL Server Database
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? throw new InvalidOperationException("La connection string 'DefaultConnection' est manquante dans appsettings.json.");
+// Base de données : Azure SQL Server en production, SQLite en fallback local
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+var useSqlServer = !string.IsNullOrWhiteSpace(connectionString)
+    && connectionString.Contains("database.windows.net", StringComparison.OrdinalIgnoreCase);
 
 builder.Services.AddDbContext<TournamentDbContext>(options =>
-    options.UseSqlServer(connectionString));
+{
+    if (useSqlServer)
+        options.UseSqlServer(connectionString!);
+    else
+        options.UseSqlite(connectionString ?? "Data Source=tournament.db");
+});
 
 // Domain & Infrastructure Services
 builder.Services.AddSingleton<IKumiteBracketGenerator, KumiteBracketGenerator>();
