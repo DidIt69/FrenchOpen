@@ -14,11 +14,9 @@
         </div>
 
         <div class="d-flex align-items-center gap-3 flex-wrap">
-            <LanguageSwitcher />
-
             @* Filtre par jour *@
             <div class="d-flex align-items-center gap-2">
-                <label class="form-label mb-0 fw-bold">📅 @Lang["Day"] :</label>
+                <span class="form-label mb-0 fw-bold">📅</span>
                 <select class="form-select" style="min-width: 130px;"
                         @bind="SelectedDayStr" @bind:after="OnDayChanged">
                     <option value="">@Lang["AllDays"]</option>
@@ -31,7 +29,7 @@
 
             @* Filtre par catégorie *@
             <div class="d-flex align-items-center gap-2">
-                <label class="form-label mb-0 fw-bold">@Lang["Category"] :</label>
+                <span class="form-label mb-0 fw-bold" style="white-space:nowrap;">@Lang["Category"] :</span>
                 <select class="form-select" @bind="selectedCategoryId" @bind:after="OnCategoryChanged" style="min-width: 280px;">
                     @foreach (var cat in categories.OrderBy(c => c.CompetitionDay).ThenBy(c => c.OrderIndex).ThenBy(c => c.Name))
                     {
@@ -79,6 +77,7 @@
                     <div class="d-flex align-items-center gap-2 flex-wrap">
                         <h4 class="mb-0 fw-bold">@selectedCategory.Name</h4>
                         <span class="badge bg-warning text-dark border fw-bold">📅 Jour @selectedCategory.CompetitionDay</span>
+                        
                         @if (selectedCategory.AssignedTatamiId.HasValue)
                         {
                             var assignedT = tatamis.FirstOrDefault(t => t.Id == selectedCategory.AssignedTatamiId.Value);
@@ -88,6 +87,7 @@
                         {
                             <span class="badge bg-secondary text-white border fw-bold">🚫 Aucun tatami (Non affiché)</span>
                         }
+
                         @if (selectedCategory.Type == CompetitionType.Kumite)
                         {
                             @if (!TournamentService.IsKataCompetitionFinished())
@@ -104,7 +104,6 @@
                             }
                         }
                     </div>
-                    <small class="text-white-50">@selectedCategory.DisplayDetails</small>
                 </div>
                 <div class="d-flex align-items-center gap-2 flex-wrap">
                     @if (isAdmin)
@@ -408,11 +407,11 @@
                     <!-- KATA 2-STEP VIEW -->
                     <div class="row g-4">
                         <!-- Tour 1 -->
-                        <div class="col-lg-7">
+                        <div class="col-lg-12">
                             <div class="card h-100 border-primary shadow-sm">
                                 <div class="card-header bg-primary text-white py-2 d-flex justify-content-between align-items-center">
                                     <div>
-                                        <h5 class="mb-0 fw-bold">1er Tour - Éliminatoire (Kata : @selectedCategory.KataRound1MandatoryKata)</h5>
+                                        <h5 class="mb-0 fw-bold">1er Tour - Éliminatoire (@selectedCategory.KataRound1MandatoryKata)</h5>
                                         <small>Les @selectedCategory.KataQualifiersCount premiers sont qualifiés pour la finale</small>
                                     </div>
                                     @if (isAdmin)
@@ -510,10 +509,10 @@
                         </div>
 
                         <!-- Tour 2 (Finale) -->
-                        <div class="col-lg-5">
+                        <div class="col-lg-12">
                             <div class="card h-100 border-warning shadow-sm">
                                 <div class="card-header bg-warning text-dark py-2">
-                                    <h5 class="mb-0 fw-bold">2e Tour - Finale (Kata : @selectedCategory.KataRound2MandatoryKata)</h5>
+                                    <h5 class="mb-0 fw-bold">2e Tour - Finale (@selectedCategory.KataRound2MandatoryKata)</h5>
                                     <small>Podium final</small>
                                 </div>
                                 <div class="table-responsive">
