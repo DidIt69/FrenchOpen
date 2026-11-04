@@ -36,17 +36,36 @@ builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddSingleton<IAuthService, AuthService>();
 builder.Services.AddScoped<ILanguageService, LanguageService>();
 
-// Base de données : Azure SQL Server en production, SQLite en fallback local
+// Base de données : provider déterminé par la clé "DatabaseProvider" (SqlServer ou Sqlite)
+// Si absent, SqlServer est utilisé dès qu'une connection string est définie.
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-var useSqlServer = !string.IsNullOrWhiteSpace(connectionString)
-    && connectionString.Contains("database.windows.net", StringComparison.OrdinalIgnoreCase);
+var providerKey = builder.Configuration["DatabaseProvider"]; // "SqlServer" | "Sqlite" | null
+
+bool useSqlServer = providerKey?.Equals("Sqlite", StringComparison.OrdinalIgnoreCase) != true
+    && !string.IsNullOrWhiteSpace(connectionString)
+    && !connectionString.TrimStart().StartsWith("Data Source=", StringComparison.OrdinalIgnoreCase);
+
+// Fallback : si la connection string contient un serveur SQL Azure connu → SQL Server
+if (!useSqlServer && !string.IsNullOrWhiteSpace(connectionString))
+{
+    useSqlServer = connectionString.Contains(".database.windows.net", StringComparison.OrdinalIgnoreCase)
+                || connectionString.Contains("Server=", StringComparison.OrdinalIgnoreCase)
+                || connectionString.Contains("Initial Catalog=", StringComparison.OrdinalIgnoreCase);
+}
+
+var effectiveConnectionString = connectionString
+    ?? (useSqlServer ? throw new InvalidOperationException("ConnectionStrings:DefaultConnection manquante.")
+                     : "Data Source=tournament.db");
+
+Console.WriteLine($"[DB] Provider : {(useSqlServer ? "SQL Server" : "SQLite")}");
+Console.WriteLine($"[DB] Connection : {effectiveConnectionString[..Math.Min(80, effectiveConnectionString.Length)]}...");
 
 builder.Services.AddDbContext<TournamentDbContext>(options =>
 {
     if (useSqlServer)
-        options.UseSqlServer(connectionString!);
+        options.UseSqlServer(effectiveConnectionString);
     else
-        options.UseSqlite(connectionString ?? "Data Source=tournament.db");
+        options.UseSqlite(effectiveConnectionString);
 });
 
 // Domain & Infrastructure Services
