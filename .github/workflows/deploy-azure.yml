@@ -40,8 +40,9 @@ jobs:
         run: |
           dotnet publish ${{ env.PROJECT_PATH }} \
             --configuration Release \
-            --output ${{ env.PUBLISH_DIR }} \
-            --no-build
+            --runtime linux-x64 \
+            --self-contained true \
+            --output ${{ env.PUBLISH_DIR }}
         env:
           ASPNETCORE_ENVIRONMENT: Production
 
