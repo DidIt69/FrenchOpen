@@ -484,67 +484,135 @@
                     var isInProgress = item.Status == MatchStatus.InProgress;
 
                     <li class="list-group-item px-3 py-2 @(isFinished ? "opacity-75 bg-light" : "") @(isInProgress ? "border-start border-2 border-success bg-success bg-opacity-10" : "")">
-                        <div class="d-flex justify-content-between align-items-start gap-2">
-                            <div class="d-flex align-items-center gap-1 flex-wrap flex-grow-1" style="min-width: 0;">
+                        <!-- === MODE MOBILE (< 768px) : 3 lignes === -->
+                        <div class="d-md-none">
+                            <!-- Ligne 1 : Les badges (Tatami, Tour, Statut) -->
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <div class="d-flex align-items-center gap-1">
+                                    @if (!string.IsNullOrWhiteSpace(item.TatamiName))
+                                    {
+                                        <span class="badge bg-secondary" style="font-size:0.7rem;">@item.TatamiName</span>
+                                    }
+                                    <span class="badge bg-light text-dark border" style="font-size:0.7rem;">@item.RoundName</span>
+                                </div>
+                                <div>
+                                    @if (isInProgress)
+                                    {
+                                        <span class="badge bg-success" style="font-size:0.7rem;">@Lang["InProgress"]</span>
+                                    }
+                                    else if (isFinished)
+                                    {
+                                        <span class="badge bg-dark" style="font-size:0.7rem;">@Lang["Finished"]</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary" style="font-size:0.7rem;">@Lang["Coming"]</span>
+                                    }
+                                </div>
+                            </div>
+
+                            <!-- Ligne 2 : Position (#numéro), Type (KATA/KUMITÉ) et combattants -->
+                            <div class="d-flex align-items-center gap-1 mb-1 flex-wrap">
                                 @if (item.IsKata)
                                 {
-                                    <span class="badge bg-info text-dark me-1 flex-shrink-0">#@item.Number</span>
-                                    <span class="badge bg-primary me-1 flex-shrink-0" style="font-size:0.65rem;">KATA</span>
-                                    <strong class="text-truncate">@item.KataCompetitorName</strong>
+                                    <span class="badge bg-info text-dark flex-shrink-0" style="font-size:0.7rem;">#@item.Number</span>
+                                    <span class="badge bg-primary flex-shrink-0" style="font-size:0.65rem;">KATA</span>
+                                    <strong>@item.KataCompetitorName</strong>
                                 }
                                 else
                                 {
-                                    <span class="badge bg-secondary me-1 flex-shrink-0">#@item.Number</span>
-                                    <span class="badge bg-danger me-1 flex-shrink-0" style="font-size:0.65rem;">KUMITÉ</span>
-                                    <strong class="text-danger text-truncate">@item.AkaName</strong>
-                                    <span class="text-muted flex-shrink-0">vs</span>
-                                    <strong class="text-truncate">@item.ShiroName</strong>
+                                    <span class="badge bg-secondary flex-shrink-0" style="font-size:0.7rem;">#@item.Number</span>
+                                    <span class="badge bg-danger flex-shrink-0" style="font-size:0.65rem;">KUMITÉ</span>
+                                    <strong class="text-danger">@item.AkaName</strong>
+                                    <span class="text-muted">vs</span>
+                                    <strong>@item.ShiroName</strong>
                                 }
                             </div>
-                            <!-- Colonne Statut alignée sur la 1ère ligne -->
-                            <div style="width: 80px;" class="text-center flex-shrink-0 ms-auto">
-                                @if (isInProgress)
-                                {
-                                    <span class="badge bg-success w-100" style="font-size:0.7rem;">@Lang["InProgress"]</span>
-                                }
-                                else if (isFinished)
-                                {
-                                    <span class="badge bg-dark w-100" style="font-size:0.7rem;">@Lang["Finished"]</span>
-                                }
-                                else
-                                {
-                                    <span class="badge bg-secondary w-100" style="font-size:0.7rem;">@Lang["Coming"]</span>
-                                }
-                            </div>
-                        </div>
-                        <div class="d-flex justify-content-between align-items-center mt-1">
-                            <div class="d-flex align-items-center gap-2 flex-grow-1 text-truncate">
-                                <small class="text-muted text-truncate">
-                                    <span class="badge bg-light text-dark border me-1" style="cursor: pointer; font-size: 0.7rem;"
+
+                            <!-- Ligne 3 : Catégorie et Score / Vainqueur -->
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div class="d-flex align-items-center gap-1 flex-wrap">
+                                    <span class="badge bg-light text-dark border" style="cursor: pointer; font-size: 0.7rem;"
                                           title="Filtrer uniquement sur cette catégorie"
                                           @onclick="() => FilterSingleCategory(item.CategoryId)">
                                         @Lang[item.CategoryName]
                                     </span>
                                     @if (item.IsKata && (!string.IsNullOrWhiteSpace(item.Notes) || !string.IsNullOrWhiteSpace(item.Score)))
                                     {
-                                        <span>• @item.Notes @item.Score</span>
-                                    }
-                                </small>
-                                @if (!string.IsNullOrWhiteSpace(item.WinnerInfo))
-                                {
-                                    <small class="text-success fw-bold text-truncate">🏆 @item.WinnerInfo</small>
-                                }
-                            </div>
-                            <!-- Colonnes Tatami et Tour alignées sur la 2nde ligne -->
-                            <div class="d-flex align-items-center gap-1 gap-md-2 flex-shrink-0 ms-auto">
-                                <div style="width: 75px;" class="text-center">
-                                    @if (!string.IsNullOrWhiteSpace(item.TatamiName))
-                                    {
-                                        <span class="badge bg-secondary w-100 text-truncate" title="@item.TatamiName" style="font-size:0.7rem;">@item.TatamiName</span>
+                                        <small class="text-muted">@item.Notes @item.Score</small>
                                     }
                                 </div>
-                                <div style="width: 80px;" class="text-center">
-                                    <span class="badge bg-light text-dark border w-100 text-truncate" title="@item.RoundName" style="font-size:0.7rem;">@item.RoundName</span>
+                                @if (!string.IsNullOrWhiteSpace(item.WinnerInfo))
+                                {
+                                    <small class="text-success fw-bold ms-1">🏆 @item.WinnerInfo</small>
+                                }
+                            </div>
+                        </div>
+
+                        <!-- === MODE DESKTOP (>= 768px) : 2 lignes avec colonnes alignées === -->
+                        <div class="d-none d-md-block">
+                            <div class="d-flex justify-content-between align-items-start gap-2">
+                                <div class="d-flex align-items-center gap-1 flex-wrap flex-grow-1" style="min-width: 0;">
+                                    @if (item.IsKata)
+                                    {
+                                        <span class="badge bg-info text-dark me-1 flex-shrink-0">#@item.Number</span>
+                                        <span class="badge bg-primary me-1 flex-shrink-0" style="font-size:0.65rem;">KATA</span>
+                                        <strong class="text-truncate">@item.KataCompetitorName</strong>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary me-1 flex-shrink-0">#@item.Number</span>
+                                        <span class="badge bg-danger me-1 flex-shrink-0" style="font-size:0.65rem;">KUMITÉ</span>
+                                        <strong class="text-danger text-truncate">@item.AkaName</strong>
+                                        <span class="text-muted flex-shrink-0">vs</span>
+                                        <strong class="text-truncate">@item.ShiroName</strong>
+                                    }
+                                </div>
+                                <!-- Colonne Statut alignée sur la 1ère ligne -->
+                                <div style="width: 80px;" class="text-center flex-shrink-0 ms-auto">
+                                    @if (isInProgress)
+                                    {
+                                        <span class="badge bg-success w-100" style="font-size:0.7rem;">@Lang["InProgress"]</span>
+                                    }
+                                    else if (isFinished)
+                                    {
+                                        <span class="badge bg-dark w-100" style="font-size:0.7rem;">@Lang["Finished"]</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary w-100" style="font-size:0.7rem;">@Lang["Coming"]</span>
+                                    }
+                                </div>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mt-1">
+                                <div class="d-flex align-items-center gap-2 flex-grow-1 text-truncate">
+                                    <small class="text-muted text-truncate">
+                                        <span class="badge bg-light text-dark border me-1" style="cursor: pointer; font-size: 0.7rem;"
+                                              title="Filtrer uniquement sur cette catégorie"
+                                              @onclick="() => FilterSingleCategory(item.CategoryId)">
+                                            @Lang[item.CategoryName]
+                                        </span>
+                                        @if (item.IsKata && (!string.IsNullOrWhiteSpace(item.Notes) || !string.IsNullOrWhiteSpace(item.Score)))
+                                        {
+                                            <span>• @item.Notes @item.Score</span>
+                                        }
+                                    </small>
+                                    @if (!string.IsNullOrWhiteSpace(item.WinnerInfo))
+                                    {
+                                        <small class="text-success fw-bold text-truncate">🏆 @item.WinnerInfo</small>
+                                    }
+                                </div>
+                                <!-- Colonnes Tatami et Tour alignées sur la 2nde ligne -->
+                                <div class="d-flex align-items-center gap-1 gap-md-2 flex-shrink-0 ms-auto">
+                                    <div style="width: 75px;" class="text-center">
+                                        @if (!string.IsNullOrWhiteSpace(item.TatamiName))
+                                        {
+                                            <span class="badge bg-secondary w-100 text-truncate" title="@item.TatamiName" style="font-size:0.7rem;">@item.TatamiName</span>
+                                        }
+                                    </div>
+                                    <div style="width: 80px;" class="text-center">
+                                        <span class="badge bg-light text-dark border w-100 text-truncate" title="@item.RoundName" style="font-size:0.7rem;">@item.RoundName</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
