@@ -2268,12 +2268,29 @@ public class TournamentService : ITournamentService, IHostedService
                 db.Database.ExecuteSqlRaw("PRAGMA foreign_keys = ON");
             }
 
-            // Helper local : encadre AddRange+SaveChanges avec IDENTITY_INSERT ON/OFF sur SQL Server
+            // Helper local : encadre AddRange+SaveChanges avec IDENTITY_INSERT ON/OFF sur SQL Server.
+            // On maintient la connexion ouverte explicitement (OpenConnection) pour que SET IDENTITY_INSERT
+            // et SaveChanges() partagent la MÊME connexion SQL (IDENTITY_INSERT est session-scoped).
             void InsertWithIdentity(string tableName, Action insert)
             {
-                if (isSqlServer) db.Database.ExecuteSqlRaw($"SET IDENTITY_INSERT [{tableName}] ON");
-                insert();
-                if (isSqlServer) db.Database.ExecuteSqlRaw($"SET IDENTITY_INSERT [{tableName}] OFF");
+                if (isSqlServer)
+                {
+                    db.Database.OpenConnection();
+                    try
+                    {
+                        db.Database.ExecuteSqlRaw($"SET IDENTITY_INSERT [{tableName}] ON");
+                        insert();
+                        db.Database.ExecuteSqlRaw($"SET IDENTITY_INSERT [{tableName}] OFF");
+                    }
+                    finally
+                    {
+                        db.Database.CloseConnection();
+                    }
+                }
+                else
+                {
+                    insert();
+                }
             }
 
             // Sauvegarder le Tournament (DaysCount, ActiveDay, etc.)
