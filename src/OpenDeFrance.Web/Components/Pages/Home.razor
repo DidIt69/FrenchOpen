@@ -71,6 +71,20 @@
                         <div>
                             <span class="fs-5 fw-bold">@tatami.Name</span>
                         </div>
+                        @if (tatami.CurrentDiscipline == CompetitionType.Kumite)
+                        {
+                            @if (tatami.CurrentKumiteMatch != null)
+                            {
+                                <span class="badge bg-warning text-dark fs-6 fw-bold">Combat #@tatami.CurrentKumiteMatch.MatchNumber</span>
+                            }
+                        }
+                        else
+                        {
+                            @if (tatami.CurrentKataPerformance != null)
+                            {
+                                <span class="badge bg-warning text-dark fs-6 fw-bold">Kata #@tatami.CurrentKataPerformance.PerformanceOrder</span>
+                            }
+                        }
                     </div>
 
                     <div class="card-body p-0">
