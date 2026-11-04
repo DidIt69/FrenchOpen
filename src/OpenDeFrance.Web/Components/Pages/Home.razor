@@ -322,8 +322,8 @@
     }
 
     <!-- Search & Full Upcoming Matches Board -->
-    <div class="card shadow-sm border-0">
-        <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <div class="card shadow border-0 overflow-hidden mb-5">
+        <div class="card-header py-3 bg-dark text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
             <div class="d-flex align-items-center gap-2 flex-wrap">
                 <h5 class="mb-0 fw-bold">@Lang["Program"]</h5>
                 @if (selectedTatamiIds.Count > 0)
@@ -454,107 +454,104 @@
             </div>
         }
 
-        <div class="d-flex flex-column gap-2">
+        <div class="card-body p-0">
             @if (!UnifiedSchedule.Any())
-            {
-                <div>
-                    <div class="text-center py-4 text-muted">                        <em>Aucune rencontre ou kata ne correspond aux filtres sélectionnés.</em>
-                        @if (selectedCategoryIds.Count > 0 || selectedTatamiIds.Count > 0 || !string.IsNullOrWhiteSpace(searchTerm) || hideFinished)
+        {
+            <div class="p-4 text-center text-muted">
+                <em>Aucune rencontre ou kata ne correspond aux filtres sélectionnés.</em>
+                @if (selectedCategoryIds.Count > 0 || selectedTatamiIds.Count > 0 || !string.IsNullOrWhiteSpace(searchTerm) || hideFinished)
+                {
+                    <div class="mt-2 d-flex justify-content-center gap-2">
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="ResetAllProgramFilters">
+                            Réinitialiser les filtres
+                        </button>
+                        @if (hideFinished && GetFinishedCount() > 0)
                         {
-                            <div class="mt-2 d-flex justify-content-center gap-2">
-                                <button class="btn btn-sm btn-outline-secondary" @onclick="ResetAllProgramFilters">
-                                    Réinitialiser les filtres
-                                </button>
-                                @if (hideFinished && GetFinishedCount() > 0)
-                                {
-                                    <button class="btn btn-sm btn-outline-primary" @onclick="() => hideFinished = false">
-                                        👁️ Afficher les @GetFinishedCount() terminés
-                                    </button>
-                                }
-                            </div>
+                            <button class="btn btn-sm btn-outline-primary" @onclick="() => hideFinished = false">
+                                👁️ Afficher les @GetFinishedCount() terminés
+                            </button>
                         }
                     </div>
-                </div>
-            }
-            @foreach (var item in UnifiedSchedule)
-            {
-                // Couleur de la bordure gauche selon statut
-                var borderColor = item.Status == MatchStatus.InProgress ? "border-success"
-                                : item.Status == MatchStatus.Finished   ? "border-dark"
-                                : "border-secondary";
-                var bgOpacity = item.Status == MatchStatus.Finished ? "opacity-75" : "";
+                }
+            </div>
+        }
+        else
+        {
+            <ul class="list-group list-group-flush">
+                @foreach (var item in UnifiedSchedule)
+                {
+                    var isFinished = item.Status == MatchStatus.Finished;
+                    var isInProgress = item.Status == MatchStatus.InProgress;
 
-                <div class="@bgOpacity">
-                    <div class="card border-start border-3 @borderColor shadow-sm" style="font-size: 0.82rem;">
-                        <div class="card-body p-2">
-                            <!-- Ligne 1 : numéro · type · tatami · catégorie · round · statut -->
-                            <div class="d-flex align-items-center gap-1 mb-1 flex-wrap">
-                                <span class="fw-bold text-muted" style="font-size:0.75rem;">#@item.Number</span>
+                    <li class="list-group-item px-3 py-2 @(isFinished ? "opacity-75 bg-light" : "") @(isInProgress ? "border-start border-2 border-success bg-success bg-opacity-10" : "")">
+                        <div class="d-flex justify-content-between align-items-start gap-2">
+                            <div class="d-flex align-items-center gap-1 flex-wrap flex-grow-1" style="min-width: 0;">
                                 @if (item.IsKata)
                                 {
-                                    <span class="badge bg-primary" style="font-size:0.65rem;">KATA</span>
+                                    <span class="badge bg-info text-dark me-1 flex-shrink-0">#@item.Number</span>
+                                    <span class="badge bg-primary me-1 flex-shrink-0" style="font-size:0.65rem;">KATA</span>
+                                    <strong class="text-truncate">@item.KataCompetitorName</strong>
                                 }
                                 else
                                 {
-                                    <span class="badge bg-danger" style="font-size:0.65rem;">KUMITÉ</span>
+                                    <span class="badge bg-secondary me-1 flex-shrink-0">#@item.Number</span>
+                                    <span class="badge bg-danger me-1 flex-shrink-0" style="font-size:0.65rem;">KUMITÉ</span>
+                                    <strong class="text-danger text-truncate">@item.AkaName</strong>
+                                    <span class="text-muted flex-shrink-0">vs</span>
+                                    <strong class="text-truncate">@item.ShiroName</strong>
                                 }
-                                @if (!string.IsNullOrWhiteSpace(item.TatamiName))
-                                {
-                                    <span class="badge bg-secondary" style="font-size:0.65rem;">@item.TatamiName</span>
-                                }
-                                <span class="badge bg-light text-dark border" style="font-size:0.65rem; cursor:pointer;"
-                                      title="Filtrer uniquement sur cette catégorie"
-                                      @onclick="() => FilterSingleCategory(item.CategoryId)">
-                                    @Lang[item.CategoryName]
-                                </span>
-                                <span class="badge bg-light text-dark border" style="font-size:0.65rem;">@item.RoundName</span>
-                                <span class="ms-auto">
-                                    @if (item.Status == MatchStatus.InProgress)
-                                    {
-                                        <span class="badge bg-success" style="font-size:0.65rem;">@Lang["InProgress"]</span>
-                                    }
-                                    else if (item.Status == MatchStatus.Finished)
-                                    {
-                                        <span class="badge bg-dark" style="font-size:0.65rem;">@Lang["Finished"]</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="badge bg-secondary" style="font-size:0.65rem;">@Lang["Coming"]</span>
-                                    }
-                                </span>
                             </div>
-                            <!-- Ligne 2 : compétiteurs / kata -->
-                            @if (item.IsKata)
-                            {
-                                <div class="fw-semibold text-truncate">🥋 @item.KataCompetitorName</div>
-                                @if (!string.IsNullOrWhiteSpace(item.Notes) || !string.IsNullOrWhiteSpace(item.Score))
+                            <!-- Colonne Statut alignée sur la 1ère ligne -->
+                            <div style="width: 80px;" class="text-center flex-shrink-0 ms-auto">
+                                @if (isInProgress)
                                 {
-                                    <div class="text-muted" style="font-size:0.72rem;">@item.Notes &nbsp; @item.Score</div>
+                                    <span class="badge bg-success w-100" style="font-size:0.7rem;">@Lang["InProgress"]</span>
                                 }
-                            }
-                            else
-                            {
-                                <div class="d-flex align-items-center gap-1">
-                                    <span class="badge bg-danger" style="font-size:0.6rem;">AKA</span>
-                                    <span class="fw-semibold text-truncate flex-grow-1">@item.AkaName</span>
-                                </div>
-                                <div class="d-flex align-items-center gap-1">
-                                    <span class="badge bg-dark" style="font-size:0.6rem;">SHI</span>
-                                    <span class="text-truncate flex-grow-1">@item.ShiroName</span>
-                                </div>
+                                else if (isFinished)
+                                {
+                                    <span class="badge bg-dark w-100" style="font-size:0.7rem;">@Lang["Finished"]</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary w-100" style="font-size:0.7rem;">@Lang["Coming"]</span>
+                                }
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mt-1">
+                            <div class="d-flex align-items-center gap-2 flex-grow-1 text-truncate">
+                                <small class="text-muted text-truncate">
+                                    <span class="badge bg-light text-dark border me-1" style="cursor: pointer; font-size: 0.7rem;"
+                                          title="Filtrer uniquement sur cette catégorie"
+                                          @onclick="() => FilterSingleCategory(item.CategoryId)">
+                                        @Lang[item.CategoryName]
+                                    </span>
+                                    @if (item.IsKata && (!string.IsNullOrWhiteSpace(item.Notes) || !string.IsNullOrWhiteSpace(item.Score)))
+                                    {
+                                        <span>• @item.Notes @item.Score</span>
+                                    }
+                                </small>
                                 @if (!string.IsNullOrWhiteSpace(item.WinnerInfo))
                                 {
-                                    <div class="text-success fw-bold" style="font-size:0.75rem;">🏆 @item.WinnerInfo</div>
+                                    <small class="text-success fw-bold text-truncate">🏆 @item.WinnerInfo</small>
                                 }
-                                else if (item.Status == MatchStatus.Finished)
-                                {
-                                    <div class="text-muted" style="font-size:0.72rem;">Durée rég. : @item.DurationSeconds s</div>
-                                }
-                            }
+                            </div>
+                            <!-- Colonnes Tatami et Tour alignées sur la 2nde ligne -->
+                            <div class="d-flex align-items-center gap-1 gap-md-2 flex-shrink-0 ms-auto">
+                                <div style="width: 75px;" class="text-center">
+                                    @if (!string.IsNullOrWhiteSpace(item.TatamiName))
+                                    {
+                                        <span class="badge bg-secondary w-100 text-truncate" title="@item.TatamiName" style="font-size:0.7rem;">@item.TatamiName</span>
+                                    }
+                                </div>
+                                <div style="width: 80px;" class="text-center">
+                                    <span class="badge bg-light text-dark border w-100 text-truncate" title="@item.RoundName" style="font-size:0.7rem;">@item.RoundName</span>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                </div>
-            }
+                    </li>
+                }
+            </ul>
+        }
         </div>
     </div>
 </div>
