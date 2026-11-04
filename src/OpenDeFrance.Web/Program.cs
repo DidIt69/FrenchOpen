@@ -60,7 +60,8 @@ Console.Error.WriteLine($"║  DatabaseProvider : {dbProvider,-33}║");
 Console.Error.WriteLine($"║  ConnStr trouvée  : {(connStr != null ? "OUI" : "NON"),-33}║");
 if (connStr != null)
 {
-    var preview = connStr.Length > 60 ? connStr[..60] + "..." : connStr;
+    //var preview = connStr.Length > 60 ? connStr[..60] + "..." : connStr;
+    var preview = connStr;
     Console.Error.WriteLine($"║  ConnStr début    : {preview,-33}║");
 }
 Console.Error.WriteLine("╚══════════════════════════════════════════════════════╝");
