@@ -23,7 +23,7 @@
                         class="btn btn-sm @(isSelected ? "btn-primary fw-bold shadow-sm" : "btn-outline-primary")"
                         @onclick="() => ToggleTatamiSelection(t.Id)"
                     >
-                        @(isSelected ? "✓ " : "")@t.Name
+                        @t.Name
                     </button>
                 }
             </div>
