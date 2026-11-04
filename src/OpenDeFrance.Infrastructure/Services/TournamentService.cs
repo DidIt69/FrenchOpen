@@ -2261,18 +2261,29 @@ public class TournamentService : ITournamentService, IHostedService
                 db.Database.EnsureCreated();
             }
 
-            // Sauvegarder le Tournament (DaysCount, ActiveDay, etc.)
-            db.Tournaments.Add(new Tournament
+            // Helper local : encadre AddRange+SaveChanges avec IDENTITY_INSERT ON/OFF sur SQL Server
+            void InsertWithIdentity(string tableName, Action insert)
             {
-                Id = _tournament.Id > 0 ? _tournament.Id : 1,
-                Name = _tournament.Name,
-                Date = _tournament.Date,
-                DaysCount = _tournament.DaysCount,
-                ActiveDay = _tournament.ActiveDay,
-                Location = _tournament.Location,
-                TatamisCount = _tournament.TatamisCount
+                if (isSqlServer) db.Database.ExecuteSqlRaw($"SET IDENTITY_INSERT [{tableName}] ON");
+                insert();
+                if (isSqlServer) db.Database.ExecuteSqlRaw($"SET IDENTITY_INSERT [{tableName}] OFF");
+            }
+
+            // Sauvegarder le Tournament (DaysCount, ActiveDay, etc.)
+            InsertWithIdentity("Tournaments", () =>
+            {
+                db.Tournaments.Add(new Tournament
+                {
+                    Id = _tournament.Id > 0 ? _tournament.Id : 1,
+                    Name = _tournament.Name,
+                    Date = _tournament.Date,
+                    DaysCount = _tournament.DaysCount,
+                    ActiveDay = _tournament.ActiveDay,
+                    Location = _tournament.Location,
+                    TatamisCount = _tournament.TatamisCount
+                });
+                db.SaveChanges();
             });
-            db.SaveChanges();
 
             var dbCompetitors = _competitors.Select(c => new Competitor
             {
@@ -2290,8 +2301,11 @@ public class TournamentService : ITournamentService, IHostedService
                 IsKumiteRegistered = c.IsKumiteRegistered,
                 IsKataRegistered = c.IsKataRegistered
             }).ToList();
-            db.Competitors.AddRange(dbCompetitors);
-            db.SaveChanges();
+            InsertWithIdentity("Competitors", () =>
+            {
+                db.Competitors.AddRange(dbCompetitors);
+                db.SaveChanges();
+            });
 
             var compMap = dbCompetitors.ToDictionary(c => c.Id);
 
@@ -2303,8 +2317,11 @@ public class TournamentService : ITournamentService, IHostedService
                 Discipline = t.Discipline,
                 CurrentDiscipline = t.CurrentDiscipline
             }).ToList();
-            db.Tatamis.AddRange(dbTatamis);
-            db.SaveChanges();
+            InsertWithIdentity("Tatamis", () =>
+            {
+                db.Tatamis.AddRange(dbTatamis);
+                db.SaveChanges();
+            });
 
             var dbCategories = _categories.Select(cat => new Category
             {
@@ -2329,8 +2346,11 @@ public class TournamentService : ITournamentService, IHostedService
                 KataJudgesCount = cat.KataJudgesCount,
                 Competitors = cat.Competitors.Where(c => compMap.ContainsKey(c.Id)).Select(c => compMap[c.Id]).ToList()
             }).ToList();
-            db.Categories.AddRange(dbCategories);
-            db.SaveChanges();
+            InsertWithIdentity("Categories", () =>
+            {
+                db.Categories.AddRange(dbCategories);
+                db.SaveChanges();
+            });
 
             // 1ère passe pour KumiteMatches : insérer sans NextMatchId / BronzeMatchId pour satisfaire les contraintes d'intégrité
             var dbMatches = _matches.Select(m => new KumiteMatch
@@ -2366,23 +2386,22 @@ public class TournamentService : ITournamentService, IHostedService
                 BronzeMatchId = null, // différé en 2e passe
                 BronzeMatchCorner = m.BronzeMatchCorner
             }).ToList();
-            db.KumiteMatches.AddRange(dbMatches);
-            db.SaveChanges();
+            InsertWithIdentity("KumiteMatches", () =>
+            {
+                db.KumiteMatches.AddRange(dbMatches);
+                db.SaveChanges();
+            });
 
             // 2ème passe : relier NextMatchId et BronzeMatchId maintenant que tous les matchs sont persistés
             for (int i = 0; i < dbMatches.Count; i++)
             {
                 var targetParentId = _matches[i].NextMatch?.Id ?? _matches[i].NextMatchId;
                 if (targetParentId.HasValue && dbMatches.Any(x => x.Id == targetParentId.Value))
-                {
                     dbMatches[i].NextMatchId = targetParentId.Value;
-                }
 
                 var targetBronzeId = _matches[i].BronzeMatch?.Id ?? _matches[i].BronzeMatchId;
                 if (targetBronzeId.HasValue && dbMatches.Any(x => x.Id == targetBronzeId.Value))
-                {
                     dbMatches[i].BronzeMatchId = targetBronzeId.Value;
-                }
             }
             db.SaveChanges();
 
@@ -2405,8 +2424,11 @@ public class TournamentService : ITournamentService, IHostedService
                 IsQualifiedForTour2 = p.IsQualifiedForTour2,
                 Status = p.Status
             }).ToList();
-            db.KataPerformances.AddRange(dbKataPerfs);
-            db.SaveChanges();
+            InsertWithIdentity("KataPerformances", () =>
+            {
+                db.KataPerformances.AddRange(dbKataPerfs);
+                db.SaveChanges();
+            });
 
             // 3ème passe : relier CurrentKumiteMatchId et CurrentKataPerformanceId des Tatamis
             // (différé car les KumiteMatches et KataPerformances doivent exister en BD d'abord)
