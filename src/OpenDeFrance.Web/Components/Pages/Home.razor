@@ -196,16 +196,40 @@
                                             @foreach (var up in upcoming)
                                             {
                                                 <li class="list-group-item px-0 py-2">
-                                                    <div class="d-flex justify-content-between align-items-start">
+                                                    <div class="d-flex justify-content-between align-items-start mb-1">
                                                         <div>
                                                             <span class="badge bg-secondary me-1">#@up.MatchNumber</span>
-                                                            <strong>@up.AkaDisplayName</strong>
-                                                            <span class="text-muted">vs</span>
+                                                            <strong class="text-danger">@up.AkaDisplayName</strong>
+                                                            <span class="text-muted mx-1">vs</span>
                                                             <strong>@up.ShiroDisplayName</strong>
                                                         </div>
                                                         <small class="badge bg-light text-dark">@up.RoundName</small>
                                                     </div>
-                                                    <small class="text-muted d-block">@up.Category?.Name</small>
+                                                    <div class="small d-flex flex-column gap-1 ms-1">
+                                                        @if (up.AkaCompetitor != null)
+                                                        {
+                                                            <div class="d-flex align-items-center gap-1 text-nowrap" style="overflow: hidden; max-width: 100%;">
+                                                                <span class="badge bg-danger p-0 me-1" style="width: 8px; height: 8px; border-radius: 50%; display: inline-block;"></span>
+                                                                <img src="@up.AkaCompetitor.FlagImageUrl" alt="@up.AkaCompetitor.Country" title="@up.AkaCompetitor.Country"
+                                                                     class="border rounded-1 me-1 flex-shrink-0" style="width: 18px; height: 12px; object-fit: cover;" />
+                                                                <div class="auto-scroll-container flex-grow-1 text-muted" title="@up.AkaCompetitor.Club • @up.AkaCompetitor.GradeName">
+                                                                    <small class="auto-scroll-content">@up.AkaCompetitor.Club • @up.AkaCompetitor.GradeName</small>
+                                                                </div>
+                                                            </div>
+                                                        }
+                                                        @if (up.ShiroCompetitor != null)
+                                                        {
+                                                            <div class="d-flex align-items-center gap-1 text-nowrap" style="overflow: hidden; max-width: 100%;">
+                                                                <span class="badge bg-white border border-secondary p-0 me-1" style="width: 8px; height: 8px; border-radius: 50%; display: inline-block;"></span>
+                                                                <img src="@up.ShiroCompetitor.FlagImageUrl" alt="@up.ShiroCompetitor.Country" title="@up.ShiroCompetitor.Country"
+                                                                     class="border rounded-1 me-1 flex-shrink-0" style="width: 18px; height: 12px; object-fit: cover;" />
+                                                                <div class="auto-scroll-container flex-grow-1 text-muted" title="@up.ShiroCompetitor.Club • @up.ShiroCompetitor.GradeName">
+                                                                    <small class="auto-scroll-content">@up.ShiroCompetitor.Club • @up.ShiroCompetitor.GradeName</small>
+                                                                </div>
+                                                            </div>
+                                                        }
+                                                    </div>
+                                                    <small class="text-muted d-block mt-1">@up.Category?.Name</small>
                                                 </li>
                                             }
                                         </ul>
@@ -517,15 +541,44 @@
                                 {
                                     <span class="badge bg-info text-dark flex-shrink-0" style="font-size:0.7rem;">#@item.Number</span>
                                     <span class="badge bg-primary flex-shrink-0" style="font-size:0.65rem;">KATA</span>
+                                    @if (!string.IsNullOrEmpty(item.KataFlagUrl))
+                                    {
+                                        <img src="@item.KataFlagUrl" alt="@item.KataCountry" title="@item.KataCountry"
+                                             class="border rounded-1 flex-shrink-0" style="width: 18px; height: 12px; object-fit: cover;" />
+                                    }
                                     <strong>@item.KataCompetitorName</strong>
+                                    @if (!string.IsNullOrWhiteSpace(item.KataClub) || !string.IsNullOrWhiteSpace(item.KataGrade))
+                                    {
+                                        <small class="text-muted" style="font-size: 0.75rem;">(@string.Join(" • ", new[] { item.KataClub, item.KataGrade }.Where(s => !string.IsNullOrWhiteSpace(s))))</small>
+                                    }
                                 }
                                 else
                                 {
                                     <span class="badge bg-secondary flex-shrink-0" style="font-size:0.7rem;">#@item.Number</span>
                                     <span class="badge bg-danger flex-shrink-0" style="font-size:0.65rem;">KUMITÉ</span>
-                                    <strong class="text-danger">@item.AkaName</strong>
-                                    <span class="text-muted">vs</span>
-                                    <strong>@item.ShiroName</strong>
+                                    <div class="d-inline-flex align-items-center gap-1 flex-wrap">
+                                        @if (!string.IsNullOrEmpty(item.AkaFlagUrl))
+                                        {
+                                            <img src="@item.AkaFlagUrl" alt="@item.AkaCountry" title="@item.AkaCountry"
+                                                 class="border rounded-1 flex-shrink-0" style="width: 16px; height: 11px; object-fit: cover;" />
+                                        }
+                                        <strong class="text-danger">@item.AkaName</strong>
+                                        @if (!string.IsNullOrWhiteSpace(item.AkaClub) || !string.IsNullOrWhiteSpace(item.AkaGrade))
+                                        {
+                                            <small class="text-muted" style="font-size: 0.75rem;">(@string.Join(" • ", new[] { item.AkaClub, item.AkaGrade }.Where(s => !string.IsNullOrWhiteSpace(s))))</small>
+                                        }
+                                        <span class="text-muted mx-1">vs</span>
+                                        @if (!string.IsNullOrEmpty(item.ShiroFlagUrl))
+                                        {
+                                            <img src="@item.ShiroFlagUrl" alt="@item.ShiroCountry" title="@item.ShiroCountry"
+                                                 class="border rounded-1 flex-shrink-0" style="width: 16px; height: 11px; object-fit: cover;" />
+                                        }
+                                        <strong>@item.ShiroName</strong>
+                                        @if (!string.IsNullOrWhiteSpace(item.ShiroClub) || !string.IsNullOrWhiteSpace(item.ShiroGrade))
+                                        {
+                                            <small class="text-muted" style="font-size: 0.75rem;">(@string.Join(" • ", new[] { item.ShiroClub, item.ShiroGrade }.Where(s => !string.IsNullOrWhiteSpace(s))))</small>
+                                        }
+                                    </div>
                                 }
                             </div>
 
@@ -557,15 +610,45 @@
                                     {
                                         <span class="badge bg-info text-dark me-1 flex-shrink-0">#@item.Number</span>
                                         <span class="badge bg-primary me-1 flex-shrink-0" style="font-size:0.65rem;">KATA</span>
-                                        <strong class="text-truncate">@item.KataCompetitorName</strong>
+                                        @if (!string.IsNullOrEmpty(item.KataFlagUrl))
+                                        {
+                                            <img src="@item.KataFlagUrl" alt="@item.KataCountry" title="@item.KataCountry"
+                                                 class="border rounded-1 me-1 flex-shrink-0" style="width: 18px; height: 12px; object-fit: cover;" />
+                                        }
+                                        <strong class="text-truncate me-1">@item.KataCompetitorName</strong>
+                                        @if (!string.IsNullOrWhiteSpace(item.KataClub) || !string.IsNullOrWhiteSpace(item.KataGrade))
+                                        {
+                                            <small class="text-muted text-truncate me-2" style="font-size: 0.8rem;">(@string.Join(" • ", new[] { item.KataClub, item.KataGrade }.Where(s => !string.IsNullOrWhiteSpace(s))))</small>
+                                        }
                                     }
                                     else
                                     {
                                         <span class="badge bg-secondary me-1 flex-shrink-0">#@item.Number</span>
                                         <span class="badge bg-danger me-1 flex-shrink-0" style="font-size:0.65rem;">KUMITÉ</span>
-                                        <strong class="text-danger text-truncate">@item.AkaName</strong>
-                                        <span class="text-muted flex-shrink-0">vs</span>
-                                        <strong class="text-truncate">@item.ShiroName</strong>
+                                        
+                                        @if (!string.IsNullOrEmpty(item.AkaFlagUrl))
+                                        {
+                                            <img src="@item.AkaFlagUrl" alt="@item.AkaCountry" title="@item.AkaCountry"
+                                                 class="border rounded-1 me-1 flex-shrink-0" style="width: 18px; height: 12px; object-fit: cover;" />
+                                        }
+                                        <strong class="text-danger text-truncate me-1">@item.AkaName</strong>
+                                        @if (!string.IsNullOrWhiteSpace(item.AkaClub) || !string.IsNullOrWhiteSpace(item.AkaGrade))
+                                        {
+                                            <small class="text-muted text-truncate me-2" style="font-size: 0.8rem;">(@string.Join(" • ", new[] { item.AkaClub, item.AkaGrade }.Where(s => !string.IsNullOrWhiteSpace(s))))</small>
+                                        }
+                                        
+                                        <span class="text-muted flex-shrink-0 me-2">vs</span>
+                                        
+                                        @if (!string.IsNullOrEmpty(item.ShiroFlagUrl))
+                                        {
+                                            <img src="@item.ShiroFlagUrl" alt="@item.ShiroCountry" title="@item.ShiroCountry"
+                                                 class="border rounded-1 me-1 flex-shrink-0" style="width: 18px; height: 12px; object-fit: cover;" />
+                                        }
+                                        <strong class="text-truncate me-1">@item.ShiroName</strong>
+                                        @if (!string.IsNullOrWhiteSpace(item.ShiroClub) || !string.IsNullOrWhiteSpace(item.ShiroGrade))
+                                        {
+                                            <small class="text-muted text-truncate" style="font-size: 0.8rem;">(@string.Join(" • ", new[] { item.ShiroClub, item.ShiroGrade }.Where(s => !string.IsNullOrWhiteSpace(s))))</small>
+                                        }
                                     }
                                 </div>
                                 <!-- Colonne Statut alignée sur la 1ère ligne -->
@@ -653,9 +736,21 @@
         public string CategoryName { get; set; } = string.Empty;
         public string RoundName { get; set; } = string.Empty;
         public string KataCompetitorName { get; set; } = string.Empty;
+        public string? KataFlagUrl { get; set; }
+        public string? KataCountry { get; set; }
+        public string? KataClub { get; set; }
+        public string? KataGrade { get; set; }
         public string KataName { get; set; } = string.Empty;
         public string AkaName { get; set; } = string.Empty;
+        public string? AkaFlagUrl { get; set; }
+        public string? AkaCountry { get; set; }
+        public string? AkaClub { get; set; }
+        public string? AkaGrade { get; set; }
         public string ShiroName { get; set; } = string.Empty;
+        public string? ShiroFlagUrl { get; set; }
+        public string? ShiroCountry { get; set; }
+        public string? ShiroClub { get; set; }
+        public string? ShiroGrade { get; set; }
         public string WinnerInfo { get; set; } = string.Empty;
         public int DurationSeconds { get; set; }
         public MatchStatus Status { get; set; }
@@ -884,6 +979,10 @@
                         CategoryName = k.Category?.Name ?? "Kata",
                         RoundName = k.Round == KataRound.Turn1 ? Lang["Turn1"] : Lang["Turn2"],
                         KataCompetitorName = k.CompetitorDisplayName,
+                        KataFlagUrl = k.Competitor?.FlagImageUrl,
+                        KataCountry = k.Competitor?.Country,
+                        KataClub = k.Competitor?.Club,
+                        KataGrade = k.Competitor?.GradeName,
                         KataName = k.KataName,
                         Status = k.Status,
                         IsCurrentOnTatami = isCurrent,
@@ -931,7 +1030,15 @@
                         CategoryName = m.Category?.Name ?? "Kumité",
                         RoundName = m.RoundName,
                         AkaName = m.AkaDisplayName,
+                        AkaFlagUrl = m.AkaCompetitor?.FlagImageUrl,
+                        AkaCountry = m.AkaCompetitor?.Country,
+                        AkaClub = m.AkaCompetitor?.Club,
+                        AkaGrade = m.AkaCompetitor?.GradeName,
                         ShiroName = m.ShiroDisplayName,
+                        ShiroFlagUrl = m.ShiroCompetitor?.FlagImageUrl,
+                        ShiroCountry = m.ShiroCompetitor?.Country,
+                        ShiroClub = m.ShiroCompetitor?.Club,
+                        ShiroGrade = m.ShiroCompetitor?.GradeName,
                         DurationSeconds = m.TotalDurationSeconds,
                         WinnerInfo = m.WinnerCompetitor != null ? m.WinnerCompetitor.FullName : "",
                         Status = m.Status,
@@ -954,8 +1061,11 @@
                 query = query.Where(i =>
                     i.CategoryName.ToLowerInvariant().Contains(term) ||
                     i.KataCompetitorName.ToLowerInvariant().Contains(term) ||
+                    (i.KataClub != null && i.KataClub.ToLowerInvariant().Contains(term)) ||
                     i.AkaName.ToLowerInvariant().Contains(term) ||
+                    (i.AkaClub != null && i.AkaClub.ToLowerInvariant().Contains(term)) ||
                     i.ShiroName.ToLowerInvariant().Contains(term) ||
+                    (i.ShiroClub != null && i.ShiroClub.ToLowerInvariant().Contains(term)) ||
                     i.RoundName.ToLowerInvariant().Contains(term));
             }
 
