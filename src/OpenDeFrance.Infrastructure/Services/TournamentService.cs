@@ -2256,9 +2256,16 @@ public class TournamentService : ITournamentService, IHostedService
             }
             else
             {
-                // SQLite (tests) : recréer la DB
-                db.Database.EnsureDeleted();
-                db.Database.EnsureCreated();
+                // SQLite : vider les tables dans l'ordre FK (sans supprimer le fichier .db)
+                // Les FK ne sont pas forcées par défaut sur SQLite → l'ordre importe peu,
+                // mais on le respecte par cohérence
+                db.Database.ExecuteSqlRaw("DELETE FROM CategoryCompetitor");
+                db.Database.ExecuteSqlRaw("DELETE FROM KataPerformances");
+                db.Database.ExecuteSqlRaw("DELETE FROM KumiteMatches");
+                db.Database.ExecuteSqlRaw("DELETE FROM Categories");
+                db.Database.ExecuteSqlRaw("DELETE FROM Competitors");
+                db.Database.ExecuteSqlRaw("DELETE FROM Tatamis");
+                db.Database.ExecuteSqlRaw("DELETE FROM Tournaments");
             }
 
             // Helper local : encadre AddRange+SaveChanges avec IDENTITY_INSERT ON/OFF sur SQL Server
