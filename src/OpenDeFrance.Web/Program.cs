@@ -36,37 +36,61 @@ builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddSingleton<IAuthService, AuthService>();
 builder.Services.AddScoped<ILanguageService, LanguageService>();
 
-// Base de données : provider déterminé par la clé "DatabaseProvider" (SqlServer ou Sqlite)
-// Si absent, SqlServer est utilisé dès qu'une connection string est définie.
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-var providerKey = builder.Configuration["DatabaseProvider"]; // "SqlServer" | "Sqlite" | null
+// ─── Configuration de la base de données ───────────────────────────────────
+// Priorité de configuration (du plus fort au plus faible) :
+//   1. Variables d'environnement Azure App Service
+//   2. appsettings.{Environment}.json
+//   3. appsettings.json
+//
+// Dans Azure App Service, définir :
+//   - Application Setting  : DatabaseProvider = SqlServer
+//   - Connection String    : DefaultConnection = Server=tcp:... (type: Custom)
+//     OU Application Setting : ConnectionStrings__DefaultConnection = Server=tcp:...
 
-bool useSqlServer = providerKey?.Equals("Sqlite", StringComparison.OrdinalIgnoreCase) != true
-    && !string.IsNullOrWhiteSpace(connectionString)
-    && !connectionString.TrimStart().StartsWith("Data Source=", StringComparison.OrdinalIgnoreCase);
+var dbProvider   = builder.Configuration["DatabaseProvider"] ?? "Sqlite";
+var connStr      = builder.Configuration.GetConnectionString("DefaultConnection")
+                ?? builder.Configuration["ConnectionStrings__DefaultConnection"]
+                ?? builder.Configuration["DefaultConnection"];  // fallback si mis comme App Setting simple
 
-// Fallback : si la connection string contient un serveur SQL Azure connu → SQL Server
-if (!useSqlServer && !string.IsNullOrWhiteSpace(connectionString))
+// ─── Diagnostics de démarrage ─────────────────────────────────────────────
+var env = builder.Environment.EnvironmentName;
+Console.Error.WriteLine("╔══════════════════════════════════════════════════════╗");
+Console.Error.WriteLine($"║  ENVIRONMENT  : {env,-36}║");
+Console.Error.WriteLine($"║  DatabaseProvider : {dbProvider,-33}║");
+Console.Error.WriteLine($"║  ConnStr trouvée  : {(connStr != null ? "OUI" : "NON"),-33}║");
+if (connStr != null)
 {
-    useSqlServer = connectionString.Contains(".database.windows.net", StringComparison.OrdinalIgnoreCase)
-                || connectionString.Contains("Server=", StringComparison.OrdinalIgnoreCase)
-                || connectionString.Contains("Initial Catalog=", StringComparison.OrdinalIgnoreCase);
+    var preview = connStr.Length > 60 ? connStr[..60] + "..." : connStr;
+    Console.Error.WriteLine($"║  ConnStr début    : {preview,-33}║");
+}
+Console.Error.WriteLine("╚══════════════════════════════════════════════════════╝");
+
+bool useSqlServer = dbProvider.Equals("SqlServer", StringComparison.OrdinalIgnoreCase);
+
+if (useSqlServer && string.IsNullOrWhiteSpace(connStr))
+{
+    Console.Error.WriteLine("[ERREUR] DatabaseProvider=SqlServer mais aucune connection string trouvée !");
+    throw new InvalidOperationException(
+        "DatabaseProvider=SqlServer mais ConnectionStrings:DefaultConnection est vide. " +
+        "Vérifiez la configuration Azure App Service.");
 }
 
-var effectiveConnectionString = connectionString
-    ?? (useSqlServer ? throw new InvalidOperationException("ConnectionStrings:DefaultConnection manquante.")
-                     : "Data Source=tournament.db");
-
-Console.WriteLine($"[DB] Provider : {(useSqlServer ? "SQL Server" : "SQLite")}");
-Console.WriteLine($"[DB] Connection : {effectiveConnectionString[..Math.Min(80, effectiveConnectionString.Length)]}...");
+var effectiveConnStr = connStr ?? "Data Source=tournament.db";
 
 builder.Services.AddDbContext<TournamentDbContext>(options =>
 {
     if (useSqlServer)
-        options.UseSqlServer(effectiveConnectionString);
+    {
+        options.UseSqlServer(effectiveConnStr);
+        Console.Error.WriteLine("[DB] ✅ Utilisation de SQL SERVER");
+    }
     else
-        options.UseSqlite(effectiveConnectionString);
+    {
+        options.UseSqlite(effectiveConnStr);
+        Console.Error.WriteLine("[DB] ⚠️  Utilisation de SQLITE");
+    }
 });
+// ─────────────────────────────────────────────────────────────────────────
 
 // Domain & Infrastructure Services
 builder.Services.AddSingleton<IKumiteBracketGenerator, KumiteBracketGenerator>();
