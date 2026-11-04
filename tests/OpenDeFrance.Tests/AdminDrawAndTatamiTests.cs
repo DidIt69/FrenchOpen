@@ -354,4 +354,41 @@ public class AdminDrawAndTatamiTests
             catch { }
         }
     }
+
+    [Fact]
+    public void Tatami_ShouldHaveOnlyOneActiveFightOrKataAcrossCategories()
+    {
+        var (service, _, dbPath) = CreateTestEnvironment();
+        try
+        {
+            var tatamis = service.GetTatamis();
+            foreach (var t in tatamis)
+            {
+                var inProgMatches = t.AssignedKumiteMatches.Where(m => m.Status == MatchStatus.InProgress).ToList();
+                var inProgKatas = t.AssignedKataPerformances.Where(p => p.Status == MatchStatus.InProgress).ToList();
+
+                // Au maximum un seul combat kumite InProgress et un seul kata InProgress par tatami
+                Assert.True(inProgMatches.Count <= 1, $"Le tatami {t.Id} a {inProgMatches.Count} combats Kumité en cours");
+                Assert.True(inProgKatas.Count <= 1, $"Le tatami {t.Id} a {inProgKatas.Count} katas en cours");
+
+                if (inProgMatches.Count == 1)
+                {
+                    Assert.Equal(t.CurrentKumiteMatchId, inProgMatches[0].Id);
+                }
+                if (inProgKatas.Count == 1)
+                {
+                    Assert.Equal(t.CurrentKataPerformanceId, inProgKatas[0].Id);
+                }
+            }
+        }
+        finally
+        {
+            try
+            {
+                Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+                if (File.Exists(dbPath)) File.Delete(dbPath);
+            }
+            catch { }
+        }
+    }
 }

@@ -73,14 +73,14 @@
                         </div>
                         @if (tatami.CurrentDiscipline == CompetitionType.Kumite)
                         {
-                            @if (tatami.CurrentKumiteMatch != null)
+                            @if (tatami.CurrentKumiteMatch != null && tatami.CurrentKumiteMatch.Status != MatchStatus.Finished)
                             {
                                 <span class="badge bg-warning text-dark fs-6 fw-bold">Combat #@tatami.CurrentKumiteMatch.MatchNumber</span>
                             }
                         }
                         else
                         {
-                            @if (tatami.CurrentKataPerformance != null)
+                            @if (tatami.CurrentKataPerformance != null && tatami.CurrentKataPerformance.Status != MatchStatus.Finished)
                             {
                                 <span class="badge bg-warning text-dark fs-6 fw-bold">Kata #@tatami.CurrentKataPerformance.PerformanceOrder</span>
                             }
@@ -481,7 +481,7 @@
                 @foreach (var item in UnifiedSchedule)
                 {
                     var isFinished = item.Status == MatchStatus.Finished;
-                    var isInProgress = item.Status == MatchStatus.InProgress;
+                    var isInProgress = !isFinished && item.IsCurrentOnTatami;
 
                     <li class="list-group-item px-3 py-2 @(isFinished ? "opacity-75 bg-light" : "") @(isInProgress ? "border-start border-2 border-success bg-success bg-opacity-10" : "")">
                         <!-- === MODE MOBILE (< 768px) : 3 lignes === -->
@@ -644,6 +644,7 @@
 
     public class ScheduleItem
     {
+        public int Id { get; set; }
         public int Number { get; set; }
         public int? TatamiId { get; set; }
         public int CategoryId { get; set; }
@@ -658,6 +659,7 @@
         public string WinnerInfo { get; set; } = string.Empty;
         public int DurationSeconds { get; set; }
         public MatchStatus Status { get; set; }
+        public bool IsCurrentOnTatami { get; set; }
         public string Score { get; set; } = string.Empty;
         public string Notes { get; set; } = string.Empty;
     }
@@ -863,10 +865,17 @@
                         continue;
                     }
 
-                    string tName = k.Tatami?.Name ?? tatamis.FirstOrDefault(t => t.Id == tatamiId)?.Name ?? (tatamiId.HasValue ? $"Tatami {tatamiId}" : "-");
+                    var tatami = tatamis.FirstOrDefault(t => t.Id == tatamiId);
+                    string tName = k.Tatami?.Name ?? tatami?.Name ?? (tatamiId.HasValue ? $"Tatami {tatamiId}" : "-");
+
+                    bool isCurrent = tatami != null
+                        && tatami.CurrentDiscipline == CompetitionType.Kata
+                        && tatami.CurrentKataPerformanceId == k.Id
+                        && k.Status != MatchStatus.Finished;
 
                     items.Add(new ScheduleItem
                     {
+                        Id = k.Id,
                         Number = k.PerformanceOrder,
                         TatamiId = tatamiId,
                         CategoryId = k.CategoryId,
@@ -877,6 +886,7 @@
                         KataCompetitorName = k.CompetitorDisplayName,
                         KataName = k.KataName,
                         Status = k.Status,
+                        IsCurrentOnTatami = isCurrent,
                         Score = k.FinalScore.ToString(),
                         Notes = k.GetScoresDisplay(Lang)
                     });
@@ -902,10 +912,17 @@
                         continue;
                     }
 
-                    string tName = m.Tatami?.Name ?? tatamis.FirstOrDefault(t => t.Id == tatamiId)?.Name ?? (tatamiId.HasValue ? $"Tatami {tatamiId}" : "-");
+                    var tatami = tatamis.FirstOrDefault(t => t.Id == tatamiId);
+                    string tName = m.Tatami?.Name ?? tatami?.Name ?? (tatamiId.HasValue ? $"Tatami {tatamiId}" : "-");
+
+                    bool isCurrent = tatami != null
+                        && tatami.CurrentDiscipline == CompetitionType.Kumite
+                        && tatami.CurrentKumiteMatchId == m.Id
+                        && m.Status != MatchStatus.Finished;
 
                     items.Add(new ScheduleItem
                     {
+                        Id = m.Id,
                         Number = m.MatchNumber,
                         TatamiId = tatamiId,
                         CategoryId = m.CategoryId,
@@ -917,7 +934,8 @@
                         ShiroName = m.ShiroDisplayName,
                         DurationSeconds = m.TotalDurationSeconds,
                         WinnerInfo = m.WinnerCompetitor != null ? m.WinnerCompetitor.FullName : "",
-                        Status = m.Status
+                        Status = m.Status,
+                        IsCurrentOnTatami = isCurrent
                     });
                 }
             }

@@ -1698,6 +1698,22 @@ public class TournamentService : ITournamentService, IHostedService
             {
                 t.CurrentKataPerformance.Status = MatchStatus.InProgress;
             }
+
+            // S'assurer qu'un seul match et un seul kata peuvent avoir le statut InProgress sur ce tatami
+            foreach (var m in t.AssignedKumiteMatches)
+            {
+                if (m.Id != t.CurrentKumiteMatchId && m.Status == MatchStatus.InProgress)
+                {
+                    m.Status = MatchStatus.Pending;
+                }
+            }
+            foreach (var p in t.AssignedKataPerformances)
+            {
+                if (p.Id != t.CurrentKataPerformanceId && p.Status == MatchStatus.InProgress)
+                {
+                    p.Status = MatchStatus.Pending;
+                }
+            }
         }
     }
 
@@ -1920,6 +1936,22 @@ public class TournamentService : ITournamentService, IHostedService
                 else if (t.CurrentKataPerformance != null && t.CurrentKataPerformance.Status == MatchStatus.Pending)
                 {
                     t.CurrentKataPerformance.Status = MatchStatus.InProgress;
+                }
+
+                // S'assurer qu'un seul match et un seul kata peuvent avoir le statut InProgress sur ce tatami
+                foreach (var m in t.AssignedKumiteMatches)
+                {
+                    if (m.Id != t.CurrentKumiteMatchId && m.Status == MatchStatus.InProgress)
+                    {
+                        m.Status = MatchStatus.Pending;
+                    }
+                }
+                foreach (var p in t.AssignedKataPerformances)
+                {
+                    if (p.Id != t.CurrentKataPerformanceId && p.Status == MatchStatus.InProgress)
+                    {
+                        p.Status = MatchStatus.Pending;
+                    }
                 }
             }
 
