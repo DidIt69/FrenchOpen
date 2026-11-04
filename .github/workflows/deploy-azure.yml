@@ -3,15 +3,15 @@ name: Deploy to Azure App Service
 on:
   push:
     branches:
-      - main          # Déclenché à chaque push sur main
-  workflow_dispatch:  # Déclenchement manuel depuis GitHub Actions
+      - main
+  workflow_dispatch:
 
 env:
-  AZURE_WEBAPP_NAME: "open-de-france"          # ← Remplacer par le nom de votre App Service
-  AZURE_WEBAPP_PACKAGE_PATH: "./publish"
+  AZURE_WEBAPP_NAME: "open-de-france"      # ← Remplacer par le nom EXACT de votre App Service Azure
   DOTNET_VERSION: "10.0.x"
   PROJECT_PATH: "src/OpenDeFrance.Web/OpenDeFrance.Web.csproj"
   TEST_PROJECT: "tests/OpenDeFrance.Tests"
+  PUBLISH_DIR: "./publish"
 
 jobs:
   build-and-test:
@@ -30,20 +30,24 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore
 
-      - name: Build solution
+      - name: Build (Release)
         run: dotnet build --no-restore --configuration Release
 
       - name: Run tests
         run: dotnet test ${{ env.TEST_PROJECT }} --no-build --configuration Release --verbosity normal
 
       - name: Publish application
-        run: dotnet publish ${{ env.PROJECT_PATH }} --configuration Release --output ${{ env.AZURE_WEBAPP_PACKAGE_PATH }} --no-build
+        run: |
+          dotnet publish ${{ env.PROJECT_PATH }} \
+            --configuration Release \
+            --output ${{ env.PUBLISH_DIR }} \
+            --no-build
 
-      - name: Upload artifact for deployment
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: webapp-publish
-          path: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
+          path: ${{ env.PUBLISH_DIR }}
 
   deploy:
     name: 🚀 Deploy to Azure
@@ -58,11 +62,18 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: webapp-publish
-          path: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
+          path: ${{ env.PUBLISH_DIR }}
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME }}
-          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          package: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
+          package: ${{ env.PUBLISH_DIR }}
+
+      - name: Azure logout
+        run: az logout
