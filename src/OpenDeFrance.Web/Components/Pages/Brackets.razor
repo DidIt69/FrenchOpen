@@ -426,7 +426,6 @@
                                                 <th>Ordre / Rang</th>
                                                 <th>Compétiteur</th>
                                                 <th>Club</th>
-                                                <th>Tatami</th>
                                                 <th>Notes juges</th>
                                                 <th>Note retenue</th>
                                                 <th>Statut</th>
@@ -464,24 +463,6 @@
                                                     </td>
                                                     <td><strong>@p.Competitor?.FullName</strong></td>
                                                     <td><small class="text-muted">@p.Competitor?.Club</small></td>
-                                                    <td>
-                                                        @if (isAdmin)
-                                                        {
-                                                            <select class="form-select form-select-sm py-0 px-1 border-primary"
-                                                                    style="font-size: 0.75rem; width: auto; height: 26px;"
-                                                                    value="@p.TatamiId"
-                                                                    @onchange="(e) => OnChangeKataTatami(p.Id, e)">
-                                                                @foreach (var t in tatamis)
-                                                                {
-                                                                    <option value="@t.Id">@t.Name</option>
-                                                                }
-                                                            </select>
-                                                        }
-                                                        else
-                                                        {
-                                                            <span class="badge bg-light text-dark border">@(p.Tatami?.Name ?? "-")</span>
-                                                        }
-                                                    </td>
                                                     <td><small class="text-muted">@p.ScoresDisplay</small></td>
                                                     <td>
                                                         <strong class="text-primary fs-5">@(p.FinalScore > 0 ? p.FinalScore.ToString("0") : "-")</strong>
