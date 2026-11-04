@@ -44,6 +44,6 @@ public class KataPerformance
         if (JudgeScores.Count > 0)
             return string.Join(" | ", JudgeScores.Select(s => s.ToString("0")));
 
-        return lang?["NoScore"] ?? "Pas de note";
+        return lang?["NoScore"] ?? "-";
     }
 }

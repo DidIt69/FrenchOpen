@@ -183,6 +183,14 @@ public class LanguageService : ILanguageService
         ["HideFinished"] = new() { ["fr"] = "Masquer terminés", ["en"] = "Hide finished" },
         ["ShowMenu"] = new() { ["fr"] = "Afficher le menu", ["en"] = "Show menu" },
         ["HideMenu"] = new() { ["fr"] = "Cacher le menu", ["en"] = "Hide menu" },
+        ["HasLittleFinal"] = new() { ["fr"] = "🥉 Petite finale (3e place)", ["en"] = "🥉 Little final (3rd place)" },
+        ["WithoutLittleFinal"] = new() { ["fr"] = "Sans petite finale", ["en"] = "Without little final" },
+        ["FirstTurn"] = new() { ["fr"] = "1er Tour - Éliminatoire", ["en"] = "1st Turn - Qualifying Round" },
+        ["QualifiedFinal"] = new() { ["fr"] = "✅ Qualifié Finale", ["en"] = "✅ Qualified for the final"},
+        ["Eliminated"] = new() { ["fr"] = "Éliminé", ["en"] = "Eliminated" },
+        ["OnlyNFirst"] = new() { ["fr"] = "premiers sont qualifiés pour la finale", ["en"] = "first ones qualify for the final" },
+        ["Only"] = new() { ["fr"] = "Seulement les", ["en"] = "Only the" },
+        ["SecondTurn"] = new() { ["fr"] = "2e Tour - Finale", ["en"] = "2nd Turn - Final" },
 
         // General / Nav
         ["AppTitle"] = new() { ["fr"] = "Kyokushin Open", ["en"] = "Kyokushin Open" },
