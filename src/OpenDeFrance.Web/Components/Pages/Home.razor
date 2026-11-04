@@ -15,50 +15,37 @@
             <div>
                 <h1 class="h3 fw-bold mb-1 fs-4 fs-md-2">🥋 @Lang["FrenchOpen2027"]</h1>
             </div>
-            <div class="d-flex gap-2">
-                <a href="brackets" class="btn btn-outline-warning btn-sm">
-                    @Lang["NavBrackets"]
-                </a>
-            </div>
         </div>
     </div>
 
-    <!-- Bannière Jour Actif -->
-    @if (activeDay.HasValue)
-    {
-        <div class="alert alert-warning d-flex align-items-center gap-2 py-2 mb-3 shadow-sm border-0 border-start border-4 border-warning">
-            <span class="fs-5">🗓️</span>
-            <div>
-                <strong>Affichage filtré — Jour @activeDay</strong>
-                <span class="text-muted ms-2 small">Seuls les éléments du Jour @activeDay sont visibles. L'administrateur peut modifier ce filtre.</span>
-            </div>
-        </div>
-    }
-
     <!-- Tatami Filter Bar -->
-    <div class="card shadow-sm border-0 mb-4 bg-light">        <div class="card-body py-2 px-3 d-flex align-items-center flex-wrap gap-2">
+    <div class="card shadow-sm border-0 mb-4 bg-light">        
+        <div class="card-body py-2 px-3 d-flex align-items-center flex-wrap gap-2">
             <span class="fw-bold text-dark d-flex align-items-center gap-1 small me-1">
                 <span>🥋</span> <span>@Lang["FilterByTatami"]</span>
             </span>
-            <button class="btn btn-sm @(selectedTatamiIds.Count == 0 ? "btn-dark fw-bold" : "btn-outline-dark")"
-                    @onclick="SelectAllTatamis">
-                @Lang["AllTatamis"] (@tatamis.Count)
-            </button>
-            @foreach (var t in tatamis)
-            {
-                bool isSelected = selectedTatamiIds.Contains(t.Id);
-                <button class="btn btn-sm @(isSelected ? "btn-primary fw-bold shadow-sm" : "btn-outline-primary")"
-                        @onclick="() => ToggleTatamiSelection(t.Id)">
-                    @(isSelected ? "✓ " : "")@t.Name
-                </button>
-            }
-            @if (selectedTatamiIds.Count > 0)
-            {
-                <button class="btn btn-sm btn-link text-muted text-decoration-none ms-auto"
-                        @onclick="SelectAllTatamis">
-                    ✕ @Lang["ResetFilter"]
-                </button>
-            }
+            <div class="card-body py-2 px-3 d-flex align-items-center flex-wrap gap-2">
+                @foreach (var t in tatamis)
+                {
+                    bool isSelected = selectedTatamiIds.Contains(t.Id);
+                    <button 
+                        class="btn btn-sm @(isSelected ? "btn-primary fw-bold shadow-sm" : "btn-outline-primary")"
+                        @onclick="() => ToggleTatamiSelection(t.Id)"
+                    >
+                        @(isSelected ? "✓ " : "")@t.Name
+                    </button>
+                }
+            
+                @if (selectedTatamiIds.Count > 0)
+                {
+                    <button 
+                        class="btn btn-sm btn-link text-muted text-decoration-none ms-auto"
+                        @onclick="SelectAllTatamis"
+                    >
+                        ✕ @Lang["ResetFilter"]
+                    </button>
+                }
+            </div>
         </div>
     </div>
 
@@ -233,7 +220,8 @@
                                                  alt="@kata.Competitor.Country"
                                                  title="@kata.Competitor.Country"
                                                  class="border rounded-1 me-1 flex-shrink-0"
-                                                 style="width: 22px; height: 15px; object-fit: cover; vertical-align: middle; box-shadow: 0 1px 2px rgba(0,0,0,0.15);" />
+                                                 style="width: 22px; height: 15px; object-fit: cover; vertical-align: middle; box-shadow: 0 1px 2px rgba(0,0,0,0.15);" 
+                                            />
                                             <div class="auto-scroll-container flex-grow-1" style="min-width: 0;" title="@kata.Competitor.Club • @kata.Competitor.GradeName">
                                                 <span class="auto-scroll-content">@kata.Competitor.Club • @kata.Competitor.GradeName</span>
                                             </div>
