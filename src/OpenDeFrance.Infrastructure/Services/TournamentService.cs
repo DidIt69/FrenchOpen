@@ -2256,9 +2256,8 @@ public class TournamentService : ITournamentService, IHostedService
             }
             else
             {
-                // SQLite : vider les tables dans l'ordre FK (sans supprimer le fichier .db)
-                // Les FK ne sont pas forcées par défaut sur SQLite → l'ordre importe peu,
-                // mais on le respecte par cohérence
+                // SQLite : désactiver temporairement les FK pour vider les tables sans contraintes
+                db.Database.ExecuteSqlRaw("PRAGMA foreign_keys = OFF");
                 db.Database.ExecuteSqlRaw("DELETE FROM CategoryCompetitor");
                 db.Database.ExecuteSqlRaw("DELETE FROM KataPerformances");
                 db.Database.ExecuteSqlRaw("DELETE FROM KumiteMatches");
@@ -2266,6 +2265,7 @@ public class TournamentService : ITournamentService, IHostedService
                 db.Database.ExecuteSqlRaw("DELETE FROM Competitors");
                 db.Database.ExecuteSqlRaw("DELETE FROM Tatamis");
                 db.Database.ExecuteSqlRaw("DELETE FROM Tournaments");
+                db.Database.ExecuteSqlRaw("PRAGMA foreign_keys = ON");
             }
 
             // Helper local : encadre AddRange+SaveChanges avec IDENTITY_INSERT ON/OFF sur SQL Server
