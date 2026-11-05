@@ -71,10 +71,10 @@
                     <div class="card-body p-0">
                         @if (tatami.CurrentDiscipline == CompetitionType.Kumite)
                         {
-                            var isKataFinished = TournamentService.IsKataCompetitionFinished();
+                            var isKataFinished = TournamentService.IsKataCompetitionFinished(tatamiId: tatami.Id);
                             if (!isKataFinished)
                             {
-                                var pendingKatas = TournamentService.GetPendingKataCount();
+                                var pendingKatas = TournamentService.GetPendingKataCount(tatamiId: tatami.Id);
                                 <div class="p-4 text-center py-5">
                                     <div class="fs-1 mb-2">🥋</div>
                                     <h5 class="fw-bold text-dark mb-1">@Lang["KataInProgressFightsPending"]</h5>

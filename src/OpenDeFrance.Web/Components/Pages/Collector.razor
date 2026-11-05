@@ -109,12 +109,12 @@
     @if (!TournamentService.IsKataCompetitionFinished(selectedDayFilter > 0 ? selectedDayFilter : null))
     {
         var pendingKatas = TournamentService.GetPendingKataCount(selectedDayFilter > 0 ? selectedDayFilter : null);
-        <div class="alert alert-warning border-warning d-flex align-items-center gap-3 mb-3 shadow-sm py-2 px-3">
+        <div class="alert alert-info border-info d-flex align-items-center gap-3 mb-3 shadow-sm py-2 px-3">
             <span class="fs-3">🥋</span>
             <div>
-                <div class="fw-bold">Phase Kata en cours — Les épreuves Kata se déroulent en premier</div>
+                <div class="fw-bold">Phase Kata en cours — Les épreuves Kata se déroulent en premier sur chaque tatami</div>
                 <div class="small text-dark">
-                    Seuls les passages Kata sont actuellement appelés (@pendingKatas restant(s)). Les combats de Kumité apparaîtront automatiquement dès la fin des épreuves Kata.
+                    Les passages Kata d'un tatami sont appelés en premier. Un tatami ayant fini ses Katas peut déjà commencer ses combats Kumité (@pendingKatas passage(s) Kata restant(s) au total).
                 </div>
             </div>
         </div>
@@ -360,9 +360,7 @@
     private void BuildCollectorList()
     {
         var items = new List<CollectorItem>();
-        bool isKataFinished = TournamentService.IsKataCompetitionFinished(selectedDayFilter > 0 ? selectedDayFilter : null);
-
-        foreach (var t in tatamis)
+        bool isKataFinished = TournamentService.IsKataCompetitionFinished(selectedDayFilter > 0 ? selectedDayFilter : null);        foreach (var t in tatamis)
         {
             // --- 1. Passages Kata sur ce tatami (en premier) ---
             if (t.Discipline == CompetitionType.Kata || t.Discipline == CompetitionType.Both)
@@ -420,8 +418,11 @@
                 }
             }
 
-            // --- 2. Rencontres Kumité sur ce tatami (UNIQUEMENT si les Katas sont finis !) ---
-            if (isKataFinished && (t.Discipline == CompetitionType.Kumite || t.Discipline == CompetitionType.Both))
+            // --- 2. Rencontres Kumité sur ce tatami (UNIQUEMENT si les Katas de CE tatami sont finis !) ---
+            bool tatamiKataFinished = TournamentService.IsKataCompetitionFinished(
+                selectedDayFilter > 0 ? selectedDayFilter : null,
+                tatamiId: t.Id);
+            if (tatamiKataFinished && (t.Discipline == CompetitionType.Kumite || t.Discipline == CompetitionType.Both))
             {
                 var kumitePending = t.AssignedKumiteMatches
                     .Where(m => m.Status != MatchStatus.Finished)

@@ -89,12 +89,12 @@
 
         @if (activeDisciplineView == CompetitionType.Kumite)
         {
-            @if (!TournamentService.IsKataCompetitionFinished())
+            @if (!TournamentService.IsKataCompetitionFinished(tatamiId: TatamiId))
             {
                 <div class="alert alert-warning border-warning d-flex align-items-center gap-2 mb-3 shadow-sm py-2 px-3">
                     <span class="fs-4">🥋</span>
                     <div>
-                        <strong>Épreuves Kata en cours :</strong> Les épreuves Kata se déroulent en premier (@TournamentService.GetPendingKataCount() restant(s)). Les combats débuteront après la fin des Katas.
+                        <strong>Épreuves Kata en cours :</strong> Les épreuves Kata se déroulent en premier sur ce tatami (@TournamentService.GetPendingKataCount(tatamiId: TatamiId) restant(s)). Les combats débuteront après la fin des Katas de ce tatami.
                     </div>
                 </div>
             }
@@ -745,8 +745,8 @@
             }
             else
             {
-                // Both : Kata en premier tant que la compétition Kata n'est pas finie
-                if (!TournamentService.IsKataCompetitionFinished())
+                // Both : Kata en premier tant que les Katas de ce tatami ne sont pas finis
+                if (!TournamentService.IsKataCompetitionFinished(tatamiId: TatamiId))
                 {
                     activeDisciplineView = CompetitionType.Kata;
                 }

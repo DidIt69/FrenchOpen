@@ -36,14 +36,14 @@
         <!-- Main Content -->
         @if (tatami.CurrentDiscipline == CompetitionType.Kumite)
         {
-            if (!TournamentService.IsKataCompetitionFinished())
+            if (!TournamentService.IsKataCompetitionFinished(tatamiId: TatamiId))
             {
                 <div class="empty-screen d-flex flex-column align-items-center justify-content-center p-5 text-center">
                     <div class="display-1 mb-3">🥋</div>
                     <h1 class="display-4 text-warning fw-bold mb-3">ÉPREUVES KATA EN COURS</h1>
-                    <p class="fs-3 text-light mb-4">Les épreuves Kata se déroulent en premier sur les tatamis.</p>
+                    <p class="fs-3 text-light mb-4">Les épreuves Kata se déroulent en premier sur ce tatami.</p>
                     <div class="badge bg-primary fs-3 px-4 py-2">
-                        ⏳ @TournamentService.GetPendingKataCount() passage(s) restant(s) avant les combats
+                        ⏳ @TournamentService.GetPendingKataCount(tatamiId: TatamiId) passage(s) restant(s) avant les combats
                     </div>
                 </div>
             }
