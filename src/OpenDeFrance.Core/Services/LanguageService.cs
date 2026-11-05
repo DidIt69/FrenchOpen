@@ -197,7 +197,18 @@ public class LanguageService : ILanguageService
         ["SecondTurn"] = new() { ["fr"] = "2e Tour - Finale", ["en"] = "2nd Turn - Final" },
         ["Stopped"] = new() { ["fr"] = "Arrêté", ["en"] = "Stopped" },
         ["WithoutTatami"] = new() { ["fr"] = "(🚫 Sans tatami)", ["en"] = "(🚫 Without tatami)" },
-        
+        ["Final"] = new() { ["fr"] = "Finale", ["en"] = "Final" },
+        ["Semi-Final"] = new() { ["fr"] = "Demi-Finale", ["en"] = "Semi-Final" },
+        ["Quarter Final"] = new() { ["fr"] = "Quart de finale", ["en"] = "Quarter Final" },
+        ["Round of 16"] = new() { ["fr"] = "8ème de finale", ["en"] = "Round of 16" },
+        ["Round of 32"] = new() { ["fr"] = "16ème de finale", ["en"] = "Round of 32" },
+        ["Turn 1"] = new() { ["fr"] = "Tour 1", ["en"] = "Turn 1" },
+        ["Turn 2"] = new() { ["fr"] = "Tour 2", ["en"] = "Turn 2" },
+        ["Turn 3"] = new() { ["fr"] = "Tour 3", ["en"] = "Turn 3" },
+        ["Turn 4"] = new() { ["fr"] = "Tour 4", ["en"] = "Turn 4" },
+        ["Turn 5"] = new() { ["fr"] = "Tour 5", ["en"] = "Turn 5" },
+
+
         // General / Nav
         ["AppTitle"] = new() { ["fr"] = "Kyokushin Open", ["en"] = "Kyokushin Open" },
         ["NavPublicLive"] = new() { ["fr"] = "🥋 Direct Public (Tatamis)", ["en"] = "🥋 Public Live (Tatamis)" },

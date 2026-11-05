@@ -453,12 +453,12 @@ public class KumiteBracketGenerator : IKumiteBracketGenerator
         int fromFinal = totalRounds - round;
         return fromFinal switch
         {
-            0 => "Finale",
-            1 => "Demi-Finale",
-            2 => "Quart de Finale",
-            3 => "8e de Finale",
-            4 => "16e de Finale",
-            _ => $"Tour {round}"
+            0 => "Final",
+            1 => "Semi-Final",
+            2 => "Quarter Final",
+            3 => "Round of 16",
+            4 => "Roudn of 32",
+            _ => $"Turn {round}"
         };
     }
 }
