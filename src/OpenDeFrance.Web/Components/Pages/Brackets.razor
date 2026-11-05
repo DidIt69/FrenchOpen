@@ -33,8 +33,9 @@
                 <select class="form-select" @bind="selectedCategoryId" @bind:after="OnCategoryChanged" style="min-width: 280px;">
                     @foreach (var cat in categories.OrderBy(c => c.CompetitionDay).ThenBy(c => c.OrderIndex).ThenBy(c => c.Name))
                     {
+                        bool finished = IsCategoryFinished(cat);
                         <option value="@cat.Id">
-                            [#@cat.OrderIndex] 📅 J@(cat.CompetitionDay) • @(cat.Type == CompetitionType.Kumite ? "🥊" : "🥋") @cat.Name @(!cat.AssignedTatamiId.HasValue ? "(🚫 Sans tatami)" : "")
+                            @(finished ? "✅" : (cat.Type == CompetitionType.Kumite ? "🥊" : "🥋")) [#@cat.OrderIndex] 📅 J@(cat.CompetitionDay) • @cat.Name @(!cat.AssignedTatamiId.HasValue ? "(🚫 Sans tatami)" : "") @(finished ? "— Terminé" : "")
                         </option>
                     }
                 </select>
@@ -621,6 +622,8 @@
     }
     private List<KumiteMatch> categoryMatches = new();
     private List<KataPerformance> categoryKataPerformances = new();
+    private List<KumiteMatch> allMatchesCache = new();
+    private List<KataPerformance> allKatasCache = new();
 
     private List<int> AvailableDays => allCategoriesWithCompetitors
         .Select(c => c.CompetitionDay)
@@ -655,6 +658,8 @@
         var allCompetitors = TournamentService.GetCompetitors();
         var allMatches = TournamentService.GetMatches();
         var allKatas = TournamentService.GetKataPerformances();
+        allMatchesCache = allMatches;
+        allKatasCache = allKatas;
 
         // Toutes les catégories ayant au moins un compétiteur (sans filtre jour)
         allCategoriesWithCompetitors = TournamentService.GetCategories()
@@ -712,6 +717,17 @@
         // La catégorie sélectionnée sera réinitialisée si elle n'est plus dans le filtre
         selectedCategory = null;
         RefreshData();
+    }
+
+    private bool IsCategoryFinished(Category cat)
+    {
+        var matches = allMatchesCache.Where(m => m.CategoryId == cat.Id && !m.IsBye).ToList();
+        var katas = allKatasCache.Where(k => k.CategoryId == cat.Id).ToList();
+        int total = matches.Count + katas.Count;
+        if (total == 0) return false;
+        int finished = matches.Count(m => m.Status == MatchStatus.Finished)
+                     + katas.Count(k => k.Status == MatchStatus.Finished);
+        return finished == total;
     }
 
     private void ManualRefresh()
