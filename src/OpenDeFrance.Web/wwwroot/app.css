@@ -123,3 +123,11 @@ button,
 button:not(:disabled) {
     -webkit-appearance: none;
 }
+
+/* Empêche les effets de survol de bloquer le clic sur mobile */
+@media (hover: none) {
+    .btn:hover, button:hover {
+        background-color: transparent !important;
+        color: inherit !important;
+    }
+}
