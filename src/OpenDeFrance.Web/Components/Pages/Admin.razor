@@ -106,6 +106,11 @@
                 @Lang["TabCompetitors"] (@competitors.Count)
             </button>
         </li>
+        <li class="nav-item">
+            <button class="nav-link fw-bold text-nowrap @(activeTab == "ads" ? "active" : "")" @onclick='() => activeTab = "ads"'>
+                📢 Publicités & Pauses
+            </button>
+        </li>
     </ul>
 
     <!-- ========================================== -->
@@ -1527,6 +1532,165 @@
             </div>
         </div>
     }
+    <!-- ========================================== -->
+    <!-- TAB : PUBLICITES & PAUSES                  -->
+    <!-- ========================================== -->
+    @if (activeTab == "ads")
+    @if (activeTab == "ads")
+    {
+        <!-- Boutons pause globale -->
+        <div class="d-flex gap-2 flex-wrap mb-4">
+            <button class="btn btn-warning fw-bold" @onclick="PauseAllTatamis">⏸ Mettre tous les tatamis en PAUSE</button>
+            <button class="btn btn-success fw-bold" @onclick="ResumeAllTatamis">▶ Reprendre tous les tatamis</button>
+        </div>
+
+        <!-- Statut des tatamis -->
+        @if (tatamis.Count > 0)
+        {
+            <div class="d-flex flex-wrap gap-2 mb-4">
+                @foreach (var t in tatamis)
+                {
+                    <span class="badge @(t.IsPaused ? "bg-warning text-dark" : "bg-success") fs-6 px-3 py-2">
+                        @(t.IsPaused ? "⏸" : "▶") @t.Name
+                    </span>
+                }
+            </div>
+        }
+
+        <!-- En-tête liste publicités -->
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="fw-bold mb-0">📋 Liste des publicités (@advertisements.Count)</h5>
+            <button class="btn btn-primary" @onclick="OpenNewAdForm">➕ Nouvelle publicité</button>
+        </div>
+
+        @if (!string.IsNullOrEmpty(adStatusMessage))
+        {
+            <div class="alert @(adIsError ? "alert-danger" : "alert-success") alert-dismissible">
+                @adStatusMessage
+                <button type="button" class="btn-close" @onclick='() => adStatusMessage = null'></button>
+            </div>
+        }
+
+        <!-- Formulaire ajout / édition -->
+        @if (showAdForm && editingAd != null)
+        {
+            <div class="card border-primary shadow mb-4">
+                <div class="card-header bg-primary text-white fw-bold">
+                    @(isNewAd ? "➕ Nouvelle publicité" : $"✏️ Modifier : {editingAd.Title}")
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Titre *</label>
+                            <input type="text" class="form-control" @bind="editingAd.Title" placeholder="Ex: Kyokushin Pro Shop" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Sous-titre</label>
+                            <input type="text" class="form-control" @bind="editingAd.Subtitle" placeholder="Ex: Équipements de combat" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-bold">Description</label>
+                            <textarea class="form-control" rows="2" @bind="editingAd.Description" placeholder="Courte description affichée sur l'écran TV"></textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">URL Image principale</label>
+                            <input type="url" class="form-control" @bind="editingAd.ImageUrl" placeholder="https://example.com/image.jpg" />
+                            @if (!string.IsNullOrEmpty(editingAd.ImageUrl))
+                            {
+                                <img src="@editingAd.ImageUrl" alt="aperçu" class="mt-1 rounded" style="max-height: 80px; max-width: 100%; object-fit: contain;" />
+                            }
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">URL Logo</label>
+                            <input type="url" class="form-control" @bind="editingAd.LogoUrl" placeholder="https://example.com/logo.png" />
+                            @if (!string.IsNullOrEmpty(editingAd.LogoUrl))
+                            {
+                                <img src="@editingAd.LogoUrl" alt="logo" class="mt-1 rounded" style="max-height: 50px; max-width: 160px; object-fit: contain;" />
+                            }
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Site Web</label>
+                            <input type="text" class="form-control" @bind="editingAd.WebsiteUrl" placeholder="www.exemple.fr" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">Durée affichage (s)</label>
+                            <input type="number" class="form-control" @bind="editingAd.DisplayDurationSeconds" min="3" max="60" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">Ordre</label>
+                            <input type="number" class="form-control" @bind="editingAd.OrderIndex" min="0" />
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="adIsActive" @bind="editingAd.IsActive" />
+                                <label class="form-check-label fw-bold" for="adIsActive">✅ Publicité active (affichée en rotation)</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer d-flex justify-content-end gap-2">
+                    <button class="btn btn-secondary" @onclick="CloseAdForm">Annuler</button>
+                    <button class="btn btn-success fw-bold" @onclick="SaveAd">💾 Enregistrer</button>
+                </div>
+            </div>
+        }
+
+        <!-- Tableau des publicités -->
+        @if (advertisements.Count == 0)
+        {
+            <div class="alert alert-info">
+                Aucune publicité configurée. Cliquez sur <strong>Nouvelle publicité</strong> pour en ajouter.
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>#</th>
+                            <th>Active</th>
+                            <th>Titre</th>
+                            <th>Sous-titre</th>
+                            <th>Durée</th>
+                            <th>Aperçu</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var ad in advertisements.OrderBy(a => a.OrderIndex))
+                        {
+                            <tr class="@(!ad.IsActive ? "table-secondary text-muted" : "")">
+                                <td><span class="badge bg-secondary">@ad.OrderIndex</span></td>
+                                <td>
+                                    <span class="badge @(ad.IsActive ? "bg-success" : "bg-secondary")">
+                                        @(ad.IsActive ? "✅ Active" : "❌ Inactive")
+                                    </span>
+                                </td>
+                                <td><strong>@ad.Title</strong></td>
+                                <td class="text-muted small">@ad.Subtitle</td>
+                                <td><span class="badge bg-info text-dark">@ad.DisplayDurationSeconds s</span></td>
+                                <td>
+                                    @if (!string.IsNullOrEmpty(ad.ImageUrl))
+                                    {
+                                        <img src="@ad.ImageUrl" alt="" style="height: 40px; max-width: 80px; object-fit: contain; border-radius: 4px;" />
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted small">—</span>
+                                    }
+                                </td>
+                                <td class="text-end text-nowrap">
+                                    <button class="btn btn-sm btn-outline-primary" @onclick="() => OpenEditAdForm(ad)">✏️ Modifier</button>
+                                    <button class="btn btn-sm btn-outline-danger ms-1" @onclick="() => DeleteAd(ad.Id)" title="Supprimer">🗑️</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    }
 </div>
 
 @code {
@@ -1536,6 +1700,14 @@
     private List<Tatami> tatamis = new();
     private List<KumiteMatch> allMatches = new();
     private List<KataPerformance> allKataPerformances = new();
+
+    // Publicités
+    private List<Advertisement> advertisements = new();
+    private Advertisement? editingAd;
+    private bool showAdForm = false;
+    private bool isNewAd = false;
+    private string? adStatusMessage;
+    private bool adIsError = false;
 
     private Category? selectedCategory;
     private int selectedCategoryId;
@@ -1590,6 +1762,7 @@
         competitors = TournamentService.GetCompetitors();
         allMatches = TournamentService.GetMatches();
         allKataPerformances = TournamentService.GetKataPerformances();
+        advertisements = TournamentService.GetAdvertisements();
 
         if (categories.Count > 0 && selectedCategory == null)
         {
@@ -1606,6 +1779,101 @@
             categoryMatches = allMatches.Where(m => m.CategoryId == selectedCategoryId).ToList();
             categoryKataPerformances = allKataPerformances.Where(p => p.CategoryId == selectedCategoryId).ToList();
         }
+    }
+
+    // ===== PUBLICITES =====
+
+    private void OpenNewAdForm()
+    {
+        editingAd = new Advertisement { OrderIndex = advertisements.Count, IsActive = true, DisplayDurationSeconds = 8 };
+        isNewAd = true;
+        showAdForm = true;
+    }
+
+    private void OpenEditAdForm(Advertisement ad)
+    {
+        // Copie pour édition sans toucher l'original immédiatement
+        editingAd = new Advertisement
+        {
+            Id = ad.Id,
+            Title = ad.Title,
+            Subtitle = ad.Subtitle,
+            Description = ad.Description,
+            ImageUrl = ad.ImageUrl,
+            LogoUrl = ad.LogoUrl,
+            WebsiteUrl = ad.WebsiteUrl,
+            DisplayDurationSeconds = ad.DisplayDurationSeconds,
+            OrderIndex = ad.OrderIndex,
+            IsActive = ad.IsActive
+        };
+        isNewAd = false;
+        showAdForm = true;
+    }
+
+    private void CloseAdForm()
+    {
+        showAdForm = false;
+        editingAd = null;
+        adStatusMessage = null;
+    }
+
+    private void SaveAd()
+    {
+        if (editingAd == null) return;
+        if (string.IsNullOrWhiteSpace(editingAd.Title))
+        {
+            adStatusMessage = "Le titre de la publicité est obligatoire.";
+            adIsError = true;
+            return;
+        }
+
+        if (isNewAd)
+        {
+            TournamentService.AddAdvertisement(editingAd);
+            adStatusMessage = $"Publicité \"{editingAd.Title}\" ajoutée avec succès !";
+        }
+        else
+        {
+            TournamentService.UpdateAdvertisement(editingAd);
+            adStatusMessage = $"Publicité \"{editingAd.Title}\" mise à jour.";
+        }
+        adIsError = false;
+        RefreshData();
+        showAdForm = false;
+        editingAd = null;
+    }
+
+    private void DeleteAd(int adId)
+    {
+        var ad = advertisements.FirstOrDefault(a => a.Id == adId);
+        bool deleted = TournamentService.DeleteAdvertisement(adId);
+        RefreshData();
+        if (deleted)
+        {
+            adStatusMessage = $"Publicité \"{ad?.Title}\" supprimée.";
+            adIsError = false;
+        }
+        else
+        {
+            adStatusMessage = "Impossible de supprimer cette publicité.";
+            adIsError = true;
+        }
+    }
+
+    private void PauseAllTatamis()
+    {
+        TournamentService.SetAllTatamisPause(true);
+        RefreshData();
+        adStatusMessage = "Tous les tatamis sont maintenant en PAUSE (publicités diffusées).";
+        adIsError = false;
+    }
+
+    private void ResumeAllTatamis()
+    {
+        TournamentService.SetAllTatamisPause(false);
+        RefreshData();
+        adStatusMessage = "Tous les tatamis ont repris la compétition.";
+        adIsError = false;
     }
 
     private void HandleChangeCategoryDay(int categoryId, ChangeEventArgs e)

@@ -140,6 +140,7 @@ public class LanguageService : ILanguageService
         ["FrenchOpen2027"] = new() { ["fr"] = "Open de France 2027", ["en"] = "French Open 2027" },
         ["KataInProgress"] = new() { ["fr"] = "Kata en cours", ["en"] = "Kata in progress" },
         ["Day"] = new() { ["fr"] = "J", ["en"] = "D" },
+        ["DayFull"] = new() { ["fr"] = "Jour", ["en"] = "Day" },
         ["Turn1"] = new() { ["fr"] = "Tour 1", ["en"] = "Turn 1" },
         ["Turn2"] = new() { ["fr"] = "Tour 2", ["en"] = "Turn 2" },
         ["Turn2Final"] = new() { ["fr"] = "Tour 2 (finale)", ["en"] = "Turn 2 (final)" },
@@ -156,8 +157,11 @@ public class LanguageService : ILanguageService
         ["KataInProgressFightsPending"] = new() { ["fr"] = "Épreuves Kata en cours", ["en"] = "Kata events in progress" },
         ["PendingKataRemaining"] = new() { ["fr"] = "passage(s) Kata restant(s)", ["en"] = "Kata performance(s) remaining" },
         ["NoKataOnTatami"] = new() { ["fr"] = "Aucun passage Kata en cours sur ce tatami", ["en"] = "No Kata sequence is currently in progress on this tatami" },
+        ["NoFightOnTatami"] = new() { ["fr"] = "Aucun combat en cours sur ce tatami", ["en"] = "No match currently taking place on this tatami" },
         ["NextKataPassages"] = new() { ["fr"] = "⏭️ Prochains passages Kata", ["en"] = "⏭️ Next Kata passages" },
+        ["NextFight"] = new() { ["fr"] = "⏭️ Prochains combats", ["en"] = "⏭️ Next fights" },
         ["NoOtherPassagesPending"] = new() { ["fr"] = "Aucun autre passage en attente.", ["en"] = "No other passages pending." },
+        ["NoOtherFightPending"] = new() { ["fr"] = "Aucun autre combat programmé pour le moment.", ["en"] = "No other fight scheduled at the moment." },
         ["Program"] = new() { ["fr"] = "📋 Programme", ["en"] = "📋 Program"},
         ["All"] = new() { ["fr"] = "Tous", ["en"] = "All" },
         ["Search"] = new() { ["fr"] = "Rechercher...", ["en"] = "Search..." },
@@ -191,7 +195,9 @@ public class LanguageService : ILanguageService
         ["OnlyNFirst"] = new() { ["fr"] = "premiers sont qualifiés pour la finale", ["en"] = "first ones qualify for the final" },
         ["Only"] = new() { ["fr"] = "Seulement les", ["en"] = "Only the" },
         ["SecondTurn"] = new() { ["fr"] = "2e Tour - Finale", ["en"] = "2nd Turn - Final" },
-
+        ["Stopped"] = new() { ["fr"] = "Arrêté", ["en"] = "Stopped" },
+        ["WithoutTatami"] = new() { ["fr"] = "(🚫 Sans tatami)", ["en"] = "(🚫 Without tatami)" },
+        
         // General / Nav
         ["AppTitle"] = new() { ["fr"] = "Kyokushin Open", ["en"] = "Kyokushin Open" },
         ["NavPublicLive"] = new() { ["fr"] = "🥋 Direct Public (Tatamis)", ["en"] = "🥋 Public Live (Tatamis)" },

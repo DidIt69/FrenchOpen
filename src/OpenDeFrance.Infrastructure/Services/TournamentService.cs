@@ -27,6 +27,7 @@ public class TournamentService : ITournamentService, IHostedService
     private List<Competitor> _competitors = new();
     private List<KumiteMatch> _matches = new();
     private List<KataPerformance> _kataPerformances = new();
+    private List<Advertisement> _advertisements = new();
 
     private System.Threading.Timer? _clockTimer;
 
@@ -224,6 +225,11 @@ public class TournamentService : ITournamentService, IHostedService
             using var ms = new MemoryStream(templateBytes);
             var result = _excelService.ImportTournamentData(ms);
             ApplyExcelImport(result);
+
+            if (_advertisements.Count == 0)
+            {
+                _advertisements = GetDefaultSampleAdvertisements();
+            }
         }
     }
 
@@ -244,6 +250,13 @@ public class TournamentService : ITournamentService, IHostedService
                 t.CurrentKataPerformanceId = null;
                 t.AssignedKumiteMatches.Clear();
                 t.AssignedKataPerformances.Clear();
+                t.IsPaused = false;
+                t.PauseMessage = null;
+            }
+
+            if (_advertisements.Count == 0)
+            {
+                _advertisements = GetDefaultSampleAdvertisements();
             }
 
             SaveAllToDatabase();
@@ -2132,6 +2145,38 @@ public class TournamentService : ITournamentService, IHostedService
                 if (db != null)
                 {
                     db.Database.EnsureCreated();
+                    try { db.Database.ExecuteSqlRaw("ALTER TABLE Tatamis ADD COLUMN IsPaused INTEGER NOT NULL DEFAULT 0;"); } catch { }
+                    try { db.Database.ExecuteSqlRaw("ALTER TABLE Tatamis ADD COLUMN PauseMessage TEXT NULL;"); } catch { }
+
+                    // Créer la table Advertisements si elle n'existe pas encore (migration manuelle)
+                    try
+                    {
+                        db.Database.ExecuteSqlRaw(@"
+                            CREATE TABLE IF NOT EXISTS Advertisements (
+                                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                Title TEXT NOT NULL DEFAULT '',
+                                Subtitle TEXT NULL,
+                                Description TEXT NULL,
+                                ImageUrl TEXT NULL,
+                                LogoUrl TEXT NULL,
+                                WebsiteUrl TEXT NULL,
+                                DisplayDurationSeconds INTEGER NOT NULL DEFAULT 8,
+                                OrderIndex INTEGER NOT NULL DEFAULT 0,
+                                IsActive INTEGER NOT NULL DEFAULT 1
+                            );");
+                    }
+                    catch { }
+
+                    try
+                    {
+                        _advertisements = db.Advertisements.AsNoTracking().OrderBy(a => a.OrderIndex).ToList();
+                    }
+                    catch { }
+
+                    if (_advertisements.Count == 0)
+                    {
+                        _advertisements = GetDefaultSampleAdvertisements();
+                    }
 
                     if (db.Competitors.Any() && db.Categories.Any())
                     {
@@ -2285,6 +2330,7 @@ public class TournamentService : ITournamentService, IHostedService
                 db.Database.ExecuteSqlRaw("DELETE FROM [Competitors]");
                 db.Database.ExecuteSqlRaw("DELETE FROM [Tatamis]");
                 db.Database.ExecuteSqlRaw("DELETE FROM [Tournaments]");
+                try { db.Database.ExecuteSqlRaw("DELETE FROM [Advertisements]"); } catch { }
             }
             else
             {
@@ -2297,6 +2343,7 @@ public class TournamentService : ITournamentService, IHostedService
                 db.Database.ExecuteSqlRaw("DELETE FROM Competitors");
                 db.Database.ExecuteSqlRaw("DELETE FROM Tatamis");
                 db.Database.ExecuteSqlRaw("DELETE FROM Tournaments");
+                try { db.Database.ExecuteSqlRaw("DELETE FROM Advertisements"); } catch { }
                 db.Database.ExecuteSqlRaw("PRAGMA foreign_keys = ON");
             }
 
@@ -2371,11 +2418,32 @@ public class TournamentService : ITournamentService, IHostedService
                 Number = t.Number,
                 Name = t.Name,
                 Discipline = t.Discipline,
-                CurrentDiscipline = t.CurrentDiscipline
+                CurrentDiscipline = t.CurrentDiscipline,
+                IsPaused = t.IsPaused,
+                PauseMessage = t.PauseMessage
             }).ToList();
             InsertWithIdentity("Tatamis", () =>
             {
                 db.Tatamis.AddRange(dbTatamis);
+                db.SaveChanges();
+            });
+
+            var dbAds = _advertisements.Select(a => new Advertisement
+            {
+                Id = a.Id,
+                Title = a.Title,
+                Subtitle = a.Subtitle,
+                Description = a.Description,
+                ImageUrl = a.ImageUrl,
+                LogoUrl = a.LogoUrl,
+                WebsiteUrl = a.WebsiteUrl,
+                DisplayDurationSeconds = a.DisplayDurationSeconds,
+                OrderIndex = a.OrderIndex,
+                IsActive = a.IsActive
+            }).ToList();
+            InsertWithIdentity("Advertisements", () =>
+            {
+                db.Advertisements.AddRange(dbAds);
                 db.SaveChanges();
             });
 
@@ -2598,6 +2666,8 @@ public class TournamentService : ITournamentService, IHostedService
                     entity.CurrentKumiteMatchId = local.CurrentKumiteMatchId;
                     entity.CurrentKataPerformanceId = local.CurrentKataPerformanceId;
                     entity.CurrentDiscipline = local.CurrentDiscipline;
+                    entity.IsPaused = local.IsPaused;
+                    entity.PauseMessage = local.PauseMessage;
                     db.SaveChanges();
                 }
             }
@@ -2659,6 +2729,216 @@ public class TournamentService : ITournamentService, IHostedService
 
             return query.Count();
         }
+    }
+
+    public void SetTatamiPause(int tatamiId, bool isPaused, string? pauseMessage = null)
+    {
+        lock (_lock)
+        {
+            var tatami = _tatamis.FirstOrDefault(t => t.Id == tatamiId);
+            if (tatami == null) return;
+
+            tatami.IsPaused = isPaused;
+            if (pauseMessage != null)
+            {
+                tatami.PauseMessage = pauseMessage;
+            }
+            else if (!isPaused)
+            {
+                tatami.PauseMessage = null;
+            }
+
+            NotifyChange(tatamiId);
+            SaveTatamiStateToDatabase(tatamiId);
+        }
+    }
+
+    public void SetAllTatamisPause(bool isPaused, string? pauseMessage = null)
+    {
+        lock (_lock)
+        {
+            foreach (var tatami in _tatamis)
+            {
+                tatami.IsPaused = isPaused;
+                if (pauseMessage != null)
+                {
+                    tatami.PauseMessage = pauseMessage;
+                }
+                else if (!isPaused)
+                {
+                    tatami.PauseMessage = null;
+                }
+                SaveTatamiStateToDatabase(tatami.Id);
+            }
+
+            NotifyChange();
+        }
+    }
+
+    public List<Advertisement> GetAdvertisements(bool onlyActive = false)
+    {
+        lock (_lock)
+        {
+            if (_advertisements.Count == 0)
+            {
+                _advertisements = GetDefaultSampleAdvertisements();
+            }
+
+            return onlyActive
+                ? _advertisements.Where(a => a.IsActive).OrderBy(a => a.OrderIndex).ToList()
+                : _advertisements.OrderBy(a => a.OrderIndex).ToList();
+        }
+    }
+
+    public Advertisement? GetAdvertisement(int id)
+    {
+        lock (_lock)
+        {
+            return _advertisements.FirstOrDefault(a => a.Id == id);
+        }
+    }
+
+    public Advertisement AddAdvertisement(Advertisement ad)
+    {
+        lock (_lock)
+        {
+            int nextId = _advertisements.Count > 0 ? _advertisements.Max(a => a.Id) + 1 : 1;
+            ad.Id = nextId;
+            if (ad.OrderIndex == 0)
+            {
+                ad.OrderIndex = nextId;
+            }
+            if (ad.DisplayDurationSeconds <= 0)
+            {
+                ad.DisplayDurationSeconds = 8;
+            }
+
+            _advertisements.Add(ad);
+            SaveAdvertisementsToDatabase();
+            NotifyChange();
+            return ad;
+        }
+    }
+
+    public void UpdateAdvertisement(Advertisement ad)
+    {
+        lock (_lock)
+        {
+            var existing = _advertisements.FirstOrDefault(a => a.Id == ad.Id);
+            if (existing != null)
+            {
+                existing.Title = ad.Title;
+                existing.Subtitle = ad.Subtitle;
+                existing.Description = ad.Description;
+                existing.ImageUrl = ad.ImageUrl;
+                existing.LogoUrl = ad.LogoUrl;
+                existing.WebsiteUrl = ad.WebsiteUrl;
+                existing.DisplayDurationSeconds = ad.DisplayDurationSeconds > 0 ? ad.DisplayDurationSeconds : 8;
+                existing.OrderIndex = ad.OrderIndex;
+                existing.IsActive = ad.IsActive;
+
+                SaveAdvertisementsToDatabase();
+                NotifyChange();
+            }
+        }
+    }
+
+    public bool DeleteAdvertisement(int id)
+    {
+        lock (_lock)
+        {
+            int removed = _advertisements.RemoveAll(a => a.Id == id);
+            if (removed > 0)
+            {
+                SaveAdvertisementsToDatabase();
+                NotifyChange();
+                return true;
+            }
+            return false;
+        }
+    }
+
+    private void SaveAdvertisementsToDatabase()
+    {
+        Task.Run(() =>
+        {
+            try
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<TournamentDbContext>();
+                db.Database.EnsureCreated();
+                try { db.Database.ExecuteSqlRaw("DELETE FROM Advertisements"); } catch { }
+
+                var list = _advertisements.Select(a => new Advertisement
+                {
+                    Id = a.Id,
+                    Title = a.Title,
+                    Subtitle = a.Subtitle,
+                    Description = a.Description,
+                    ImageUrl = a.ImageUrl,
+                    LogoUrl = a.LogoUrl,
+                    WebsiteUrl = a.WebsiteUrl,
+                    DisplayDurationSeconds = a.DisplayDurationSeconds,
+                    OrderIndex = a.OrderIndex,
+                    IsActive = a.IsActive
+                }).ToList();
+
+                db.Advertisements.AddRange(list);
+                db.SaveChanges();
+            }
+            catch { }
+        });
+    }
+
+    private static List<Advertisement> GetDefaultSampleAdvertisements()
+    {
+        return new List<Advertisement>
+        {
+            new()
+            {
+                Id = 1,
+                Title = "Kyokushin France Official Gear",
+                Subtitle = "Équipementier Officiel du Tournoi",
+                Description = "Kimonos de combat haute résistance, ceintures brodées et protections homologuées IKO. Profitez de 15% de remise avec le code OPEN2027.",
+                WebsiteUrl = "https://www.kyokushin-france.com",
+                DisplayDurationSeconds = 8,
+                OrderIndex = 1,
+                IsActive = true
+            },
+            new()
+            {
+                Id = 2,
+                Title = "Dojo Kyokushinkai Paris",
+                Subtitle = "Centre d'Entraînement National",
+                Description = "Cours d'arts martiaux traditionnels pour tous niveaux. Stages internationaux et préparation intensive aux compétitions.",
+                WebsiteUrl = "https://www.dojoparis.fr",
+                DisplayDurationSeconds = 8,
+                OrderIndex = 2,
+                IsActive = true
+            },
+            new()
+            {
+                Id = 3,
+                Title = "Budo Sport Santé & Nutrition",
+                Subtitle = "Partenaire Performance & Récupération",
+                Description = "Gamme complète de compléments nutritionnels certifiés et soins du combattant. L'énergie au service du guerrier Kyokushin.",
+                WebsiteUrl = "https://www.budosport.fr",
+                DisplayDurationSeconds = 8,
+                OrderIndex = 3,
+                IsActive = true
+            },
+            new()
+            {
+                Id = 4,
+                Title = "Fédération Française de Karaté",
+                Subtitle = "Soutien Institutionnel & Homologation",
+                Description = "Fiers de soutenir l'esprit martial, le respect et l'excellence sportive lors de l'Open de France Kyokushinkai 2027.",
+                WebsiteUrl = "https://www.ffkarate.fr",
+                DisplayDurationSeconds = 8,
+                OrderIndex = 4,
+                IsActive = true
+            }
+        };
     }
 
     private void NotifyChange(int tatamiId = 0)

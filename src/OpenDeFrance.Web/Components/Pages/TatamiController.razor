@@ -27,15 +27,47 @@
                     }
                 </h2>
             </div>
-            <div class="d-flex gap-2">
+            <div class="d-flex gap-2 flex-wrap">
                 <a href="/tatami/@TatamiId/tv" target="_blank" class="btn btn-outline-info">
                     📺 Ouvrir l'écran TV Tatami
                 </a>
                 <button class="btn btn-outline-warning" @onclick="PlayGong">
                     🔔 Coup de Gong
                 </button>
+                <button class="btn @(tatami.IsPaused ? "btn-success fw-bold" : "btn-warning fw-bold")"
+                        @onclick="TogglePause">
+                    @(tatami.IsPaused ? "▶ REPRENDRE" : "⏸ PAUSE / PUB")
+                </button>
+                @if (tatamis.Count > 1)
+                {
+                    @if (tatami.IsPaused)
+                    {
+                        <button class="btn btn-outline-success" @onclick="ResumeAll" title="Reprendre tous les tatamis">
+                            ▶▶ Tous reprendre
+                        </button>
+                    }
+                    else
+                    {
+                        <button class="btn btn-outline-warning" @onclick="PauseAll" title="Mettre en pause tous les tatamis">
+                            ⏸⏸ Tous en pause
+                        </button>
+                    }
+                }
             </div>
         </div>
+
+        @if (tatami.IsPaused)
+        {
+            <div class="alert alert-warning border-warning d-flex align-items-center gap-3 mb-3 flex-wrap">
+                <span class="fs-5">⏸ <strong>TATAMI EN PAUSE</strong> — L'écran TV affiche la publicité/pause.</span>
+                <div class="d-flex align-items-center gap-2 flex-grow-1">
+                    <input type="text" class="form-control form-control-sm"
+                           placeholder="Message de pause (optionnel, affiché si aucune pub)"
+                           @bind="pauseMessage" @bind:event="oninput" style="max-width: 320px;" />
+                    <button class="btn btn-sm btn-outline-dark" @onclick="UpdatePauseMessage">Mettre à jour</button>
+                </div>
+            </div>
+        }
 
         @if (tatami.Discipline == CompetitionType.Both)
         {
@@ -494,9 +526,11 @@
     public int TatamiId { get; set; }
 
     private Tatami? tatami;
+    private List<Tatami> tatamis = new();
     private double[] judgeInputScores = new double[5] { 75, 75, 75, 75, 75 };
     private int selectedDayFilter = 0;
     private int tournamentDaysCount = 1;
+    private string pauseMessage = "";
 
     private IEnumerable<KumiteMatch> FilteredKumiteMatches => tatami != null
         ? tatami.AssignedKumiteMatches.Where(m => selectedDayFilter == 0 || m.CompetitionDay == selectedDayFilter).OrderBy(m => m.MatchNumber)
@@ -526,6 +560,7 @@
             tournamentDaysCount = Math.Max(1, tournament.DaysCount);
         }
 
+        tatamis = TournamentService.GetTatamis();
         tatami = TournamentService.GetTatami(TatamiId);
         if (tatami?.CurrentKataPerformance != null && tatami.CurrentKataPerformance.JudgeScores.Count == 5)
         {
@@ -627,6 +662,34 @@
     private void FinalizeTour2(int categoryId)
     {
         TournamentService.FinalizeKataRound2(categoryId);
+        RefreshData();
+    }
+
+    private void TogglePause()
+    {
+        if (tatami == null) return;
+        bool willPause = !tatami.IsPaused;
+        TournamentService.SetTatamiPause(TatamiId, willPause, willPause ? pauseMessage : null);
+        RefreshData();
+    }
+
+    private void UpdatePauseMessage()
+    {
+        if (tatami?.IsPaused == true)
+        {
+            TournamentService.SetTatamiPause(TatamiId, true, pauseMessage);
+        }
+    }
+
+    private void PauseAll()
+    {
+        TournamentService.SetAllTatamisPause(true, pauseMessage);
+        RefreshData();
+    }
+
+    private void ResumeAll()
+    {
+        TournamentService.SetAllTatamisPause(false);
         RefreshData();
     }
 

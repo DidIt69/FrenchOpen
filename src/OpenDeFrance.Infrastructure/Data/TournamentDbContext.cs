@@ -15,6 +15,7 @@ public class TournamentDbContext : DbContext
     public DbSet<KataPerformance> KataPerformances => Set<KataPerformance>();
     public DbSet<Tatami> Tatamis => Set<Tatami>();
     public DbSet<Tournament> Tournaments => Set<Tournament>();
+    public DbSet<Advertisement> Advertisements => Set<Advertisement>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

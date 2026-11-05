@@ -48,15 +48,19 @@
                 <div class="@GetTatamiColClass()">
                 <div class="card h-100 shadow border-0 overflow-hidden">
                     <!-- Tatami Header -->
-                    <div class="card-header py-3 d-flex justify-content-between align-items-center @(tatami.CurrentDiscipline == CompetitionType.Kumite ? "bg-dark text-white" : "bg-primary text-white")">
+                    <div class="card-header py-3 d-flex justify-content-between align-items-center @(tatami.IsPaused ? "bg-warning text-dark" : tatami.CurrentDiscipline == CompetitionType.Kumite ? "bg-dark text-white" : "bg-primary text-white")">
                         <div>
                             <span class="fs-5 fw-bold">@tatami.Name</span>
                         </div>
-                        @if (tatami.CurrentDiscipline == CompetitionType.Kumite)
+                        @if (tatami.IsPaused)
+                        {
+                            <span class="badge bg-dark text-warning fs-6 fw-bold">⏸ PAUSE / PUB</span>
+                        }
+                        else if (tatami.CurrentDiscipline == CompetitionType.Kumite)
                         {
                             @if (tatami.CurrentKumiteMatch != null && tatami.CurrentKumiteMatch.Status != MatchStatus.Finished)
                             {
-                                <span class="badge bg-warning text-dark fs-6 fw-bold">Combat #@tatami.CurrentKumiteMatch.MatchNumber</span>
+                                <span class="badge bg-warning text-dark fs-6 fw-bold">Kumite #@tatami.CurrentKumiteMatch.MatchNumber</span>
                             }
                         }
                         else
@@ -69,7 +73,24 @@
                     </div>
 
                     <div class="card-body p-0">
-                        @if (tatami.CurrentDiscipline == CompetitionType.Kumite)
+                        @if (tatami.IsPaused)
+                        {
+                            <!-- Ecran pause dans la home -->
+                            <div class="d-flex flex-column align-items-center justify-content-center text-center py-5 px-3"
+                                 style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); min-height: 160px;">
+                                <div class="fs-2 mb-2">⏸</div>
+                                <div class="text-warning fw-bold fs-5 mb-1">PAUSE EN COURS</div>
+                                @if (!string.IsNullOrEmpty(tatami.PauseMessage))
+                                {
+                                    <div class="text-light small">@tatami.PauseMessage</div>
+                                }
+                                else
+                                {
+                                    <div class="text-secondary small">Publicités diffusées sur l'écran TV</div>
+                                }
+                            </div>
+                        }
+                        else if (tatami.CurrentDiscipline == CompetitionType.Kumite)
                         {
                             var isKataFinished = TournamentService.IsKataCompetitionFinished(tatamiId: tatami.Id);
                             if (!isKataFinished)
@@ -93,39 +114,59 @@
                                 {
                                     <!-- Current Kumite Match Banner -->
                                     <div class="p-3 bg-light border-bottom">
-                                        <div class="d-flex justify-content-between align-items-center mb-2">
-                                            <span class="badge bg-warning text-dark fw-bold">COMBAT EN COURS • J@match.CompetitionDay • #@match.MatchNumber</span>
-                                            <span class="badge bg-secondary">@match.RoundName</span>
-                                        </div>
-                                        <h6 class="fw-bold text-primary mb-2">@match.Category?.Name</h6>
+                                        <h6 class="fw-bold text-primary mb-2">@Lang[match.Category?.Name]</h6>
 
                                         <!-- Fighters Aka vs Shiro -->
                                         <div class="row g-2 text-center align-items-center mb-2">
                                             <div class="col-5 p-2 rounded bg-danger text-white overflow-hidden">
-                                                <div class="small fw-bold">AKA (ROUGE)</div>
                                                 <div class="auto-scroll-container fw-bold small" title="@match.AkaDisplayName">
                                                     <span class="auto-scroll-content">@match.AkaDisplayName</span>
                                                 </div>
-                                                <div class="auto-scroll-container text-white-50 small" title="@(match.AkaCompetitor != null ? $"{match.AkaCompetitor.CountryFlag} {match.AkaCompetitor.Club}" : "")">
-                                                    <span class="auto-scroll-content">@(match.AkaCompetitor != null ? $"{match.AkaCompetitor.CountryFlag} {match.AkaCompetitor.Club}" : "")</span>
+                                                <div 
+                                                    class="small" 
+                                                    style="display:flex;align-items:center;justify-content:center;"
+                                                    title="@(match.AkaCompetitor != null ? $"{match.AkaCompetitor.CountryFlag} {match.AkaCompetitor.Club}" : "")"
+                                                >
+                                                    <img 
+                                                        src="@match.AkaCompetitor?.FlagImageUrl"
+                                                        alt="@match.AkaCompetitor.Country"
+                                                        title="@match.AkaCompetitor.Country"
+                                                        class="border rounded-1 me-1 flex-shrink-0"
+                                                        style="width: 22px; height: 15px; object-fit: cover; vertical-align: middle; box-shadow: 0 1px 2px rgba(0,0,0,0.15);" 
+                                                    />
+                                                    <div class="auto-scroll-container">
+                                                        <span class="auto-scroll-content">@(match.AkaCompetitor != null ? $" {match.AkaCompetitor.Club}" : "")</span>
+                                                    </div>
                                                 </div>
                                                 <div class="mt-1 badge bg-dark text-nowrap" style="font-size: 0.75rem;">
-                                                    W: @match.AkaWazaAri | I: @match.AkaIppon
+                                                    <small class="auto-scroll-content">@match.AkaCompetitor.GradeName</small>
                                                 </div>
                                             </div>
 
                                             <div class="col-2 fw-bold text-muted small">VS</div>
 
-                                            <div class="col-5 p-2 rounded bg-dark text-white overflow-hidden">
-                                                <div class="small fw-bold text-white-50">SHIRO (BLANC)</div>
+                                            <div class="col-5 p-2 rounded border-secondary border overflow-hidden">
                                                 <div class="auto-scroll-container fw-bold small" title="@match.ShiroDisplayName">
                                                     <span class="auto-scroll-content">@match.ShiroDisplayName</span>
                                                 </div>
-                                                <div class="auto-scroll-container text-white-50 small" title="@(match.ShiroCompetitor != null ? $"{match.ShiroCompetitor.CountryFlag} {match.ShiroCompetitor.Club}" : "")">
-                                                    <span class="auto-scroll-content">@(match.ShiroCompetitor != null ? $"{match.ShiroCompetitor.CountryFlag} {match.ShiroCompetitor.Club}" : "")</span>
+                                                <div 
+                                                    class="small" 
+                                                    style="display:flex;align-items:center;justify-content:center;"
+                                                    title="@(match.ShiroCompetitor != null ? $"{match.ShiroCompetitor.CountryFlag} {match.ShiroCompetitor.Club}" : "")"
+                                                >
+                                                    <img 
+                                                        src="@match.ShiroCompetitor?.FlagImageUrl"
+                                                        alt="@match.ShiroCompetitor.Country"
+                                                        title="@match.ShiroCompetitor.Country"
+                                                        class="border rounded-1 me-1 flex-shrink-0"
+                                                        style="width: 22px; height: 15px; object-fit: cover; vertical-align: middle; box-shadow: 0 1px 2px rgba(0,0,0,0.15);" 
+                                                    />
+                                                    <div class="auto-scroll-container">
+                                                        <span class="auto-scroll-content">@(match.ShiroCompetitor != null ? $" {match.ShiroCompetitor.Club}" : "")</span>
+                                                    </div>
                                                 </div>
                                                 <div class="mt-1 badge bg-secondary text-nowrap" style="font-size: 0.75rem;">
-                                                    W: @match.ShiroWazaAri | I: @match.ShiroIppon
+                                                    <small class="auto-scroll-content">@match.AkaCompetitor.GradeName</small>
                                                 </div>
                                             </div>
                                         </div>
@@ -142,7 +183,7 @@
                                             else
                                             {
                                                 <span class="badge @(match.IsTimerRunning ? "bg-success" : "bg-warning text-dark")">
-                                                    @(match.IsTimerRunning ? "En combat" : "Arrêté")
+                                                    @(match.IsTimerRunning ? @Lang["InProgress"] : @Lang["Stopped"])
                                                 </span>
                                             }
                                         </div>
@@ -151,14 +192,14 @@
                                 else
                                 {
                                     <div class="p-4 text-center text-muted">
-                                        <em>Aucun combat en cours sur ce tatami</em>
+                                        <em>@Lang["NoFightOnTatami"]</em>
                                     </div>
                                 }
 
                                  <!-- Upcoming Matches on this Tatami -->
                                 <div class="p-3">
                                     <h6 class="text-uppercase text-secondary fw-bold small mb-2">
-                                        ⏭️ Prochains combats sur ce tatami
+                                        @Lang["NextFight"]
                                     </h6>
                                     @{
                                         var upcoming = tatami.AssignedKumiteMatches
@@ -169,7 +210,7 @@
                                     }
                                     @if (upcoming.Count == 0)
                                     {
-                                        <div class="text-muted small">Aucun autre combat programmé pour le moment.</div>
+                                        <div class="text-muted small">@Lang["NoOtherFightPending"]</div>
                                     }
                                     else
                                     {
@@ -180,40 +221,66 @@
                                                     <div class="d-flex justify-content-between align-items-center mb-1">
                                                         <div class="d-flex align-items-center gap-1">
                                                             <span class="badge bg-secondary me-1">#@up.MatchNumber</span>
-                                                            <small class="badge bg-light text-dark">@up.RoundName</small>
+                                                            <small class="badge bg-light text-dark">@Lang[up.RoundName]</small>
                                                         </div>
-                                                        <small class="text-muted">@up.Category?.Name</small>
+                                                        <small class="text-muted">@Lang[up.Category?.Name]</small>
                                                     </div>
                                                     
                                                     <!-- Ligne AKA -->
-                                                    <div class="d-flex align-items-center gap-1 text-nowrap my-1" style="overflow: hidden; max-width: 100%;">
+                                                    <div 
+                                                        class="d-flex align-items-center gap-1 text-nowrap" 
+                                                        style="overflow: hidden; max-width: 100%;"
+                                                    >
                                                         <span class="badge bg-danger p-0 me-1 flex-shrink-0" style="width: 8px; height: 8px; border-radius: 50%; display: inline-block;"></span>
+
                                                         @if (up.AkaCompetitor != null)
                                                         {
-                                                            <img src="@up.AkaCompetitor.FlagImageUrl" alt="@up.AkaCompetitor.Country" title="@up.AkaCompetitor.Country"
-                                                                 class="border rounded-1 me-1 flex-shrink-0" style="width: 18px; height: 12px; object-fit: cover;" />
+                                                            <img 
+                                                                src="@up.AkaCompetitor.FlagImageUrl" 
+                                                                alt="@up.AkaCompetitor.Country" title="@up.AkaCompetitor.Country"
+                                                                class="border rounded-1 me-1 flex-shrink-0" 
+                                                                style="width: 18px; height: 12px; object-fit: cover;" 
+                                                            />
                                                         }
+
                                                         <strong class="text-danger me-1 flex-shrink-0">@up.AkaDisplayName</strong>
+                                                    </div>
+                                                    <div class="small px-5">
                                                         @if (up.AkaCompetitor != null && (!string.IsNullOrWhiteSpace(up.AkaCompetitor.Club) || !string.IsNullOrWhiteSpace(up.AkaCompetitor.GradeName)))
                                                         {
-                                                            <div class="auto-scroll-container flex-grow-1 text-muted" title="@up.AkaCompetitor.Club • @up.AkaCompetitor.GradeName">
+                                                            <div 
+                                                                class="auto-scroll-container flex-grow-1 text-muted" 
+                                                                title="@up.AkaCompetitor.Club • @up.AkaCompetitor.GradeName"
+                                                            >
                                                                 <small class="auto-scroll-content">@up.AkaCompetitor.Club • @up.AkaCompetitor.GradeName</small>
                                                             </div>
                                                         }
                                                     </div>
 
                                                     <!-- Ligne SHIRO -->
-                                                    <div class="d-flex align-items-center gap-1 text-nowrap my-1" style="overflow: hidden; max-width: 100%;">
+                                                    <div class="d-flex align-items-center gap-1 text-nowrap" style="overflow: hidden; max-width: 100%;">
                                                         <span class="badge bg-white border border-secondary p-0 me-1 flex-shrink-0" style="width: 8px; height: 8px; border-radius: 50%; display: inline-block;"></span>
+                                                        
                                                         @if (up.ShiroCompetitor != null)
                                                         {
-                                                            <img src="@up.ShiroCompetitor.FlagImageUrl" alt="@up.ShiroCompetitor.Country" title="@up.ShiroCompetitor.Country"
-                                                                 class="border rounded-1 me-1 flex-shrink-0" style="width: 18px; height: 12px; object-fit: cover;" />
+                                                            <img 
+                                                                src="@up.ShiroCompetitor.FlagImageUrl" 
+                                                                alt="@up.ShiroCompetitor.Country" 
+                                                                title="@up.ShiroCompetitor.Country"
+                                                                class="border rounded-1 me-1 flex-shrink-0" 
+                                                                style="width: 18px; height: 12px; object-fit: cover;" 
+                                                            />
                                                         }
+                                                        
                                                         <strong class="me-1 flex-shrink-0">@up.ShiroDisplayName</strong>
+                                                    </div>
+                                                    <div class="small px-5">
                                                         @if (up.ShiroCompetitor != null && (!string.IsNullOrWhiteSpace(up.ShiroCompetitor.Club) || !string.IsNullOrWhiteSpace(up.ShiroCompetitor.GradeName)))
                                                         {
-                                                            <div class="auto-scroll-container flex-grow-1 text-muted" title="@up.ShiroCompetitor.Club • @up.ShiroCompetitor.GradeName">
+                                                            <div 
+                                                                class="auto-scroll-container flex-grow-1 text-muted" 
+                                                                title="@up.ShiroCompetitor.Club • @up.ShiroCompetitor.GradeName"
+                                                            >
                                                                 <small class="auto-scroll-content">@up.ShiroCompetitor.Club • @up.ShiroCompetitor.GradeName</small>
                                                             </div>
                                                         }
@@ -619,15 +686,23 @@
                                     }
                                     else
                                     {
-                                        <!-- Ligne 1 : AKA -->
+                                        <!-- Ligne 1 : Badge -->
                                         <div class="d-flex align-items-center gap-1 flex-wrap mb-1">
                                             <span class="badge bg-secondary me-1 flex-shrink-0">#@item.Number</span>
                                             <span class="badge bg-danger me-1 flex-shrink-0" style="font-size:0.65rem;">KUMITÉ</span>
+                                        </div>
+
+                                        <!-- Ligne 2 : AKA -->
+                                        <div class="d-flex align-items-center gap-1 flex-wrap mb-1">
                                             <span class="badge bg-danger p-0 me-1 flex-shrink-0" style="width: 8px; height: 8px; border-radius: 50%; display: inline-block;"></span>
                                             @if (!string.IsNullOrEmpty(item.AkaFlagUrl))
                                             {
-                                                <img src="@item.AkaFlagUrl" alt="@item.AkaCountry" title="@item.AkaCountry"
-                                                     class="border rounded-1 me-1 flex-shrink-0" style="width: 18px; height: 12px; object-fit: cover;" />
+                                                <img 
+                                                    src="@item.AkaFlagUrl" 
+                                                    alt="@item.AkaCountry" 
+                                                    title="@item.AkaCountry"
+                                                    class="border rounded-1 me-1 flex-shrink-0" style="width: 18px; height: 12px; object-fit: cover;" 
+                                                />
                                             }
                                             <strong class="text-danger text-truncate me-1">@item.AkaName</strong>
                                             @if (!string.IsNullOrWhiteSpace(item.AkaClub) || !string.IsNullOrWhiteSpace(item.AkaGrade))
@@ -636,7 +711,7 @@
                                             }
                                         </div>
 
-                                        <!-- Ligne 2 : SHIRO sur sa propre ligne -->
+                                        <!-- Ligne 3 : SHIRO sur sa propre ligne -->
                                         <div class="d-flex align-items-center gap-1 flex-wrap ms-1">
                                             <span class="badge bg-white border border-secondary p-0 me-1 flex-shrink-0" style="width: 8px; height: 8px; border-radius: 50%; display: inline-block;"></span>
                                             @if (!string.IsNullOrEmpty(item.ShiroFlagUrl))

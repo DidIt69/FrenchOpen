@@ -22,7 +22,7 @@
                     <option value="">@Lang["AllDays"]</option>
                     @foreach (var day in AvailableDays)
                     {
-                        <option value="@day">J@(day)</option>
+                        <option value="@day">@Lang["DayFull"] @(day)</option>
                     }
                 </select>
             </div>
@@ -35,7 +35,7 @@
                     {
                         bool finished = IsCategoryFinished(cat);
                         <option value="@cat.Id">
-                            @(finished ? "✅" : (cat.Type == CompetitionType.Kumite ? "🥊" : "🥋")) [#@cat.OrderIndex] 📅 J@(cat.CompetitionDay) • @cat.Name @(!cat.AssignedTatamiId.HasValue ? "(🚫 Sans tatami)" : "") @(finished ? "— Terminé" : "")
+                            @(finished ? "✅" : (cat.Type == CompetitionType.Kumite ? "🥊" : "🥋")) [#@cat.OrderIndex] 📅 @Lang["DayFull"]@(cat.CompetitionDay) • @Lang[cat.Name] @(!cat.AssignedTatamiId.HasValue ? Lang["WithoutTatami"] : "") @(finished ? "-" : "") @(finished ? Lang["Finished"] : "")
                         </option>
                     }
                 </select>
@@ -71,9 +71,9 @@
             <div class="card-header bg-dark text-white py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <div>
                     <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-1 gap-md-2 flex-wrap">
-                        <h4 class="mb-0 fw-bold">@selectedCategory.Name</h4>
+                        <h4 class="mb-0 fw-bold">@Lang[selectedCategory.Name]</h4>
                         <div class="d-flex align-items-center gap-1 flex-wrap">
-                            <span class="badge bg-warning text-dark border fw-bold">📅 Jour @selectedCategory.CompetitionDay</span>
+                            <span class="badge bg-warning text-dark border fw-bold">📅 @Lang["DayFull"] @selectedCategory.CompetitionDay</span>
                             
                             @if (selectedCategory.AssignedTatamiId.HasValue)
                             {
@@ -467,7 +467,7 @@
                                                 </div>
                                             </div>
 
-                                            <!-- Ligne 2 : compétiteur + drapeau + club + grade -->
+                                            <!-- Ligne 2 : compétiteur + drapeau -->
                                             <div class="d-flex align-items-center gap-1 flex-wrap mb-1">
                                                 @if (p.Competitor != null)
                                                 {
@@ -481,11 +481,11 @@
                                                 <strong>@p.CompetitorDisplayName</strong>
                                             </div>
 
-                                            <!-- Ligne 3 : notes juges + score -->
+                                            <!-- Ligne 3 : club + grade -->
                                             <div class="d-flex align-items-center gap-1 flex-wrap mb-1">
                                                 @if (p.Competitor != null)
                                                 {
-                                                    <small class="text-muted">(@p.Competitor.Club • @p.Competitor.GradeName)</small>
+                                                    <small class="text-muted">@p.Competitor.Club • @p.Competitor.GradeName</small>
                                                 }
                                             </div>
 
@@ -542,10 +542,10 @@
                                             };
                                             string podiumLabel = p.RankInRound switch
                                             {
-                                                1 => "🥇 1er",
-                                                2 => "🥈 2e",
-                                                3 => "🥉 3e",
-                                                4 => "4e",
+                                                1 => "1",
+                                                2 => "2",
+                                                3 => "3",
+                                                4 => "4",
                                                 _ => $"#{p.RankInRound}"
                                             };
 

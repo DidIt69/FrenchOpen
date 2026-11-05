@@ -34,7 +34,69 @@
         </header>
 
         <!-- Main Content -->
-        @if (tatami.CurrentDiscipline == CompetitionType.Kumite)
+        @if (tatami.IsPaused)
+        {
+            <!-- ========== ECRAN PAUSE / PUBLICITE ========== -->
+            var ads = TournamentService.GetAdvertisements(onlyActive: true)
+                                       .OrderBy(a => a.OrderIndex).ToList();
+            @if (ads.Count > 0)
+            {
+                var ad = ads[currentAdIndex % ads.Count];
+                <div class="pause-screen d-flex flex-column align-items-center justify-content-center text-center">
+                    @if (!string.IsNullOrEmpty(ad.ImageUrl))
+                    {
+                        <img src="@ad.ImageUrl" alt="@ad.Title"
+                             style="max-width: 70%; max-height: 45vh; object-fit: contain; margin-bottom: 24px; border-radius: 12px;" />
+                    }
+                    @if (!string.IsNullOrEmpty(ad.LogoUrl))
+                    {
+                        <img src="@ad.LogoUrl" alt="logo"
+                             style="max-height: 80px; object-fit: contain; margin-bottom: 16px;" />
+                    }
+                    <h1 class="display-3 fw-bold text-white mb-2">@ad.Title</h1>
+                    @if (!string.IsNullOrEmpty(ad.Subtitle))
+                    {
+                        <h3 class="text-warning mb-3">@ad.Subtitle</h3>
+                    }
+                    @if (!string.IsNullOrEmpty(ad.Description))
+                    {
+                        <p class="fs-4 text-light mb-4" style="max-width: 700px;">@ad.Description</p>
+                    }
+                    @if (!string.IsNullOrEmpty(ad.WebsiteUrl))
+                    {
+                        <div class="badge bg-warning text-dark fs-5 px-4 py-2 mb-4">🌐 @ad.WebsiteUrl</div>
+                    }
+                    <!-- Indicateurs de slides -->
+                    <div class="d-flex gap-2 mt-3">
+                        @for (int i = 0; i < ads.Count; i++)
+                        {
+                            int idx = i;
+                            <span style="width: 12px; height: 12px; border-radius: 50%; display: inline-block;
+                                         background: @(idx == currentAdIndex % ads.Count ? "#ffd700" : "rgba(255,255,255,0.3)");
+                                         transition: background 0.4s;">
+                            </span>
+                        }
+                    </div>
+                </div>
+            }
+            else
+            {
+                <!-- Pas de pub configurée : écran de pause générique -->
+                <div class="empty-screen d-flex flex-column align-items-center justify-content-center p-5 text-center">
+                    <div class="display-1 mb-4">⏸</div>
+                    <h1 class="display-3 fw-bold text-warning mb-3">PAUSE</h1>
+                    @if (!string.IsNullOrEmpty(tatami.PauseMessage))
+                    {
+                        <p class="fs-3 text-light">@tatami.PauseMessage</p>
+                    }
+                    else
+                    {
+                        <p class="fs-3 text-muted">La compétition reprend bientôt…</p>
+                    }
+                </div>
+            }
+        }
+        else if (tatami.CurrentDiscipline == CompetitionType.Kumite)
         {
             if (!TournamentService.IsKataCompetitionFinished(tatamiId: TatamiId))
             {
@@ -288,12 +350,29 @@
     public int TatamiId { get; set; }
 
     private Tatami? tatami;
+    private int currentAdIndex = 0;
+    private System.Threading.Timer? _adTimer;
 
     protected override void OnInitialized()
     {
         RefreshData();
         TournamentService.OnTatamiUpdated += HandleTatamiUpdated;
         TournamentService.OnTimerZero += HandleTimerZero;
+
+        // Timer de rotation des publicités (toutes les 8s par défaut)
+        _adTimer = new System.Threading.Timer(async _ =>
+        {
+            if (tatami?.IsPaused == true)
+            {
+                var ads = TournamentService.GetAdvertisements(onlyActive: true);
+                if (ads.Count > 1)
+                {
+                    // Durée dynamique selon la pub courante
+                    currentAdIndex++;
+                }
+                await InvokeAsync(StateHasChanged);
+            }
+        }, null, TimeSpan.FromSeconds(8), TimeSpan.FromSeconds(8));
     }
 
     protected override void OnParametersSet()
@@ -334,10 +413,24 @@
     {
         TournamentService.OnTatamiUpdated -= HandleTatamiUpdated;
         TournamentService.OnTimerZero -= HandleTimerZero;
+        _adTimer?.Dispose();
     }
 }
 
 <style>
+    .pause-screen {
+        background: linear-gradient(135deg, #0d121d 0%, #1b2838 100%);
+        color: white;
+        min-height: calc(100vh - 70px);
+        padding: 40px 60px;
+        animation: fadeIn 0.5s ease;
+    }
+
+    @@keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+
     .tatami-tv-container {
         display: flex;
         flex-direction: column;

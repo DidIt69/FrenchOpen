@@ -73,4 +73,13 @@ public interface ITournamentService
     bool IsKataCompetitionFinished(int? competitionDay = null, int? tatamiId = null);
     int GetPendingKataCount(int? competitionDay = null, int? tatamiId = null);
     int GetTotalKataCount(int? competitionDay = null, int? tatamiId = null);
+
+    // Pause & Publicités / Sponsors
+    void SetTatamiPause(int tatamiId, bool isPaused, string? pauseMessage = null);
+    void SetAllTatamisPause(bool isPaused, string? pauseMessage = null);
+    List<Advertisement> GetAdvertisements(bool onlyActive = false);
+    Advertisement? GetAdvertisement(int id);
+    Advertisement AddAdvertisement(Advertisement ad);
+    void UpdateAdvertisement(Advertisement ad);
+    bool DeleteAdvertisement(int id);
 }

@@ -18,4 +18,7 @@ public class Tatami
 
     public List<KumiteMatch> AssignedKumiteMatches { get; set; } = new();
     public List<KataPerformance> AssignedKataPerformances { get; set; } = new();
+
+    public bool IsPaused { get; set; } = false;
+    public string? PauseMessage { get; set; }
 }
