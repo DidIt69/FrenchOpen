@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <base href="/" />
     <ResourcePreloader />
     <link rel="stylesheet" href="@Assets["lib/bootstrap/dist/css/bootstrap.min.css"]" />
@@ -21,20 +21,22 @@
     <script src="js/auto-scroll.js"></script>
     <script src="@Assets["_framework/blazor.web.js"]" autostart="false"></script>
     <script>
-        // Configuration Blazor pour compatibilité Safari / iOS.
-        // Safari peut bloquer les WebSockets (ITP, proxies, restrictions réseau).
-        // On configure SignalR pour essayer WebSockets puis LongPolling en fallback.
+        // Démarrage manuel de Blazor pour configurer SignalR avant la connexion.
+        // IMPORTANT : configureSignalR doit être DANS circuit:{} pour Blazor Web App .NET 8+.
+        // Sans ça, le fallback LongPolling n'est pas activé et Safari (qui peut bloquer
+        // les WebSockets) reste sans connexion au circuit Blazor → aucun bouton ne réagit.
         Blazor.start({
             circuit: {
+                configureSignalR: function (builder) {
+                    // HttpTransportType (enum SignalR) :
+                    //   WebSockets = 1, ServerSentEvents = 2, LongPolling = 4
+                    // 1 | 4 = 5 : essaie WebSocket en premier, bascule sur LongPolling si bloqué
+                    builder.withUrl("/_blazor", { transport: 1 | 4 });
+                },
                 reconnectionOptions: {
                     maxRetries: 10,
-                    retryIntervalMilliseconds: 2000,
-                },
-            },
-            configureSignalR: function (builder) {
-                // HttpTransportType : WebSockets=1, ServerSentEvents=2, LongPolling=4
-                // 1 | 4 = tente WebSocket d'abord, bascule sur LongPolling si échec
-                builder.withUrl("/_blazor", { transport: 1 | 4 });
+                    retryIntervalMilliseconds: 2000
+                }
             }
         });
     </script>

@@ -207,6 +207,7 @@ public class LanguageService : ILanguageService
         ["Turn 3"] = new() { ["fr"] = "Tour 3", ["en"] = "Turn 3" },
         ["Turn 4"] = new() { ["fr"] = "Tour 4", ["en"] = "Turn 4" },
         ["Turn 5"] = new() { ["fr"] = "Tour 5", ["en"] = "Turn 5" },
+        ["Filter"] = new() { ["fr"] = "Filtrer", ["en"] = "Filter" },
 
 
         // General / Nav
