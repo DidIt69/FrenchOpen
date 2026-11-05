@@ -2145,27 +2145,62 @@ public class TournamentService : ITournamentService, IHostedService
                 if (db != null)
                 {
                     db.Database.EnsureCreated();
-                    try { db.Database.ExecuteSqlRaw("ALTER TABLE Tatamis ADD COLUMN IsPaused INTEGER NOT NULL DEFAULT 0;"); } catch { }
-                    try { db.Database.ExecuteSqlRaw("ALTER TABLE Tatamis ADD COLUMN PauseMessage TEXT NULL;"); } catch { }
 
-                    // Créer la table Advertisements si elle n'existe pas encore (migration manuelle)
-                    try
+                    bool initIsSqlServer = db.Database.ProviderName?.Contains("SqlServer") == true;
+
+                    if (initIsSqlServer)
                     {
-                        db.Database.ExecuteSqlRaw(@"
-                            CREATE TABLE IF NOT EXISTS Advertisements (
-                                Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                Title TEXT NOT NULL DEFAULT '',
-                                Subtitle TEXT NULL,
-                                Description TEXT NULL,
-                                ImageUrl TEXT NULL,
-                                LogoUrl TEXT NULL,
-                                WebsiteUrl TEXT NULL,
-                                DisplayDurationSeconds INTEGER NOT NULL DEFAULT 8,
-                                OrderIndex INTEGER NOT NULL DEFAULT 0,
-                                IsActive INTEGER NOT NULL DEFAULT 1
-                            );");
+                        // SQL Server : ADD COLUMN avec IF NOT EXISTS via sys.columns
+                        try { db.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Tatamis') AND name = 'IsPaused') ALTER TABLE [Tatamis] ADD [IsPaused] BIT NOT NULL DEFAULT 0;"); } catch { }
+                        try { db.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Tatamis') AND name = 'PauseMessage') ALTER TABLE [Tatamis] ADD [PauseMessage] NVARCHAR(MAX) NULL;"); } catch { }
+
+                        // Créer la table Advertisements si elle n'existe pas (SQL Server)
+                        try
+                        {
+                            db.Database.ExecuteSqlRaw(@"
+                                IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'Advertisements')
+                                BEGIN
+                                    CREATE TABLE [Advertisements] (
+                                        [Id]                     INT            IDENTITY(1,1) PRIMARY KEY,
+                                        [Title]                  NVARCHAR(MAX)  NOT NULL DEFAULT '',
+                                        [Subtitle]               NVARCHAR(MAX)  NULL,
+                                        [Description]            NVARCHAR(MAX)  NULL,
+                                        [ImageUrl]               NVARCHAR(MAX)  NULL,
+                                        [LogoUrl]                NVARCHAR(MAX)  NULL,
+                                        [WebsiteUrl]             NVARCHAR(MAX)  NULL,
+                                        [DisplayDurationSeconds] INT            NOT NULL DEFAULT 8,
+                                        [OrderIndex]             INT            NOT NULL DEFAULT 0,
+                                        [IsActive]               BIT            NOT NULL DEFAULT 1
+                                    );
+                                END");
+                        }
+                        catch { }
                     }
-                    catch { }
+                    else
+                    {
+                        // SQLite : ALTER TABLE simple (échoue silencieusement si colonne existe déjà)
+                        try { db.Database.ExecuteSqlRaw("ALTER TABLE Tatamis ADD COLUMN IsPaused INTEGER NOT NULL DEFAULT 0;"); } catch { }
+                        try { db.Database.ExecuteSqlRaw("ALTER TABLE Tatamis ADD COLUMN PauseMessage TEXT NULL;"); } catch { }
+
+                        // Créer la table Advertisements si elle n'existe pas (SQLite)
+                        try
+                        {
+                            db.Database.ExecuteSqlRaw(@"
+                                CREATE TABLE IF NOT EXISTS Advertisements (
+                                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                    Title TEXT NOT NULL DEFAULT '',
+                                    Subtitle TEXT NULL,
+                                    Description TEXT NULL,
+                                    ImageUrl TEXT NULL,
+                                    LogoUrl TEXT NULL,
+                                    WebsiteUrl TEXT NULL,
+                                    DisplayDurationSeconds INTEGER NOT NULL DEFAULT 8,
+                                    OrderIndex INTEGER NOT NULL DEFAULT 0,
+                                    IsActive INTEGER NOT NULL DEFAULT 1
+                                );");
+                        }
+                        catch { }
+                    }
 
                     try
                     {
