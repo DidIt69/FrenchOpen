@@ -13,7 +13,22 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+    .AddInteractiveServerComponents(options =>
+    {
+        // Augmente les timeouts pour les connexions lentes (Safari, mobile)
+        options.DisconnectedCircuitRetentionPeriod = TimeSpan.FromMinutes(5);
+    });
+
+// SignalR : configuration pour compatibilité Safari / iOS
+// Safari peut bloquer les WebSockets dans certains contextes (ITP, proxy).
+// On active le fallback LongPolling pour garantir le fonctionnement.
+builder.Services.AddSignalR(options =>
+{
+    options.EnableDetailedErrors = builder.Environment.IsDevelopment();
+    options.ClientTimeoutInterval = TimeSpan.FromSeconds(60);
+    options.HandshakeTimeout = TimeSpan.FromSeconds(30);
+    options.KeepAliveInterval = TimeSpan.FromSeconds(15);
+});
 
 // Authentication & Authorization Services (Cookie Scheme for HTTP & Cascading State)
 builder.Services.AddAuthentication(options =>
@@ -29,6 +44,15 @@ builder.Services.AddAuthentication(options =>
     options.AccessDeniedPath = "/login";
     options.ExpireTimeSpan = TimeSpan.FromHours(12);
     options.SlidingExpiration = true;
+    // Safari (ITP) exige SameSite=None + Secure pour accepter les cookies
+    // lors des connexions WebSocket/SignalR cross-context.
+    // En développement on laisse Lax pour éviter de forcer HTTPS.
+    options.Cookie.SameSite = builder.Environment.IsDevelopment()
+        ? SameSiteMode.Lax
+        : SameSiteMode.None;
+    options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
+        ? CookieSecurePolicy.SameAsRequest
+        : CookieSecurePolicy.Always;
 });
 
 builder.Services.AddAuthorization();

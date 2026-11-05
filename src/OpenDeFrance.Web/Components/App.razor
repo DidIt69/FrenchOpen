@@ -19,7 +19,25 @@
     <ReconnectModal />
     <script src="js/tournament-audio.js"></script>
     <script src="js/auto-scroll.js"></script>
-    <script src="@Assets["_framework/blazor.web.js"]"></script>
+    <script src="@Assets["_framework/blazor.web.js"]" autostart="false"></script>
+    <script>
+        // Configuration Blazor pour compatibilité Safari / iOS.
+        // Safari peut bloquer les WebSockets (ITP, proxies, restrictions réseau).
+        // On configure SignalR pour essayer WebSockets puis LongPolling en fallback.
+        Blazor.start({
+            circuit: {
+                reconnectionOptions: {
+                    maxRetries: 10,
+                    retryIntervalMilliseconds: 2000,
+                },
+            },
+            configureSignalR: function (builder) {
+                // HttpTransportType : WebSockets=1, ServerSentEvents=2, LongPolling=4
+                // 1 | 4 = tente WebSocket d'abord, bascule sur LongPolling si échec
+                builder.withUrl("/_blazor", { transport: 1 | 4 });
+            }
+        });
+    </script>
 </body>
 
 </html>
