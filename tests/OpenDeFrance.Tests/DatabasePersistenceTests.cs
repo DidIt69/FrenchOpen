@@ -7,6 +7,8 @@ using OpenDeFrance.Infrastructure.Services;
 
 namespace OpenDeFrance.Tests;
 
+// Ce test écrit en base SQLite : on le force à s'exécuter seul pour éviter la contention
+[Collection("DatabaseTests")]
 public class DatabasePersistenceTests
 {
     [Fact]
@@ -50,16 +52,22 @@ public class DatabasePersistenceTests
             var firstMatch = tournamentService.GetMatches().First(m => !m.IsBye);
             tournamentService.AddScore(firstMatch.Id, CornerColor.Aka, "wazaari");
 
-            // Attendre la sauvegarde asynchrone
-            Thread.Sleep(300);
+            // Attendre la sauvegarde asynchrone avec une attente active (max 3s)
+            var deadline = DateTime.UtcNow.AddSeconds(3);
+            int savedValue = 0;
+            while (DateTime.UtcNow < deadline)
+            {
+                Thread.Sleep(100);
+                using var scope = scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<TournamentDbContext>();
+                savedValue = db.KumiteMatches.AsNoTracking()
+                                             .First(m => m.Id == firstMatch.Id)
+                                             .AkaWazaAri;
+                if (savedValue == 1) break;
+            }
 
             // Assert 2 : Vérifier que la base SQLite contient le score à jour
-            using (var scope = scopeFactory.CreateScope())
-            {
-                var db = scope.ServiceProvider.GetRequiredService<TournamentDbContext>();
-                var matchInDb = db.KumiteMatches.First(m => m.Id == firstMatch.Id);
-                Assert.Equal(1, matchInDb.AkaWazaAri);
-            }
+            Assert.Equal(1, savedValue);
         }
         finally
         {
