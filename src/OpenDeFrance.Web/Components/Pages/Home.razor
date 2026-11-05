@@ -19,7 +19,8 @@
                 @foreach (var t in tatamis)
                 {
                     bool isSelected = selectedTatamiIds.Contains(t.Id);
-                    <button 
+                    <button
+                        type="button"
                         class="btn btn-sm @(isSelected ? "btn-primary fw-bold shadow-sm" : "btn-outline-primary")"
                         @onclick="() => ToggleTatamiSelection(t.Id)"
                     >
@@ -849,7 +850,7 @@
         selectedTatamiIds.Clear();
     }
 
-    private void ToggleTatamiSelection(int tatamiId)
+    private async Task ToggleTatamiSelection(int tatamiId)
     {
         if (selectedTatamiIds.Contains(tatamiId))
         {
@@ -859,6 +860,8 @@
         {
             selectedTatamiIds.Add(tatamiId);
         }
+        // Retirer le focus du bouton pour que son aspect visuel reflète immédiatement l'état
+        await JS.InvokeVoidAsync("eval", "document.activeElement?.blur()");
     }
 
     private void ToggleCategoryDropdown()
