@@ -40,6 +40,14 @@
             }
         });
     </script>
+<script>
+    // Force Safari mobile à propager tous les clics vers le moteur Blazor
+    document.addEventListener("DOMContentLoaded", function () {
+        if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+            document.body.style.cursor = "pointer";
+        }
+    });
+</script>
 </body>
 
 </html>
