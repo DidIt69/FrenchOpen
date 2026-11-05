@@ -21,7 +21,7 @@
                     bool isSelected = selectedTatamiIds.Contains(t.Id);
                     <button
                         type="button"
-                        class="btn btn-sm @(isSelected ? "btn-primary fw-bold shadow-sm" : "btn-outline-primary")"
+                        class="btn btn-sm tatami-toggle-btn @(isSelected ? "btn-primary fw-bold shadow-sm" : "btn-outline-primary")"
                         @onclick="() => ToggleTatamiSelection(t.Id)"
                     >
                         @t.Name
@@ -850,7 +850,7 @@
         selectedTatamiIds.Clear();
     }
 
-    private async Task ToggleTatamiSelection(int tatamiId)
+    private void ToggleTatamiSelection(int tatamiId)
     {
         if (selectedTatamiIds.Contains(tatamiId))
         {
@@ -860,8 +860,6 @@
         {
             selectedTatamiIds.Add(tatamiId);
         }
-        // Retirer le focus du bouton pour que son aspect visuel reflète immédiatement l'état
-        await JS.InvokeVoidAsync("eval", "document.activeElement?.blur()");
     }
 
     private void ToggleCategoryDropdown()
@@ -1179,3 +1177,15 @@
         Lang.OnLanguageChanged -= HandleLanguageChanged;
     }
 }
+
+<style>
+    /* Boutons toggle tatami : neutralise le box-shadow de focus Bootstrap
+       pour que l'état visuel reflète immédiatement la sélection/déselection
+       sans attendre que le focus soit perdu. */
+    .tatami-toggle-btn:focus,
+    .tatami-toggle-btn:focus-visible,
+    .tatami-toggle-btn:focus:not(:focus-visible) {
+        box-shadow: none !important;
+        outline: none !important;
+    }
+</style>
