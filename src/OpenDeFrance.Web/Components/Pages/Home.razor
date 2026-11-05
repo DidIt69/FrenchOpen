@@ -573,7 +573,7 @@
                                     {
                                         <span class="badge bg-secondary" style="font-size:0.7rem;">@item.TatamiName</span>
                                     }
-                                    <span class="badge bg-light text-dark border" style="font-size:0.7rem;">@item.RoundName</span>
+                                    <span class="badge bg-light text-dark border" style="font-size:0.7rem;">@Lang[item.RoundName]</span>
                                 </div>
                                 <div>
                                     @if (isInProgress)
@@ -599,8 +599,13 @@
                                     <span class="badge bg-primary flex-shrink-0" style="font-size:0.65rem;">KATA</span>
                                     @if (!string.IsNullOrEmpty(item.KataFlagUrl))
                                     {
-                                        <img src="@item.KataFlagUrl" alt="@item.KataCountry" title="@item.KataCountry"
-                                             class="border rounded-1 flex-shrink-0" style="width: 18px; height: 12px; object-fit: cover;" />
+                                        <img 
+                                            src="@item.KataFlagUrl" 
+                                            alt="@item.KataCountry" 
+                                            title="@item.KataCountry"
+                                            class="border rounded-1 flex-shrink-0" 
+                                            style="width: 18px; height: 12px; object-fit: cover;" 
+                                        />
                                     }
                                     <strong>@item.KataCompetitorName</strong>
                                     @if (!string.IsNullOrWhiteSpace(item.KataClub) || !string.IsNullOrWhiteSpace(item.KataGrade))
@@ -615,11 +620,20 @@
                                 <div class="d-flex align-items-center gap-1 mb-1 flex-wrap">
                                     <span class="badge bg-secondary flex-shrink-0" style="font-size:0.7rem;">#@item.Number</span>
                                     <span class="badge bg-danger flex-shrink-0" style="font-size:0.65rem;">KUMITÉ</span>
+                                </div>
+
+                                <!-- Ligne 3 : Position (#numéro), Type (KUMITÉ) et AKA -->
+                                <div class="d-flex align-items-center gap-1 mb-1 flex-wrap">
                                     <span class="badge bg-danger p-0 me-1 flex-shrink-0" style="width: 8px; height: 8px; border-radius: 50%; display: inline-block;"></span>
                                     @if (!string.IsNullOrEmpty(item.AkaFlagUrl))
                                     {
-                                        <img src="@item.AkaFlagUrl" alt="@item.AkaCountry" title="@item.AkaCountry"
-                                             class="border rounded-1 flex-shrink-0" style="width: 16px; height: 11px; object-fit: cover;" />
+                                        <img 
+                                            src="@item.AkaFlagUrl" 
+                                            alt="@item.AkaCountry" 
+                                            title="@item.AkaCountry"
+                                            class="border rounded-1 flex-shrink-0" 
+                                            style="width: 16px; height: 11px; object-fit: cover;" 
+                                        />
                                     }
                                     <strong class="text-danger">@item.AkaName</strong>
                                     @if (!string.IsNullOrWhiteSpace(item.AkaClub) || !string.IsNullOrWhiteSpace(item.AkaGrade))
@@ -628,15 +642,32 @@
                                     }
                                 </div>
 
-                                <!-- Ligne SHIRO -->
+                                <!-- Ligne 4 : Position (#numéro), Type (KUMITÉ) et AKA -->
+                                <div class="d-flex align-items-center gap-1 mb-1 flex-wrap small">
+                                    @if (!string.IsNullOrWhiteSpace(item.AkaClub) || !string.IsNullOrWhiteSpace(item.AkaGrade))
+                                    {
+                                        <small class="text-muted" style="font-size: 0.75rem;">@string.Join(" • ", new[] { item.AkaClub, item.AkaGrade }.Where(s => !string.IsNullOrWhiteSpace(s)))</small>
+                                    }
+                                </div>
+
+                                <!-- Ligne 5 -->
                                 <div class="d-flex align-items-center gap-1 mb-1 flex-wrap ms-1">
                                     <span class="badge bg-white border border-secondary p-0 me-1 flex-shrink-0" style="width: 8px; height: 8px; border-radius: 50%; display: inline-block;"></span>
                                     @if (!string.IsNullOrEmpty(item.ShiroFlagUrl))
                                     {
-                                        <img src="@item.ShiroFlagUrl" alt="@item.ShiroCountry" title="@item.ShiroCountry"
-                                             class="border rounded-1 flex-shrink-0" style="width: 16px; height: 11px; object-fit: cover;" />
+                                        <img 
+                                            src="@item.ShiroFlagUrl" 
+                                            alt="@item.ShiroCountry" 
+                                            title="@item.ShiroCountry"
+                                            class="border rounded-1 flex-shrink-0" 
+                                            style="width: 16px; height: 11px; object-fit: cover;" 
+                                        />
                                     }
                                     <strong>@item.ShiroName</strong>
+                                </div>
+
+                                <!-- Ligne 6 -->
+                                <div class="d-flex align-items-center gap-1 mb-1 flex-wrap small">
                                     @if (!string.IsNullOrWhiteSpace(item.ShiroClub) || !string.IsNullOrWhiteSpace(item.ShiroGrade))
                                     {
                                         <small class="text-muted" style="font-size: 0.75rem;">(@string.Join(" • ", new[] { item.ShiroClub, item.ShiroGrade }.Where(s => !string.IsNullOrWhiteSpace(s))))</small>

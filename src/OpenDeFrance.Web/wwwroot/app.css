@@ -101,3 +101,23 @@ h1:focus {
         transform: translateX(var(--scroll-distance, -40px));
     }
 }
+
+
+/* ==========================================================================
+   Fix Safari / iOS : les <button> nécessitent cursor:pointer et
+   touch-action:manipulation pour que les taps soient reconnus correctement.
+   Sans cela, Safari peut ignorer le premier tap sur un <button> ou un élément
+   interactif qui ne contient que du SVG ou des pseudo-éléments.
+   ========================================================================== */
+button,
+[role="button"],
+.btn {
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* Safari iOS : supprime l'apparence native qui peut interférer avec les styles custom */
+button:not(:disabled) {
+    -webkit-appearance: none;
+}
