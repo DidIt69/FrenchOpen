@@ -9,6 +9,8 @@
     <link rel="stylesheet" href="@Assets["lib/bootstrap/dist/css/bootstrap.min.css"]" />
     <link rel="stylesheet" href="@Assets["app.css"]" />
     <link rel="stylesheet" href="@Assets["OpenDeFrance.Web.styles.css"]" />
+    <!-- Polyfill ImportMap pour Safari < 16.4 : doit être AVANT <ImportMap /> -->
+    <script async src="js/es-module-shims.js"></script>
     <ImportMap />
     <link rel="icon" type="image/png" href="favicon.png" />
     <HeadOutlet @rendermode="InteractiveServer" />
@@ -22,32 +24,50 @@
     <script src="@Assets["_framework/blazor.web.js"]" autostart="false"></script>
     <script>
         // Démarrage manuel de Blazor pour configurer SignalR avant la connexion.
-        // IMPORTANT : configureSignalR doit être DANS circuit:{} pour Blazor Web App .NET 8+.
-        // Sans ça, le fallback LongPolling n'est pas activé et Safari (qui peut bloquer
-        // les WebSockets) reste sans connexion au circuit Blazor → aucun bouton ne réagit.
-        Blazor.start({
-            circuit: {
-                configureSignalR: function (builder) {
-                    // HttpTransportType (enum SignalR) :
-                    //   WebSockets = 1, ServerSentEvents = 2, LongPolling = 4
-                    // 1 | 4 = 5 : essaie WebSocket en premier, bascule sur LongPolling si bloqué
-                    builder.withUrl("/_blazor", { transport: 1 | 4 });
-                },
-                reconnectionOptions: {
-                    maxRetries: 10,
-                    retryIntervalMilliseconds: 2000
+        // Sur Safari : LongPolling uniquement (WebSockets souvent bloqués par ITP/proxy).
+        // Sur autres navigateurs : WebSocket + LongPolling fallback (transport 1|4 = 5).
+        (function () {
+            var isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+            // HttpTransportType : WebSockets=1, ServerSentEvents=2, LongPolling=4
+            var transport = isSafari ? 4 : (1 | 4);
+
+            Blazor.start({
+                circuit: {
+                    configureSignalR: function (builder) {
+                        builder.withUrl("/_blazor", { transport: transport });
+                    },
+                    reconnectionOptions: {
+                        maxRetries: 15,
+                        retryIntervalMilliseconds: 2000
+                    }
                 }
+            });
+
+            // Indicateur de connexion : disparaît quand Blazor est connecté
+            // Utile pour diagnostiquer les problèmes Safari en production
+            setTimeout(function () {
+                var indicator = document.getElementById('blazor-status');
+                if (indicator) indicator.style.display = 'flex';
+            }, 6000);
+
+            document.addEventListener('blazorconnected', function () {
+                var indicator = document.getElementById('blazor-status');
+                if (indicator) indicator.remove();
+            });
+
+            // Safari mobile : force cursor:pointer sur body pour que les taps soient reconnus
+            if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+                document.addEventListener("DOMContentLoaded", function () {
+                    document.body.style.cursor = "pointer";
+                });
             }
-        });
+        })();
     </script>
-<script>
-    // Force Safari mobile à propager tous les clics vers le moteur Blazor
-    document.addEventListener("DOMContentLoaded", function () {
-        if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-            document.body.style.cursor = "pointer";
-        }
-    });
-</script>
+    <!-- Indicateur visible si Blazor ne se connecte pas (Safari, réseau lent...) -->
+    <div id="blazor-status" style="display:none; position:fixed; bottom:16px; right:16px; background:#c0392b; color:white; padding:10px 16px; border-radius:8px; z-index:9999; font-weight:bold; font-size:14px; align-items:center; gap:8px; box-shadow:0 2px 8px rgba(0,0,0,0.3);">
+        <span>⚠️</span>
+        <span>Blazor non connecté — rechargez la page</span>
+    </div>
 </body>
 
 </html>

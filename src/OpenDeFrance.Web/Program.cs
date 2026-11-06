@@ -55,6 +55,18 @@ builder.Services.AddAuthentication(options =>
         : CookieSecurePolicy.Always;
 });
 
+// Antiforgery : SameSite=None+Secure en production pour que les cookies soient
+// envoyés dans les requêtes POST de SignalR LongPolling sur Safari (ITP strict).
+builder.Services.AddAntiforgery(options =>
+{
+    options.Cookie.SameSite = builder.Environment.IsDevelopment()
+        ? SameSiteMode.Lax
+        : SameSiteMode.None;
+    options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
+        ? CookieSecurePolicy.SameAsRequest
+        : CookieSecurePolicy.Always;
+});
+
 builder.Services.AddAuthorization();
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddSingleton<IAuthService, AuthService>();

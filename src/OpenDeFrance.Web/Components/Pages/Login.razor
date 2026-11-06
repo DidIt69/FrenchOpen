@@ -75,32 +75,32 @@
                             <div class="d-grid gap-2">
                                 <a href="@($"/api/auth/login?quick=admin&returnUrl={Uri.EscapeDataString(ReturnUrl ?? "")}")"
                                    class="btn btn-outline-dark d-flex justify-content-between align-items-center py-2 text-decoration-none">
-                                    <span>👑 <strong>Administrateur</strong> (Accès total)</span>
-                                    <span class="badge bg-dark">admin</span>
+                                    <span>👑 <strong>Administrateur</strong></span>
+                                    <span class="badge bg-dark" style="width:90px;">admin</span>
                                 </a>
 
                                 <a href="@($"/api/auth/login?quick=table&returnUrl={Uri.EscapeDataString(ReturnUrl ?? "")}")"
                                    class="btn btn-outline-primary d-flex justify-content-between align-items-center py-2 text-decoration-none">
-                                    <span>⏱️ <strong>Table de Marque</strong> (Chronos & Scores)</span>
-                                    <span class="badge bg-primary">table</span>
+                                    <span>⏱️ <strong>Table de Marque</strong></span>
+                                    <span class="badge bg-primary" style="width:90px;">table</span>
                                 </a>
 
                                 <a href="@($"/api/auth/login?quick=tv&returnUrl={Uri.EscapeDataString(ReturnUrl ?? "")}")"
                                    class="btn btn-outline-info d-flex justify-content-between align-items-center py-2 text-decoration-none">
-                                    <span>📺 <strong>Écran Tatami TV</strong> (Affichage télé)</span>
-                                    <span class="badge bg-info text-dark">tv</span>
+                                    <span>📺 <strong>Écran Tatami TV</strong></span>
+                                    <span class="badge bg-info text-dark" style="width:90px;">tv</span>
                                 </a>
 
                                 <a href="@($"/api/auth/login?quick=streamer&returnUrl={Uri.EscapeDataString(ReturnUrl ?? "")}")"
                                    class="btn btn-outline-warning d-flex justify-content-between align-items-center py-2 text-decoration-none">
-                                    <span>🎬 <strong>Régie Streamer</strong> (Combats à venir - lecture seule)</span>
-                                    <span class="badge bg-warning text-dark">streamer</span>
+                                    <span>🎬 <strong>Régie Streamer</strong></span>
+                                    <span class="badge bg-warning text-dark" style="width:90px;">streamer</span>
                                 </a>
 
                                 <a href="@($"/api/auth/login?quick=collector&returnUrl={Uri.EscapeDataString(ReturnUrl ?? "")}")"
                                    class="btn btn-outline-success d-flex justify-content-between align-items-center py-2 text-decoration-none">
-                                    <span>🏃 <strong>Collector</strong> (Chambre d'appel / Recherche compétiteurs)</span>
-                                    <span class="badge bg-success">collector</span>
+                                    <span>🏃 <strong>Collector</strong></span>
+                                    <span class="badge bg-success" style="width:90px;">collector</span>
                                 </a>
                             </div>
                         </NotAuthorized>
