@@ -10,17 +10,11 @@
 <PageTitle>@Lang["AdminTitle"]</PageTitle>
 
 <div class="container-fluid py-3">
-    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div class="align-items-center mb-3 flex-wrap gap-2">
         <div>
             <h2 class="fw-bold mb-1">@Lang["AdminTitle"]</h2>
-            <p class="text-muted mb-0">@Lang["AdminSubtitle"]</p>
         </div>
         <div class="d-flex gap-2 flex-wrap align-items-center">
-            <LanguageSwitcher />
-
-            <a href="/brackets" class="btn btn-sm btn-outline-primary">
-                🏆 @Lang["NavBrackets"]
-            </a>
             <a href="/api/tournament/excel-template" target="_blank" class="btn btn-sm btn-outline-success">
                 📥 Modèle Excel (.xlsx)
             </a>
@@ -126,7 +120,7 @@
                         @foreach (var cat in categories.OrderBy(c => c.CompetitionDay).ThenBy(c => c.OrderIndex).ThenBy(c => c.Name))
                         {
                             <option value="@cat.Id">
-                                [#@cat.OrderIndex] 📅 J@(cat.CompetitionDay) • @(cat.Type == CompetitionType.Kumite ? "🥊" : "🥋") @cat.Name @(!cat.AssignedTatamiId.HasValue ? "(🚫 Sans tatami)" : "") (@cat.Competitors.Count inscrits)
+                                [#@cat.OrderIndex] 📅 Jour @(cat.CompetitionDay) • @(cat.Type == CompetitionType.Kumite ? "🥊" : "🥋") @cat.Name @(!cat.AssignedTatamiId.HasValue ? "(🚫 Sans tatami)" : "") (@cat.Competitors.Count inscrits)
                             </option>
                         }
                     </select>
@@ -134,38 +128,56 @@
                 <div class="d-flex align-items-center gap-2 flex-wrap">
                     @if (selectedCategory != null)
                     {
-                        <span class="badge bg-warning text-dark fw-bold py-2 px-3">
-                            📅 Jour @selectedCategory.CompetitionDay
-                        </span>
                         @if (selectedCategory.Type == CompetitionType.Kumite)
                         {
                             <div class="form-check form-switch bg-dark border border-secondary px-3 py-1 rounded d-flex align-items-center gap-2 m-0 text-white">
-                                <input class="form-check-input ms-0 me-2" type="checkbox" id="bronzeSwitch"
-                                       checked="@selectedCategory.HasBronzeMatch"
-                                       @onchange="(e) => ToggleCategoryBronzeMatch(selectedCategory.Id, e)" />
-                                <label class="form-check-label small mb-0 fw-bold" for="bronzeSwitch">🥉 Petite Finale (3e place)</label>
+                                <input 
+                                    class="form-check-input ms-0 me-2" 
+                                    type="checkbox" 
+                                    id="bronzeSwitch"
+                                    checked="@selectedCategory.HasBronzeMatch"
+                                    @onchange="(e) => ToggleCategoryBronzeMatch(selectedCategory.Id, e)" 
+                                />
+                                <label 
+                                    class="form-check-label small mb-0 fw-bold" 
+                                    for="bronzeSwitch"
+                                >
+                                    🥉 Petite Finale (3e place)
+                                </label>
                             </div>
                         }
                         else
                         {
-                            <div class="d-flex align-items-center gap-2 bg-dark border border-secondary px-3 py-1 rounded text-white small">
+                            <div 
+                                class="d-flex align-items-center gap-2 bg-dark border border-secondary px-3 py-1 rounded text-white small"
+                            >
                                 <label class="fw-bold mb-0 text-nowrap" for="kataQualifiersInput">🎯 Qualifiés Tour 2 :</label>
-                                <input id="kataQualifiersInput" type="number" class="form-control form-control-sm text-center bg-white text-dark fw-bold"
-                                       style="width: 65px; height: 28px;"
-                                       min="1" max="32"
-                                       value="@selectedCategory.KataQualifiersCount"
-                                       @onchange="(e) => HandleChangeKataQualifiersCount(selectedCategory.Id, e)"
-                                       title="Modifier le nombre de compétiteurs qualifiés pour la finale" />
+                                <input 
+                                    id="kataQualifiersInput" 
+                                    type="number" 
+                                    class="form-control form-control-sm text-center bg-white text-dark fw-bold"
+                                    style="width: 65px; height: 28px;"
+                                    min="1" 
+                                    max="32"
+                                    value="@selectedCategory.KataQualifiersCount"
+                                    @onchange="(e) => HandleChangeKataQualifiersCount(selectedCategory.Id, e)"
+                                    title="Modifier le nombre de compétiteurs qualifiés pour la finale" 
+                                />
                                 <span class="text-white-50">compétiteur(s)</span>
                             </div>
                         }
 
-                        <div class="d-flex align-items-center gap-1 bg-secondary text-white px-2 py-1 rounded small">
+                        <div 
+                            class="d-flex align-items-center gap-1 bg-secondary text-white px-2 py-1 rounded small"
+                        >
                             <span>Affecter toute la catégorie :</span>
-                            <select class="form-select form-select-sm py-0 px-1 text-dark" style="width: auto; height: 26px;"
-                                    value="@(selectedCategory.AssignedTatamiId ?? 0)"
-                                    @onchange="(e) => BulkAssignCategoryTatami(selectedCategory.Id, e)">
-                                <option value="0">🚫 Aucun tatami (Non affiché)</option>
+                            <select 
+                                class="form-select form-select-sm py-0 px-1 text-dark" 
+                                style="width: auto; height: 26px;"
+                                value="@(selectedCategory.AssignedTatamiId ?? 0)"
+                                @onchange="(e) => BulkAssignCategoryTatami(selectedCategory.Id, e)"
+                            >
+                                <option value="0">🚫 Aucun tatami</option>
                                 @foreach (var t in tatamis)
                                 {
                                     <option value="@t.Id">@t.Name</option>
@@ -180,24 +192,6 @@
             </div>
 
             <div class="card-body p-4">
-                <div class="alert alert-info py-2 mb-4 d-flex align-items-center justify-content-between flex-wrap gap-2">
-                    <div class="d-flex align-items-center gap-2">
-                        <span class="fs-4">💡</span>
-                        <div>
-                            <strong>Comment modifier les tirages ?</strong><br />
-                            @if (selectedCategory?.Type == CompetitionType.Kumite)
-                            {
-                                <span>Glissez-déposez les combattants (icône <strong class="badge bg-secondary">⠿</strong>) du 1er tour sur une autre case pour <strong>échanger leurs positions</strong> dans le tableau. Vous pouvez aussi changer le <strong>Tatami</strong> de chaque combat directement.</span>
-                            }
-                            else
-                            {
-                                <span>Glissez-déposez les lignes (icône <strong class="badge bg-secondary">⠿</strong>) pour <strong>modifier l'ordre de passage</strong> des katas et réassignez les tatamis.</span>
-                            }
-                        </div>
-                    </div>
-                    <span class="badge bg-primary">Drag &amp; Drop Actif</span>
-                </div>
-
                 @if (selectedCategory != null)
                 {
                     @if (selectedCategory.Type == CompetitionType.Kumite)
@@ -248,11 +242,12 @@
                                                             <div class="match-meta d-flex justify-content-between align-items-center small text-muted px-2 py-1 bg-light border-bottom">
                                                                 <span class="fw-bold">#@match.MatchNumber</span>
                                                                 <div class="d-flex align-items-center gap-1">
-                                                                    <span class="badge bg-light text-secondary border" style="font-size: 0.7rem;">Tatami</span>
-                                                                    <select class="form-select form-select-sm py-0 px-1 border-primary"
-                                                                            style="font-size: 0.75rem; width: auto; height: 24px; cursor: pointer;"
-                                                                            value="@match.TatamiId"
-                                                                            @onchange="(e) => OnChangeMatchTatami(match.Id, e)">
+                                                                    <select 
+                                                                        class="form-select form-select-sm py-0 px-1 border-primary"
+                                                                        style="font-size: 0.75rem; width: auto; height: 24px; cursor: pointer;"
+                                                                        value="@match.TatamiId"
+                                                                        @onchange="(e) => OnChangeMatchTatami(match.Id, e)"
+                                                                    >
                                                                         @foreach (var t in tatamis)
                                                                         {
                                                                             <option value="@t.Id">@t.Name</option>
@@ -363,11 +358,12 @@
                                                         <div class="match-meta d-flex justify-content-between align-items-center small text-muted px-2 py-1 bg-light border-bottom">
                                                             <span class="fw-bold">#@match.MatchNumber</span>
                                                             <div class="d-flex align-items-center gap-1">
-                                                                <span class="badge bg-light text-secondary border" style="font-size: 0.7rem;">Tatami</span>
-                                                                <select class="form-select form-select-sm py-0 px-1 border-primary"
-                                                                        style="font-size: 0.75rem; width: auto; height: 24px; cursor: pointer;"
-                                                                        value="@match.TatamiId"
-                                                                        @onchange="(e) => OnChangeMatchTatami(match.Id, e)">
+                                                                <select 
+                                                                    class="form-select form-select-sm py-0 px-1 border-primary"
+                                                                    style="width: 100px; height: 26px; cursor: pointer;"
+                                                                    value="@match.TatamiId"
+                                                                    @onchange="(e) => OnChangeMatchTatami(match.Id, e)"
+                                                                >
                                                                     @foreach (var t in tatamis)
                                                                     {
                                                                         <option value="@t.Id">@t.Name</option>
@@ -441,7 +437,7 @@
                                             <th>Ordre</th>
                                             <th>Compétiteur</th>
                                             <th>Club</th>
-                                            <th>Tatami Assigné</th>
+                                            <th>Tatami</th>
                                             <th>Statut</th>
                                         </tr>
                                     </thead>
@@ -472,9 +468,12 @@
                                                 <td><strong>@p.Competitor?.FullName</strong></td>
                                                 <td>@p.Competitor?.Club</td>
                                                 <td>
-                                                    <select class="form-select form-select-sm py-0 px-2 border-primary" style="width: auto;"
-                                                            value="@p.TatamiId"
-                                                            @onchange="(e) => OnChangeKataTatami(p.Id, e)">
+                                                    <select 
+                                                        class="form-select form-select-sm py-0 px-2 border-primary" 
+                                                        style="width: 100px;"
+                                                        value="@p.TatamiId"
+                                                        @onchange="(e) => OnChangeKataTatami(p.Id, e)"
+                                                    >
                                                         @foreach (var t in tatamis)
                                                         {
                                                             <option value="@t.Id">@t.Name</option>
@@ -512,8 +511,7 @@
         <div class="card shadow-sm border-0 mb-4">
             <div class="card-header bg-dark text-white py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <div>
-                    <h5 class="mb-0 fw-bold">⚙️ Gestion &amp; Nombre de Tatamis (@tatamis.Count)</h5>
-                    <small class="text-white-50">Ajoutez, renommez ou supprimez des tatamis. Rééquilibrez automatiquement les combats par catégorie.</small>
+                    <h5 class="mb-0 fw-bold">⚙️ Gestion des tatamis</h5>
                 </div>
                 <div class="d-flex gap-2">
                     <button class="btn btn-warning fw-bold" @onclick="RebalanceAllTatamis">
@@ -523,12 +521,6 @@
             </div>
 
             <div class="card-body p-4 bg-light">
-                <div class="alert alert-secondary py-2 mb-3 small d-flex align-items-center justify-content-between">
-                    <div>
-                        📌 <strong>Règle d'affectation automatique :</strong> L'ensemble des combats d'une même catégorie est regroupé sur le même tatami, et les catégories sont réparties pour équilibrer le volume de combats sur chaque tatami.
-                    </div>
-                </div>
-
                 <!-- Formulaire d'ajout de Tatami -->
                 <div class="row g-2 align-items-center mb-4 bg-white p-3 rounded border">
                     <div class="col-md-4">
@@ -538,9 +530,9 @@
                     <div class="col-md-4">
                         <label class="form-label small fw-bold mb-1">Discipline autorisée :</label>
                         <select class="form-select form-select-sm" @bind="newTatamiDiscipline">
-                            <option value="@CompetitionType.Kumite">Kumité (Combats uniquement)</option>
-                            <option value="@CompetitionType.Kata">Kata (Technique uniquement)</option>
-                            <option value="@CompetitionType.Both">Les deux (Kumité &amp; Kata)</option>
+                            <option value="@CompetitionType.Kumite">Kumite</option>
+                            <option value="@CompetitionType.Kata">Kata</option>
+                            <option value="@CompetitionType.Both">Les deux (Kumite &amp; Kata)</option>
                         </select>
                     </div>
                     <div class="col-md-4 pt-md-4">
@@ -558,7 +550,7 @@
                                 <th>#</th>
                                 <th>Nom du Tatami</th>
                                 <th>Discipline</th>
-                                <th>Combats / Passages Assignés</th>
+                                <th>Matches</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -571,17 +563,23 @@
                                 <tr>
                                     <td><strong>#@t.Number</strong></td>
                                     <td>
-                                        <input type="text" class="form-control form-control-sm" style="max-width: 250px;"
-                                               value="@t.Name"
-                                               @onchange="(e) => HandleUpdateTatamiName(t.Id, e)" />
+                                        <input 
+                                            type="text" class="form-control form-control-sm" 
+                                            style="max-width: 250px;"
+                                            value="@t.Name"
+                                            @onchange="(e) => HandleUpdateTatamiName(t.Id, e)" 
+                                        />
                                     </td>
                                     <td>
-                                        <select class="form-select form-select-sm" style="max-width: 200px;"
-                                                value="@t.Discipline"
-                                                @onchange="(e) => HandleUpdateTatamiDiscipline(t.Id, e)">
-                                            <option value="@CompetitionType.Kumite">Kumité (Combats)</option>
-                                            <option value="@CompetitionType.Kata">Kata (Technique)</option>
-                                            <option value="@CompetitionType.Both">Les deux (Kumité &amp; Kata)</option>
+                                        <select 
+                                            class="form-select form-select-sm" 
+                                            style="max-width: 210px;"
+                                            value="@t.Discipline"
+                                            @onchange="(e) => HandleUpdateTatamiDiscipline(t.Id, e)"
+                                        >
+                                            <option value="@CompetitionType.Kumite">Kumite</option>
+                                            <option value="@CompetitionType.Kata">Kata</option>
+                                            <option value="@CompetitionType.Both">Les deux (Kumite & Kata)</option>
                                         </select>
                                     </td>
                                     <td>
@@ -597,15 +595,18 @@
                                                 if (dm > 0 || dk > 0)
                                                 {
                                                     <span class="badge bg-warning text-dark border">
-                                                        📅 J@dayNum : @(dm + dk) (@dm 🥊, @dk 🥋)
+                                                        📅 Jour @dayNum : @(dm + dk) (@dm 🥊, @dk 🥋)
                                                     </span>
                                                 }
                                             }
                                         </div>
                                     </td>
                                     <td>
-                                        <button class="btn btn-sm btn-outline-danger" disabled="@(tatamis.Count <= 1)"
-                                                @onclick="() => HandleDeleteTatami(t.Id)" title="Supprimer ce tatami (ses combats seront réassignés)">
+                                        <button 
+                                            class="btn btn-sm btn-outline-danger" 
+                                            disabled="@(tatamis.Count <= 1)"
+                                            @onclick="() => HandleDeleteTatami(t.Id)" title="Supprimer ce tatami (ses combats seront réassignés)"
+                                        >
                                             🗑️ Supprimer
                                         </button>
                                     </td>
@@ -619,285 +620,72 @@
 
         <!-- Kanban Board Multi-Tatamis -->
         <div class="card shadow-sm border-0 mb-4">
-            <div class="card-header bg-dark text-white py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div 
+                class="card-header bg-dark text-white py-3 d-flex justify-content-between align-items-center flex-wrap gap-2 row"
+                style="margin-right:0px;margin-left:0px;"
+            >
                 <div>
-                    <h5 class="mb-0 fw-bold">🥋 Planning des Rencontres par Tatami (Kanban Drag &amp; Drop)</h5>
-                    <small class="text-white-50">Glissez-déposez une carte de combat d'une colonne de Tatami vers une autre pour modifier son assignation.</small>
+                    <h5 class="mb-0 fw-bold">🥋 Planning des Rencontres par tatami</h5>
                 </div>
-                <div class="d-flex align-items-center gap-2">
-                    <span class="small text-white-50">Filtrer par jour :</span>
-                    <div class="btn-group btn-group-sm">
-                        <button class="btn @(selectedBoardDayFilter == 0 ? "btn-warning text-dark fw-bold" : "btn-outline-light")"
-                                @onclick="() => selectedBoardDayFilter = 0">Tous</button>
-                        @for (int d = 1; d <= tournamentDaysCount; d++)
-                        {
-                            int dayNum = d;
-                            <button class="btn @(selectedBoardDayFilter == dayNum ? "btn-warning text-dark fw-bold" : "btn-outline-light")"
-                                    @onclick="() => selectedBoardDayFilter = dayNum">
-                                Jour @dayNum
+                <div class="d-flex gap-2">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="small text-white-50">Filtrer par tatami :</span>
+                        <div class="btn-group btn-group-sm">
+                            <button 
+                                class="btn @(selectedBoardTatamiFilter == 0 ? "btn-warning text-dark fw-bold" : "btn-outline-light")"
+                                @onclick="() => selectedBoardTatamiFilter = 0"
+                            >
+                                Tous
                             </button>
-                        }
+                            @for (int d = 1; d <= tatamis.Count; d++)
+                            {
+                                int tatamiNum = d;
+                                <button 
+                                    class="btn @(selectedBoardTatamiFilter == tatamiNum ? "btn-warning text-dark fw-bold" : "btn-outline-light")"
+                                    @onclick="() => selectedBoardTatamiFilter = tatamiNum"
+                                >
+                                    Tatami @tatamiNum
+                                </button>
+                            }
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="small text-white-50">Filtrer par jour :</span>
+                        <div class="btn-group btn-group-sm">
+                            <button 
+                                class="btn @(selectedBoardDayFilter == 0 ? "btn-warning text-dark fw-bold" : "btn-outline-light")"
+                                @onclick="() => selectedBoardDayFilter = 0"
+                            >
+                                Tous
+                            </button>
+                            @for (int d = 1; d <= tournamentDaysCount; d++)
+                            {
+                                int dayNum = d;
+                                <button 
+                                    class="btn @(selectedBoardDayFilter == dayNum ? "btn-warning text-dark fw-bold" : "btn-outline-light")"
+                                    @onclick="() => selectedBoardDayFilter = dayNum"
+                                >
+                                    Jour @dayNum
+                                </button>
+                            }
+                        </div>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <input 
+                            type="text" 
+                            class="form-control form-control-sm" 
+                            placeholder="Rechercher combattant, catégorie..."
+                            @bind="encounterSearchFilter" 
+                            @bind:event="oninput" 
+                            style="width: 260px;" 
+                        />
                     </div>
                 </div>
             </div>
 
             <div class="card-body p-4 bg-light">
-                <div class="row g-3 mb-4">
-                    @foreach (var tatami in tatamis)
-                    {
-                        var tatamiMatches = allMatches.Where(m => m.TatamiId == tatami.Id && !m.IsBye && (selectedBoardDayFilter == 0 || m.CompetitionDay == selectedBoardDayFilter)).OrderBy(m => m.MatchNumber).ToList();
-                        var tatamiKatas = allKataPerformances.Where(p => p.TatamiId == tatami.Id && (selectedBoardDayFilter == 0 || p.CompetitionDay == selectedBoardDayFilter)).OrderBy(p => p.PerformanceOrder).ToList();
-                        bool isDropZoneHover = dragBoardHoverTatamiId == tatami.Id;
-
-                        <div class="col-lg-4 col-md-6">
-                            <div class="card h-100 shadow-sm border-2 @(isDropZoneHover ? "border-primary bg-primary-subtle" : "border-secondary-subtle") tatami-dropzone"
-                                 @ondragover="HandleDragOver"
-                                 @ondragover:preventDefault="true"
-                                 @ondragenter="() => OnBoardTatamiDragEnter(tatami.Id)"
-                                 @ondragleave="() => OnBoardTatamiDragLeave(tatami.Id)"
-                                 @ondrop="() => OnBoardTatamiDrop(tatami.Id)">
-                                
-                                <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center border-bottom">
-                                    <div>
-                                        <h6 class="mb-0 fw-bold text-dark">@tatami.Name</h6>
-                                        <small class="badge @(tatami.Discipline == CompetitionType.Both ? "bg-success" : (tatami.Discipline == CompetitionType.Kumite ? "bg-danger" : "bg-primary"))" style="font-size: 0.7rem;">
-                                            @(tatami.Discipline == CompetitionType.Both ? "Kumité &amp; Kata" : (tatami.Discipline == CompetitionType.Kumite ? "Kumité" : "Kata"))
-                                        </small>
-                                    </div>
-                                    <span class="badge bg-dark rounded-pill">
-                                        @(tatamiMatches.Count + tatamiKatas.Count) rencontre(s)
-                                    </span>
-                                </div>
-
-                                <div class="card-body p-2" style="max-height: 520px; overflow-y: auto;">
-                                    @if (tatamiMatches.Count == 0 && tatamiKatas.Count == 0)
-                                    {
-                                        <div class="text-center text-muted py-5">
-                                            <em>Aucune rencontre assignée.<br />Déposez un combat ici.</em>
-                                        </div>
-                                    }
-
-                                    @if (selectedBoardDayFilter == 0 && tournamentDaysCount > 1)
-                                    {
-                                        @for (int d = 1; d <= tournamentDaysCount; d++)
-                                        {
-                                            int dayNum = d;
-                                            var dMatches = tatamiMatches.Where(m => m.CompetitionDay == dayNum).ToList();
-                                            var dKatas = tatamiKatas.Where(p => p.CompetitionDay == dayNum).ToList();
-                                            if (dMatches.Count > 0 || dKatas.Count > 0)
-                                            {
-                                                <div class="bg-dark text-warning px-2 py-1 rounded small fw-bold mb-2 @(dayNum > 1 ? "mt-3" : "") d-flex justify-content-between align-items-center shadow-sm">
-                                                    <span>📅 Jour @dayNum</span>
-                                                    <span class="badge bg-warning text-dark">@(dMatches.Count + dKatas.Count)</span>
-                                                </div>
-                                                @foreach (var match in dMatches)
-                                                {
-                                                    bool isCurrent = tatami.CurrentKumiteMatchId == match.Id;
-                                                    <div class="card mb-2 shadow-sm encounter-card @(match.IsBronzeMatch ? "border-warning" : "") @(isCurrent ? "border-primary border-2 bg-light" : "border-light-subtle")"
-                                                         draggable="true"
-                                                         @ondragstart="() => OnBoardMatchDragStart(match.Id)"
-                                                         @ondragend="ResetDrag">
-                                                        <div class="card-body p-2">
-                                                            <div class="d-flex justify-content-between align-items-center mb-1">
-                                                                <div class="d-flex align-items-center gap-1">
-                                                                    <span class="badge bg-danger small">#@match.MatchNumber Kumité</span>
-                                                                    @if (match.IsBronzeMatch)
-                                                                    {
-                                                                        <span class="badge bg-warning text-dark small">🥉 3e</span>
-                                                                    }
-                                                                </div>
-                                                                <div class="d-flex align-items-center gap-1">
-                                                                    <select class="form-select form-select-sm py-0 px-1 border-warning text-dark fw-bold" style="width: auto; font-size: 0.72rem;"
-                                                                            value="@match.CompetitionDay"
-                                                                            @onchange="(e) => HandleChangeMatchDay(match.Id, e)"
-                                                                            title="Changer le jour de ce combat">
-                                                                        @for (int bd = 1; bd <= tournamentDaysCount; bd++)
-                                                                        {
-                                                                            <option value="@bd">J@bd</option>
-                                                                        }
-                                                                    </select>
-                                                                    @if (isCurrent)
-                                                                    {
-                                                                        <span class="badge bg-primary">En cours</span>
-                                                                    }
-                                                                    else if (match.Status == MatchStatus.Finished)
-                                                                    {
-                                                                        <span class="badge bg-success">Terminé</span>
-                                                                    }
-                                                                </div>
-                                                            </div>
-                                                            <div class="small text-muted text-truncate mb-1">@match.Category?.Name • @match.RoundName</div>
-                                                            <div class="d-flex align-items-center justify-content-between small">
-                                                                <span class="text-danger fw-bold text-truncate" style="max-width: 48%;">🔴 @match.AkaDisplayName</span>
-                                                                <span class="text-muted">vs</span>
-                                                                <span class="fw-bold text-truncate" style="max-width: 48%;">⚪ @match.ShiroDisplayName</span>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                }
-                                                @foreach (var perf in dKatas)
-                                                {
-                                                    bool isCurrentKata = tatami.CurrentKataPerformanceId == perf.Id;
-                                                    <div class="card mb-2 shadow-sm encounter-card @(isCurrentKata ? "border-primary border-2 bg-light" : "border-light-subtle")"
-                                                         draggable="true"
-                                                         @ondragstart="() => OnBoardKataDragStart(perf.Id)"
-                                                         @ondragend="ResetDrag">
-                                                        <div class="card-body p-2">
-                                                            <div class="d-flex justify-content-between align-items-center mb-1">
-                                                                <div class="d-flex align-items-center gap-1">
-                                                                    <span class="badge bg-primary small">#@perf.PerformanceOrder Kata @perf.Round</span>
-                                                                </div>
-                                                                <div class="d-flex align-items-center gap-1">
-                                                                    <select class="form-select form-select-sm py-0 px-1 border-warning text-dark fw-bold" style="width: auto; font-size: 0.72rem;"
-                                                                            value="@perf.CompetitionDay"
-                                                                            @onchange="(e) => HandleChangeKataDay(perf.Id, e)"
-                                                                            title="Changer le jour de ce passage kata">
-                                                                        @for (int bd = 1; bd <= tournamentDaysCount; bd++)
-                                                                        {
-                                                                            <option value="@bd">J@bd</option>
-                                                                        }
-                                                                    </select>
-                                                                    @if (isCurrentKata)
-                                                                    {
-                                                                        <span class="badge bg-primary">En cours</span>
-                                                                    }
-                                                                    else if (perf.Status == MatchStatus.Finished)
-                                                                    {
-                                                                        <span class="badge bg-success">@perf.FinalScore.ToString("0") pts</span>
-                                                                    }
-                                                                </div>
-                                                            </div>
-                                                            <div class="small text-muted text-truncate mb-1">@perf.Category?.Name • @perf.KataName</div>
-                                                            <div class="fw-bold small text-truncate">
-                                                                🥋 @perf.CompetitorDisplayName
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                }
-                                            }
-                                        }
-                                    }
-                                    else
-                                    {
-                                        <!-- Matches Kumité -->
-                                        @foreach (var match in tatamiMatches)
-                                        {
-                                            bool isCurrent = tatami.CurrentKumiteMatchId == match.Id;
-                                            <div class="card mb-2 shadow-sm encounter-card @(match.IsBronzeMatch ? "border-warning" : "") @(isCurrent ? "border-primary border-2 bg-light" : "border-light-subtle")"
-                                                 draggable="true"
-                                                 @ondragstart="() => OnBoardMatchDragStart(match.Id)"
-                                                 @ondragend="ResetDrag">
-                                                <div class="card-body p-2">
-                                                    <div class="d-flex justify-content-between align-items-center mb-1">
-                                                        <div class="d-flex align-items-center gap-1">
-                                                            <span class="badge bg-danger small">#@match.MatchNumber Kumité</span>
-                                                            <span class="badge bg-warning text-dark small">📅 J@match.CompetitionDay</span>
-                                                            @if (match.IsBronzeMatch)
-                                                            {
-                                                                <span class="badge bg-warning text-dark small ms-1">🥉 3e place</span>
-                                                            }
-                                                        </div>
-                                                        <div class="d-flex align-items-center gap-1">
-                                                            <select class="form-select form-select-sm py-0 px-1 border-warning text-dark fw-bold" style="width: auto; font-size: 0.72rem;"
-                                                                    value="@match.CompetitionDay"
-                                                                    @onchange="(e) => HandleChangeMatchDay(match.Id, e)"
-                                                                    title="Changer le jour de ce combat">
-                                                                @for (int bd = 1; bd <= tournamentDaysCount; bd++)
-                                                                {
-                                                                    <option value="@bd">J@bd</option>
-                                                                }
-                                                            </select>
-                                                            @if (isCurrent)
-                                                            {
-                                                                <span class="badge bg-primary">En cours</span>
-                                                            }
-                                                            else if (match.Status == MatchStatus.Finished)
-                                                            {
-                                                                <span class="badge bg-success">Terminé</span>
-                                                            }
-                                                        </div>
-                                                    </div>
-                                                    <div class="small text-muted text-truncate mb-1">@match.Category?.Name • @match.RoundName</div>
-                                                    <div class="d-flex align-items-center justify-content-between small">
-                                                        <span class="text-danger fw-bold text-truncate" style="max-width: 48%;">🔴 @match.AkaDisplayName</span>
-                                                        <span class="text-muted">vs</span>
-                                                        <span class="fw-bold text-truncate" style="max-width: 48%;">⚪ @match.ShiroDisplayName</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        }
-
-                                        <!-- Performances Katas -->
-                                        @foreach (var perf in tatamiKatas)
-                                        {
-                                            bool isCurrentKata = tatami.CurrentKataPerformanceId == perf.Id;
-                                            <div class="card mb-2 shadow-sm encounter-card @(isCurrentKata ? "border-primary border-2 bg-light" : "border-light-subtle")"
-                                                 draggable="true"
-                                                 @ondragstart="() => OnBoardKataDragStart(perf.Id)"
-                                                 @ondragend="ResetDrag">
-                                                <div class="card-body p-2">
-                                                    <div class="d-flex justify-content-between align-items-center mb-1">
-                                                        <div class="d-flex align-items-center gap-1">
-                                                            <span class="badge bg-primary small">#@perf.PerformanceOrder Kata @perf.Round</span>
-                                                            <span class="badge bg-warning text-dark small">📅 J@perf.CompetitionDay</span>
-                                                        </div>
-                                                        <div class="d-flex align-items-center gap-1">
-                                                            <select class="form-select form-select-sm py-0 px-1 border-warning text-dark fw-bold" style="width: auto; font-size: 0.72rem;"
-                                                                    value="@perf.CompetitionDay"
-                                                                    @onchange="(e) => HandleChangeKataDay(perf.Id, e)"
-                                                                    title="Changer le jour de ce passage kata">
-                                                                @for (int bd = 1; bd <= tournamentDaysCount; bd++)
-                                                                {
-                                                                    <option value="@bd">J@bd</option>
-                                                                }
-                                                            </select>
-                                                            @if (isCurrentKata)
-                                                            {
-                                                                <span class="badge bg-primary">En cours</span>
-                                                            }
-                                                            else if (perf.Status == MatchStatus.Finished)
-                                                            {
-                                                                <span class="badge bg-success">@perf.FinalScore.ToString("0") pts</span>
-                                                            }
-                                                        </div>
-                                                    </div>
-                                                    <div class="small text-muted text-truncate mb-1">@perf.Category?.Name • @perf.KataName</div>
-                                                    <div class="fw-bold small text-truncate">
-                                                        🥋 @perf.CompetitorDisplayName
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        }
-                                    }
-                                </div>
-                            </div>
-                        </div>
-                    }
-                </div>
-
                 <!-- Tableau complet des rencontres avec filtre -->
-                <div class="card border-0 shadow-sm mt-4">
-                    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
-                        <div class="d-flex align-items-center gap-3 flex-wrap">
-                            <h6 class="mb-0 fw-bold">📋 Répertoire de toutes les Rencontres de la compétition</h6>
-                            <div class="btn-group btn-group-sm">
-                                <button class="btn @(selectedEncounterDayFilter == 0 ? "btn-dark fw-bold" : "btn-outline-secondary")"
-                                        @onclick="() => selectedEncounterDayFilter = 0">Tous les jours</button>
-                                @for (int d = 1; d <= tournamentDaysCount; d++)
-                                {
-                                    int dayNum = d;
-                                    <button class="btn @(selectedEncounterDayFilter == dayNum ? "btn-warning text-dark fw-bold" : "btn-outline-secondary")"
-                                            @onclick="() => selectedEncounterDayFilter = dayNum">
-                                        📅 Jour @dayNum
-                                    </button>
-                                }
-                            </div>
-                        </div>
-                        <div class="d-flex gap-2">
-                            <input type="text" class="form-control form-control-sm" placeholder="Rechercher combattant, catégorie..."
-                                   @bind="encounterSearchFilter" @bind:event="oninput" style="width: 260px;" />
-                        </div>
-                    </div>
+                <div class="card border-0 shadow-sm">
                     <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
                         <table class="table table-hover align-middle mb-0">
                             <thead class="table-light sticky-top">
@@ -907,9 +695,9 @@
                                     <th>Discipline</th>
                                     <th>Catégorie</th>
                                     <th>Tour</th>
-                                    <th>Rencontre / Passage</th>
+                                    <th>Match</th>
                                     <th>Statut</th>
-                                    <th style="min-width: 180px;">Tatami Assigné</th>
+                                    <th style="width:120px;">Tatami</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -918,38 +706,41 @@
                                     <tr class="@(m.IsBronzeMatch ? "table-warning-subtle" : "")">
                                         <td><strong>#@m.MatchNumber</strong></td>
                                         <td>
-                                            <select class="form-select form-select-sm fw-bold border-warning py-0" style="width: 90px;"
-                                                    value="@m.CompetitionDay"
-                                                    @onchange="(e) => HandleChangeMatchDay(m.Id, e)">
+                                            <select 
+                                                class="form-select form-select-sm fw-bold border-warning py-0" style="width: 110px;"
+                                                value="@m.CompetitionDay"
+                                                @onchange="(e) => HandleChangeMatchDay(m.Id, e)"
+                                            >
                                                 @for (int d = 1; d <= tournamentDaysCount; d++)
                                                 {
-                                                    <option value="@d">📅 J@d</option>
+                                                    <option value="@d">📅 Jour @d</option>
                                                 }
                                             </select>
                                         </td>
                                         <td>
-                                            <span class="badge bg-danger">Kumité</span>
+                                            <span class="badge bg-danger">Kumite</span>
                                             @if (m.IsBronzeMatch)
                                             {
                                                 <span class="badge bg-warning text-dark ms-1">🥉 Petite Finale</span>
                                             }
                                         </td>
-                                        <td>@m.Category?.Name</td>
-                                        <td>@m.RoundName</td>
-                                        <td>
+                                        <td><span class="badge bg-warning text-dark ms-1">@Lang[m.Category?.Name]</span></td>
+                                        <td><span class="badge bg-warning text-dark ms-1">@Lang[m.RoundName]</span></td>
+                                        <td class="d-flex row">
                                             <span class="text-danger fw-bold">🔴 @m.AkaDisplayName</span>
-                                            <span class="text-muted mx-1">vs</span>
                                             <span class="fw-bold">⚪ @m.ShiroDisplayName</span>
                                         </td>
                                         <td>
                                             <span class="badge @(m.Status == MatchStatus.Finished ? "bg-success" : (m.Status == MatchStatus.InProgress ? "bg-primary" : "bg-light text-dark border"))">
-                                                @m.Status
+                                                @Lang[m.Status.ToString()]
                                             </span>
                                         </td>
                                         <td>
-                                            <select class="form-select form-select-sm border-primary"
-                                                    value="@m.TatamiId"
-                                                    @onchange="(e) => OnChangeMatchTatami(m.Id, e)">
+                                            <select 
+                                                class="form-select form-select-sm border-primary"
+                                                value="@m.TatamiId"
+                                                @onchange="(e) => OnChangeMatchTatami(m.Id, e)"
+                                            >
                                                 @foreach (var t in tatamis)
                                                 {
                                                     <option value="@t.Id">@t.Name</option>
@@ -1014,26 +805,11 @@
             <div class="card-body p-4">
                 <div class="row align-items-center">
                     <div class="col-md-7">
-                        <p class="mb-2">
-                            Le classeur Excel comprend deux feuilles :
-                        </p>
-                        <ul class="text-muted small mb-3">
-                            <li><strong>Feuille 1 « Compétiteurs » :</strong> Inscrits avec <em>Dossard, Nom, Prénom, Pays, Sexe, Âge, Club, Grade, Poids</em>, et inscription Kumité et/ou Kata.</li>
-                            <li><strong>Feuille 2 « Catégories » :</strong> Programmation par catégorie avec <em>Catégorie, Discipline, Jour, Tatami</em>.</li>
-                            <li>Les tirages au sort Kumité <strong>éloignent les compétiteurs d'un même pays et d'un même club</strong>.</li>
-                        </ul>
-
                         <div class="input-group">
                             <InputFile OnChange="HandleFileSelected" accept=".xlsx" class="form-control form-control-lg" />
                         </div>
                     </div>
                     <div class="col-md-5 text-center border-start ps-4">
-                        <h6 class="fw-bold text-secondary">RÈGLES DU TIRAGE AU SORT</h6>
-                        <div class="badge bg-light text-dark p-3 text-start w-100 border mb-2">
-                            <div>🥋 <strong>Kumité :</strong> Élimination directe avec têtes de série et séparation géographique / dojo.</div>
-                            <div class="mt-1">⏱️ <strong>Prolongation :</strong> Possibilité d'ajouter des prolongations en cas d'égalité (Hikiwake).</div>
-                            <div class="mt-1">🧘 <strong>Kata :</strong> Tour 1 éliminatoire, qualification des meilleurs pour la finale du Tour 2 (nombre paramétrable).</div>
-                        </div>
                         <button class="btn btn-primary btn-lg w-100 fw-bold" @onclick="RegenerateDraws">
                             🎲 Régénérer tous les tirages
                         </button>
@@ -1086,11 +862,11 @@
                             <th>Jour</th>
                             <th>Tatami Assigné</th>
                             <th>Inscrits</th>
-                            <th>Durée Match</th>
+                            <th>Durée</th>
                             <th>Prolongation</th>
-                            <th>🥉 Petite Finale (3e place)</th>
-                            <th>Katas Imposés (T1 / T2)</th>
-                            <th>Qualifiés Finale</th>
+                            <th>Petite Finale</th>
+                            <th>Katas (T1 / T2)</th>
+                            <th>Qualifiés</th>
                             <th>Action</th>
                         </tr>
                     </thead>
@@ -1115,16 +891,19 @@
                                         </div>
                                     </div>
                                 </td>
-                                <td><strong>@cat.Name</strong></td>
+                                <td><span class="badge bg-warning text-dark ms-1">@Lang[cat.Name]</span></td>
                                 <td>
                                     <span class="badge @(cat.Type == CompetitionType.Kumite ? "bg-danger" : "bg-primary")">
                                         @cat.Type
                                     </span>
                                 </td>
                                 <td>
-                                    <select class="form-select form-select-sm fw-bold border-warning" style="min-width: 105px;"
-                                            value="@cat.CompetitionDay"
-                                            @onchange="(e) => HandleChangeCategoryDay(cat.Id, e)">
+                                    <select 
+                                        class="form-select form-select-sm fw-bold border-warning" 
+                                        style="min-width: 105px;"
+                                        value="@cat.CompetitionDay"
+                                        @onchange="(e) => HandleChangeCategoryDay(cat.Id, e)"
+                                    >
                                         @for (int d = 1; d <= tournamentDaysCount; d++)
                                         {
                                             <option value="@d">📅 Jour @d</option>
@@ -1132,10 +911,13 @@
                                     </select>
                                 </td>
                                 <td>
-                                    <select class="form-select form-select-sm" style="min-width: 145px;"
-                                            value="@(cat.AssignedTatamiId ?? -1)"
-                                            @onchange="(e) => HandleChangeCategoryTatami(cat.Id, e)">
-                                        <option value="-1">🚫 Aucun tatami (Non affiché)</option>
+                                    <select 
+                                        class="form-select form-select-sm" 
+                                        style="min-width: 145px;"
+                                        value="@(cat.AssignedTatamiId ?? -1)"
+                                        @onchange="(e) => HandleChangeCategoryTatami(cat.Id, e)"
+                                    >
+                                        <option value="-1">🚫 Aucun tatami</option>
                                         @foreach (var t in tatamis)
                                         {
                                             <option value="@t.Id">🥋 @t.Name</option>
@@ -1238,8 +1020,13 @@
                     <div class="col-md-4 col-sm-6">
                         <div class="input-group input-group-sm">
                             <span class="input-group-text bg-white">🔍</span>
-                            <input type="text" class="form-control" placeholder="Rechercher (nom, dossard, club, pays...)..."
-                                   @bind="competitorFilter" @bind:event="oninput" />
+                            <input 
+                                type="text" 
+                                class="form-control" 
+                                placeholder="Rechercher (nom, dossard, club, pays...)..."
+                                @bind="competitorFilter" 
+                                @bind:event="oninput" 
+                            />
                             @if (!string.IsNullOrEmpty(competitorFilter))
                             {
                                 <button class="btn btn-outline-secondary" @onclick="() => competitorFilter = string.Empty">✕</button>
@@ -1249,7 +1036,10 @@
                     <div class="col-md-4 col-sm-6">
                         <div class="input-group input-group-sm">
                             <span class="input-group-text bg-white">📂 Catégorie</span>
-                            <select class="form-select" @bind="selectedCompetitorCategoryFilter">
+                            <select 
+                                class="form-select" 
+                                @bind="selectedCompetitorCategoryFilter"
+                            >
                                 <option value="0">Toutes les catégories (@categories.Count)</option>
                                 @foreach (var cat in categories.OrderBy(c => c.CompetitionDay).ThenBy(c => c.OrderIndex).ThenBy(c => c.Name))
                                 {
@@ -1263,7 +1053,10 @@
                     <div class="col-md-2 col-sm-6">
                         <div class="input-group input-group-sm">
                             <span class="input-group-text bg-white">Discipline</span>
-                            <select class="form-select" @bind="selectedCompetitorDisciplineFilter">
+                            <select 
+                                class="form-select" 
+                                @bind="selectedCompetitorDisciplineFilter"
+                            >
                                 <option value="all">Toutes</option>
                                 <option value="kumite">🥊 Kumité</option>
                                 <option value="kata">🥋 Kata</option>
@@ -1313,8 +1106,11 @@
                                 <td><strong>@c.FullName</strong></td>
                                 <td>
                                     <span class="badge bg-light text-dark border">
-                                        <img src="@c.FlagImageUrl" alt="" style="width: 16px; height: 11px; margin-right: 4px; vertical-align: middle;" />
-                                        @c.Country
+                                        <img 
+                                            src="@c.FlagImageUrl" 
+                                            alt="" 
+                                            style="width: 16px; height: 11px; margin-right: 4px; vertical-align: middle;" 
+                                        />
                                     </span>
                                 </td>
                                 <td>@c.Club</td>
@@ -1326,12 +1122,12 @@
                                         <div class="text-muted small">@c.BirthDate.Value.ToString("dd/MM/yyyy")</div>
                                     }
                                 </td>
-                                <td><span class="badge bg-secondary">@c.Grade (@c.GradeName)</span></td>
-                                <td>@c.Weight:F1 kg</td>
+                                <td><span class="badge bg-secondary">@c.GradeName</span></td>
+                                <td style="white-space:nowrap;">@c.Weight kg</td>
                                 <td>
                                     @if (c.IsKumiteRegistered)
                                     {
-                                        <span class="badge bg-danger me-1">Kumité</span>
+                                        <span class="badge bg-danger me-1">Kumite</span>
                                     }
                                     @if (c.IsKataRegistered)
                                     {
@@ -1429,7 +1225,6 @@
                                     <option value="Lettonie" />
                                     <option value="Estonie" />
                                 </datalist>
-                                <small class="text-muted">Aperçu : @editingCompetitor.CountryFlag @editingCompetitor.Country</small>
                             </div>
 
                             <div class="col-md-5">
@@ -1505,7 +1300,7 @@
                                                             <span class="badge @(cat.Type == CompetitionType.Kumite ? "bg-danger" : "bg-primary") me-1">
                                                                 @(cat.Type == CompetitionType.Kumite ? "Kumité" : "Kata")
                                                             </span>
-                                                            <strong>@cat.Name</strong> (J@(cat.CompetitionDay))
+                                                            <strong>@cat.Name</strong>
                                                         </label>
                                                     </div>
                                                 </div>
@@ -1722,6 +1517,7 @@
     // Multi-Jours & Planification
     private int selectedDayFilter = 0; // 0 = Tous, 1 = Jour 1, 2 = Jour 2...
     private int selectedBoardDayFilter = 0;
+    private int selectedBoardTatamiFilter = 0;
     private int selectedEncounterDayFilter = 0;
     private int tournamentDaysCount = 2;
     private int? tournamentActiveDay = null; // Jour actif défini par l'admin
@@ -2514,9 +2310,13 @@
     {
         get
         {
-            var list = allMatches.Where(m => !m.IsBye && (selectedEncounterDayFilter == 0 || m.CompetitionDay == selectedEncounterDayFilter));
-            if (string.IsNullOrWhiteSpace(encounterSearchFilter)) return list;
+            var list = allMatches.Where(m => !m.IsBye && (selectedBoardDayFilter == 0 || m.CompetitionDay == selectedBoardDayFilter) && (selectedBoardTatamiFilter == 0 || m.Tatami.Number == selectedBoardTatamiFilter));
+
+            if (string.IsNullOrWhiteSpace(encounterSearchFilter)) 
+                return list;
+            
             string term = encounterSearchFilter.Trim().ToLowerInvariant();
+            
             return list.Where(m =>
                 m.AkaDisplayName.ToLowerInvariant().Contains(term) ||
                 m.ShiroDisplayName.ToLowerInvariant().Contains(term) ||

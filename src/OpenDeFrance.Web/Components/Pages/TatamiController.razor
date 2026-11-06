@@ -4,6 +4,7 @@
 @inject ITournamentService TournamentService
 @inject IJSRuntime JS
 @implements IDisposable
+@inject ILanguageService Lang
 
 <PageTitle>Table de Marque - Tatami @TatamiId</PageTitle>
 
@@ -17,7 +18,7 @@
         <div class="d-flex justify-content-between align-items-center mb-3">
             <div>
                 <h2 class="mb-0 fw-bold">
-                    ⏱️ Table de Marque - @tatami.Name
+                    ⏱️ Table - @tatami.Name
                     <span class="badge @(tatami.CurrentDiscipline == CompetitionType.Kumite ? "bg-danger" : "bg-primary") ms-2">
                         @tatami.CurrentDiscipline
                     </span>
@@ -28,31 +29,12 @@
                 </h2>
             </div>
             <div class="d-flex gap-2 flex-wrap">
-                <a href="/tatami/@TatamiId/tv" target="_blank" class="btn btn-outline-info">
-                    📺 Ouvrir l'écran TV Tatami
-                </a>
-                <button class="btn btn-outline-warning" @onclick="PlayGong">
-                    🔔 Coup de Gong
+                <button 
+                    class="btn @(tatami.IsPaused ? "btn-success fw-bold" : "btn-warning fw-bold")"
+                    @onclick="TogglePause"
+                >
+                    @(tatami.IsPaused ? "▶ REPRENDRE" : "⏸ PAUSE")
                 </button>
-                <button class="btn @(tatami.IsPaused ? "btn-success fw-bold" : "btn-warning fw-bold")"
-                        @onclick="TogglePause">
-                    @(tatami.IsPaused ? "▶ REPRENDRE" : "⏸ PAUSE / PUB")
-                </button>
-                @if (tatamis.Count > 1)
-                {
-                    @if (tatami.IsPaused)
-                    {
-                        <button class="btn btn-outline-success" @onclick="ResumeAll" title="Reprendre tous les tatamis">
-                            ▶▶ Tous reprendre
-                        </button>
-                    }
-                    else
-                    {
-                        <button class="btn btn-outline-warning" @onclick="PauseAll" title="Mettre en pause tous les tatamis">
-                            ⏸⏸ Tous en pause
-                        </button>
-                    }
-                }
             </div>
         </div>
 
@@ -61,9 +43,11 @@
             <div class="alert alert-warning border-warning d-flex align-items-center gap-3 mb-3 flex-wrap">
                 <span class="fs-5">⏸ <strong>TATAMI EN PAUSE</strong> — L'écran TV affiche la publicité/pause.</span>
                 <div class="d-flex align-items-center gap-2 flex-grow-1">
-                    <input type="text" class="form-control form-control-sm"
-                           placeholder="Message de pause (optionnel, affiché si aucune pub)"
-                           @bind="pauseMessage" @bind:event="oninput" style="max-width: 320px;" />
+                    <input 
+                        type="text" class="form-control form-control-sm"
+                        placeholder="Message de pause (optionnel, affiché si aucune pub)"
+                        @bind="pauseMessage" @bind:event="oninput" style="max-width: 320px;" 
+                    />
                     <button class="btn btn-sm btn-outline-dark" @onclick="UpdatePauseMessage">Mettre à jour</button>
                 </div>
             </div>
@@ -77,12 +61,16 @@
                     <span class="text-muted small">Ce tatami accueille Kumité et Kata. Basculez d'un mode à l'autre selon le programme :</span>
                 </div>
                 <div class="btn-group">
-                    <button class="btn @(tatami.CurrentDiscipline == CompetitionType.Kumite ? "btn-danger fw-bold active" : "btn-outline-danger")"
-                            @onclick="() => SwitchDiscipline(CompetitionType.Kumite)">
+                    <button 
+                        class="btn @(tatami.CurrentDiscipline == CompetitionType.Kumite ? "btn-danger fw-bold active" : "btn-outline-danger")"
+                        @onclick="() => SwitchDiscipline(CompetitionType.Kumite)"
+                    >
                         🥊 Mode Kumité (@tatami.AssignedKumiteMatches.Count)
                     </button>
-                    <button class="btn @(tatami.CurrentDiscipline == CompetitionType.Kata ? "btn-primary fw-bold active" : "btn-outline-primary")"
-                            @onclick="() => SwitchDiscipline(CompetitionType.Kata)">
+                    <button 
+                        class="btn @(tatami.CurrentDiscipline == CompetitionType.Kata ? "btn-primary fw-bold active" : "btn-outline-primary")"
+                        @onclick="() => SwitchDiscipline(CompetitionType.Kata)"
+                    >
                         🥋 Mode Kata (@tatami.AssignedKataPerformances.Count)
                     </button>
                 </div>
@@ -116,8 +104,8 @@
                     <div class="card-body d-flex justify-content-between align-items-center">
                         <div>
                             <span class="badge bg-warning text-dark fs-5 me-2">Match #@match.MatchNumber</span>
-                            <span class="fs-4 fw-bold">@match.Category?.Name</span>
-                            <span class="badge bg-secondary ms-2 fs-6">@match.RoundName</span>
+                            <span class="fs-4 fw-bold">@Lang[match.Category?.Name]</span>
+                            <span class="badge bg-secondary ms-2 fs-6">@Lang[match.RoundName]</span>
                         </div>
                         <div>
                             @if (match.ExtensionsCount > 0)
@@ -141,27 +129,20 @@
 
                     <div class="d-flex justify-content-center gap-2 flex-wrap mb-3">
                         <button class="btn @(match.IsTimerRunning ? "btn-warning" : "btn-success") btn-lg px-3 px-md-4 py-2 py-md-3 fs-5 fs-md-4 fw-bold flex-grow-1 flex-md-grow-0" @onclick="ToggleTimer" style="min-height: 52px;">
-                            @(match.IsTimerRunning ? "⏸ PAUSE / YAMÉ (Espace)" : "▶ DÉMARRER / HAJIMÉ (Espace)")
+                            @(match.IsTimerRunning ? "⏸ PAUSE (Espace)" : "▶ DÉMARRER (Espace)")
                         </button>
                         <button class="btn btn-secondary btn-lg px-3 py-2 fs-6 fs-md-5" @onclick="ResetTimer" style="min-height: 52px;">
                             🔄 Remise à zéro
                         </button>
                     </div>
 
-                    <div class="d-flex justify-content-center gap-1 gap-md-2 flex-wrap mb-2">
-                        <button class="btn btn-outline-secondary px-3 py-2 fw-bold" @onclick="() => AdjustTimer(1)">+1s</button>
-                        <button class="btn btn-outline-secondary px-3 py-2 fw-bold" @onclick="() => AdjustTimer(-1)">-1s</button>
-                        <button class="btn btn-outline-secondary px-3 py-2 fw-bold" @onclick="() => AdjustTimer(10)">+10s</button>
-                        <button class="btn btn-outline-secondary px-3 py-2 fw-bold" @onclick="() => AdjustTimer(-10)">-10s</button>
-                    </div>
-
-                    <!-- Bouton Prolongation (Encho-sen) -->
+                    <!-- Bouton Prolongation -->
                     <div class="border-top pt-2 pt-md-3">
                         <button class="btn btn-danger btn-lg px-4 fw-bold w-100 w-md-auto" @onclick="AddExtension" style="min-height: 48px;">
-                            ➕ PROLONGATION (ENCHO-SEN)
+                            ➕ PROLONGATION
                         </button>
                         <small class="d-block text-muted mt-1">
-                            En cas d'égalité (Hikiwake) : ajoute une prolongation (@(match.Category?.KumiteExtensionDurationSeconds ?? 120)s) et réinitialise le chrono.
+                            En cas d'égalité : ajoute une prolongation (@(match.Category?.KumiteExtensionDurationSeconds ?? 120)s) et réinitialise le chrono.
                         </small>
                     </div>
                 </div>
@@ -172,11 +153,29 @@
                     <div class="col-md-6">
                         <div class="card border-danger h-100 shadow">
                             <div class="card-header bg-danger text-white py-2">
-                                <h4 class="mb-0 fw-bold">AKA (ROUGE) : @match.AkaDisplayName</h4>
-                                <small>@(match.AkaCompetitor?.DisplayInfo ?? "")</small>
+                                <h4 class="mb-0 fw-bold">AKA</h4>
+                                <h4 class="mb-0 fw-bold">@match.AkaDisplayName</h4>
+                                <div 
+                                    class="small d-flex align-items-center jusitify-content-center" 
+                                    title="@(match.AkaCompetitor != null ? $"{match.AkaCompetitor.CountryFlag} {match.AkaCompetitor.Club}" : "")"
+                                >
+                                    <img 
+                                        src="@match.AkaCompetitor?.FlagImageUrl"
+                                        alt="@match.AkaCompetitor?.Country"
+                                        title="@match.AkaCompetitor?.Country"
+                                        class="border rounded-1 me-1 flex-shrink-0"
+                                        style="width: 22px; height: 15px; object-fit: cover; vertical-align: middle; box-shadow: 0 1px 2px rgba(0,0,0,0.15);" 
+                                    />
+                                    <div class="auto-scroll-container">
+                                        <span class="auto-scroll-content">@(match.AkaCompetitor != null ? $" {match.AkaCompetitor.Club}" : "")</span>
+                                    </div>
+                                </div>
+                                <div class="mt-1 badge bg-secondary text-nowrap" style="font-size: 0.75rem;">
+                                    <small class="auto-scroll-content">@match.AkaCompetitor?.GradeName</small>
+                                </div>
                             </div>
                             <div class="card-body text-center">
-                                <div class="row g-2 mb-3">
+                                <!-- <div class="row g-2 mb-3">
                                     <div class="col-6">
                                         <div class="p-2 border rounded bg-light">
                                             <div class="text-muted fw-bold">WAZA-ARI</div>
@@ -196,9 +195,9 @@
                                             </button>
                                         </div>
                                     </div>
-                                </div>
+                                </div> -->
 
-                                <div class="row g-2 mb-3">
+                                <!-- <div class="row g-2 mb-3">
                                     <div class="col-6">
                                         <div class="p-2 border rounded">
                                             <span class="text-muted">CHUI (Avertiss.) : </span>
@@ -219,7 +218,7 @@
                                             </div>
                                         </div>
                                     </div>
-                                </div>
+                                </div> -->
 
                                 <div class="d-grid gap-2">
                                     <button class="btn btn-danger btn-lg fw-bold" @onclick="() => DeclareWinner(CornerColor.Aka, MatchWinnerReason.WazaAriDecision)">
@@ -234,11 +233,29 @@
                     <div class="col-md-6">
                         <div class="card border-secondary h-100 shadow">
                             <div class="card-header bg-dark text-white py-2">
-                                <h4 class="mb-0 fw-bold">SHIRO (BLANC) : @match.ShiroDisplayName</h4>
-                                <small>@(match.ShiroCompetitor?.DisplayInfo ?? "")</small>
+                                <h4 class="mb-0 fw-bold">SHIRO</h4>
+                                <h4 class="mb-0 fw-bold">@match.ShiroDisplayName</h4>
+                                <div 
+                                    class="small d-flex align-items-center jusitify-content-center" 
+                                    title="@(match.ShiroCompetitor != null ? $"{match.ShiroCompetitor.CountryFlag} {match.ShiroCompetitor.Club}" : "")"
+                                >
+                                    <img 
+                                        src="@match.ShiroCompetitor?.FlagImageUrl"
+                                        alt="@match.ShiroCompetitor?.Country"
+                                        title="@match.ShiroCompetitor?.Country"
+                                        class="border rounded-1 me-1 flex-shrink-0"
+                                        style="width: 22px; height: 15px; object-fit: cover; vertical-align: middle; box-shadow: 0 1px 2px rgba(0,0,0,0.15);" 
+                                    />
+                                    <div class="auto-scroll-container">
+                                        <span class="auto-scroll-content">@(match.ShiroCompetitor != null ? $" {match.ShiroCompetitor.Club}" : "")</span>
+                                    </div>
+                                </div>
+                                <div class="mt-1 badge bg-secondary text-nowrap" style="font-size: 0.75rem;">
+                                    <small class="auto-scroll-content">@match.ShiroCompetitor?.GradeName</small>
+                                </div>
                             </div>
                             <div class="card-body text-center">
-                                <div class="row g-2 mb-3">
+                                <!-- <div class="row g-2 mb-3">
                                     <div class="col-6">
                                         <div class="p-2 border rounded bg-light">
                                             <div class="text-muted fw-bold">WAZA-ARI</div>
@@ -258,9 +275,9 @@
                                             </button>
                                         </div>
                                     </div>
-                                </div>
+                                </div> -->
 
-                                <div class="row g-2 mb-3">
+                                <!-- <div class="row g-2 mb-3">
                                     <div class="col-6">
                                         <div class="p-2 border rounded">
                                             <span class="text-muted">CHUI (Avertiss.) : </span>
@@ -281,7 +298,7 @@
                                             </div>
                                         </div>
                                     </div>
-                                </div>
+                                </div> -->
 
                                 <div class="d-grid gap-2">
                                     <button class="btn btn-dark btn-lg fw-bold" @onclick="() => DeclareWinner(CornerColor.Shiro, MatchWinnerReason.WazaAriDecision)">
@@ -297,7 +314,7 @@
             <!-- Liste des combats assignés sur ce tatami -->
             <div class="card">
                 <div class="card-header bg-light d-flex justify-content-between align-items-center flex-wrap gap-2">
-                    <h5 class="mb-0 fw-bold">Combats assignés au Tatami @tatami.Number</h5>
+                    <h5 class="mb-0 fw-bold">Combats Tatami @tatami.Number</h5>
                     <div class="d-flex align-items-center gap-2">
                         <span class="small fw-bold text-muted">Jour :</span>
                         <select class="form-select form-select-sm" style="width: auto;" @bind="selectedDayFilter">
@@ -318,8 +335,8 @@
                                 <th>Jour</th>
                                 <th>Catégorie</th>
                                 <th>Tour</th>
-                                <th>AKA (Rouge)</th>
-                                <th>SHIRO (Blanc)</th>
+                                <th>AKA</th>
+                                <th>SHIRO</th>
                                 <th>Statut</th>
                                 <th>Vainqueur</th>
                                 <th>Action</th>
@@ -331,9 +348,9 @@
                                 bool isCurrent = tatami.CurrentKumiteMatchId == m.Id;
                                 <tr class="@(isCurrent ? "table-warning fw-bold" : "")">
                                     <td>#@m.MatchNumber</td>
-                                    <td><span class="badge bg-light text-dark border">J@m.CompetitionDay</span></td>
-                                    <td>@m.Category?.Name</td>
-                                    <td>@m.RoundName</td>
+                                    <td><span class="badge bg-light text-dark border">Jour @m.CompetitionDay</span></td>
+                                    <td>@Lang[m.Category?.Name]</td>
+                                    <td>@Lang[m.RoundName]</td>
                                     <td class="text-danger">@m.AkaDisplayName</td>
                                     <td class="text-dark">@m.ShiroDisplayName</td>
                                     <td>
@@ -545,11 +562,17 @@
         RefreshData();
         TournamentService.OnTatamiUpdated += HandleTatamiUpdated;
         TournamentService.OnStateChanged += HandleStateChanged;
+        Lang.OnLanguageChanged += HandleLanguageChanged;
     }
 
     protected override void OnParametersSet()
     {
         RefreshData();
+    }
+
+    private async void HandleLanguageChanged()
+    {
+        await InvokeAsync(StateHasChanged);
     }
 
     private void RefreshData()
@@ -715,6 +738,7 @@
     {
         TournamentService.OnTatamiUpdated -= HandleTatamiUpdated;
         TournamentService.OnStateChanged -= HandleStateChanged;
+        Lang.OnLanguageChanged -= HandleLanguageChanged;
     }
 }
 
