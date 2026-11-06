@@ -425,25 +425,32 @@
                         </div>
 
                         <!-- Formulaire 5 juges -->
-                        <h5 class="fw-bold mb-3">Notes des 5 Juges (de 55 à 100) :</h5>
+                        <h5 class="fw-bold mb-3">Notes des 5 Juges (de 50 à 99) :</h5>
                         <div class="row g-2 mb-3">
                             @for (int i = 0; i < 5; i++)
                             {
                                 int idx = i;
                                 <div class="col-4 col-sm-4 col-md">
                                     <label class="form-label fw-bold small text-nowrap">Juge @(idx + 1)</label>
-                                    <input type="number" step="1" min="55" max="100" class="form-control form-control-lg text-center fw-bold px-1"
-                                           @bind="judgeInputScores[idx]" />
+                                    <input 
+                                        type="number" 
+                                        step="1" 
+                                        min="50" 
+                                        max="99" 
+                                        class="form-control form-control-lg text-center fw-bold px-1"
+                                        @bind="judgeInputScores[idx]" 
+                                    />
                                 </div>
                             }
                         </div>
 
                         <div class="d-flex flex-wrap gap-2">
-                            <button class="btn btn-success btn-lg px-4 fw-bold flex-grow-1 flex-md-grow-0" @onclick="SubmitScores" style="min-height: 48px;">
+                            <button 
+                                class="btn btn-success btn-lg px-4 fw-bold flex-grow-1 flex-md-grow-0" 
+                                @onclick="SubmitScores" 
+                                style="min-height: 48px;"
+                            >
                                 💾 Valider et Enregistrer les Notes
-                            </button>
-                            <button class="btn btn-outline-secondary py-2 flex-grow-1 flex-md-grow-0" @onclick="FillSampleScores">
-                                Remplir notes d'exemple (75, 78, etc.)
                             </button>
                         </div>
                     }
@@ -488,9 +495,9 @@
                                 <th>Tour</th>
                                 <th>Compétiteur</th>
                                 <th>Club</th>
-                                <th>Kata Imposé</th>
-                                <th>Notes juges</th>
-                                <th>Note Retenue</th>
+                                <th>Kata</th>
+                                <th>Notes</th>
+                                <th>Note</th>
                                 <th>Rang</th>
                                 <th>Action</th>
                             </tr>
@@ -501,7 +508,7 @@
                                 bool isCurrent = tatami.CurrentKataPerformanceId == p.Id;
                                 <tr class="@(isCurrent ? "table-warning fw-bold" : "")">
                                     <td>#@p.PerformanceOrder</td>
-                                    <td><span class="badge bg-light text-dark border">J@p.CompetitionDay</span></td>
+                                    <td><span class="badge bg-light text-dark border">Jour @p.CompetitionDay</span></td>
                                     <td>
                                         <span class="badge @(p.Round == KataRound.Turn1 ? "bg-info text-dark" : "bg-warning text-dark")">
                                             @p.Round
@@ -544,7 +551,7 @@
 
     private Tatami? tatami;
     private List<Tatami> tatamis = new();
-    private double[] judgeInputScores = new double[5] { 75, 75, 75, 75, 75 };
+    private double[] judgeInputScores = new double[5] { 50, 50, 50, 50, 50 };
     private int selectedDayFilter = 0;
     private int tournamentDaysCount = 1;
     private string pauseMessage = "";
@@ -585,11 +592,19 @@
 
         tatamis = TournamentService.GetTatamis();
         tatami = TournamentService.GetTatami(TatamiId);
+
         if (tatami?.CurrentKataPerformance != null && tatami.CurrentKataPerformance.JudgeScores.Count == 5)
         {
             for (int i = 0; i < 5; i++)
             {
                 judgeInputScores[i] = tatami.CurrentKataPerformance.JudgeScores[i];
+            }
+        }
+        else 
+        {
+            for (int i = 0; i < 5; i++)
+            {
+                judgeInputScores[i] = 50;
             }
         }
     }
@@ -662,6 +677,7 @@
             {
                 judgeInputScores[i] = Math.Clamp(Math.Round(judgeInputScores[i]), 55, 100);
             }
+
             TournamentService.SubmitKataScores(tatami.CurrentKataPerformanceId.Value, judgeInputScores.ToList());
             RefreshData();
         }
