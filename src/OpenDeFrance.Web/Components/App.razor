@@ -24,12 +24,16 @@
     <script src="@Assets["_framework/blazor.web.js"]" autostart="false"></script>
     <script>
         // Démarrage manuel de Blazor pour configurer SignalR avant la connexion.
-        // Sur Safari : LongPolling uniquement (WebSockets souvent bloqués par ITP/proxy).
-        // Sur autres navigateurs : WebSocket + LongPolling fallback (transport 1|4 = 5).
+        // LongPolling (transport=4) est utilisé pour tous les navigateurs car Azure App Service
+        // désactive les WebSockets par défaut. LP est fiable, fonctionne partout
+        // (Safari, Chrome, Firefox, proxy, VPN, Azure) sans warning console.
+        //
+        // Pour repasser sur WebSockets (meilleures performances temps-réel) :
+        //   1. Activer "Web sockets" dans Azure App Service → Configuration → Paramètres généraux
+        //   2. Remplacer `var transport = 4` par `var transport = 1 | 4`
         (function () {
-            var isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
             // HttpTransportType : WebSockets=1, ServerSentEvents=2, LongPolling=4
-            var transport = isSafari ? 4 : (1 | 4);
+            var transport = 4; // LongPolling uniquement (Azure WS désactivés par défaut)
 
             Blazor.start({
                 circuit: {

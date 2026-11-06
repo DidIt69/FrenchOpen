@@ -85,43 +85,85 @@ az webapp config connection-string set \
 
 ---
 
-## 🔄 Étape 3 — CI/CD avec GitHub Actions
+## 🔄 Étape 3 — CI/CD avec GitHub Actions (Service Principal)
 
-### 3.1 Récupérer le Publish Profile
+> [!IMPORTANT]
+> L'approche **Publish Profile** peut échouer avec l'erreur `Publish profile is invalid for app-name`.  
+> La méthode **Service Principal** (ci-dessous) est plus robuste et recommandée.
+
+### 3.1 Créer un Service Principal Azure
 
 ```bash
-az webapp deployment list-publishing-profiles \
-  --name open-de-france \
-  --resource-group rg-kyokushin \
-  --xml > publish_profile.xml
+# Récupérer votre Subscription ID
+az account show --query id -o tsv
+
+# Créer le Service Principal avec droits Contributor sur le groupe de ressources
+az ad sp create-for-rbac \
+  --name "sp-kyokushin-deploy" \
+  --role contributor \
+  --scopes /subscriptions/<SUBSCRIPTION_ID>/resourceGroups/rg-kyokushin \
+  --sdk-auth
 ```
 
-Ou depuis le **Portail Azure** :  
-`App Service → open-de-france → Vue d'ensemble → Télécharger le profil de publication`
+La commande retourne un JSON :
+```json
+{
+  "clientId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+  "clientSecret": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "subscriptionId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+  "tenantId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+  "activeDirectoryEndpointUrl": "https://login.microsoftonline.com",
+  "resourceManagerEndpointUrl": "https://management.azure.com/",
+  ...
+}
+```
 
 ### 3.2 Ajouter le secret dans GitHub
 
 1. Aller sur votre repo GitHub → **Settings → Secrets and variables → Actions**
 2. Cliquer **New repository secret**
-3. Nom : `AZURE_WEBAPP_PUBLISH_PROFILE`
-4. Valeur : coller le contenu XML du fichier publish_profile.xml
+3. Nom : **`AZURE_CREDENTIALS`**
+4. Valeur : **coller le JSON complet** retourné par la commande ci-dessus
 
-### 3.3 Workflow déjà créé
+### 3.3 Vérifier le nom exact de l'App Service
 
-Le fichier [`.github/workflows/deploy-azure.yml`](file:///C:/Works/FrenchOpen/.github/workflows/deploy-azure.yml) est prêt.
-
-**Modifier le nom de l'App Service** dans le workflow :
-```yaml
-env:
-  AZURE_WEBAPP_NAME: "open-de-france"   # ← votre nom d'App Service
+```bash
+# Lister vos App Services pour connaître le nom exact
+az webapp list --query "[].name" -o tsv
 ```
 
-**À chaque `git push` sur `main`**, GitHub Actions va :
-1. ✅ Restaurer les packages
-2. ✅ Builder en Release
-3. ✅ Lancer les 85 tests
-4. ✅ Publier l'artefact
-5. 🚀 Déployer sur Azure App Service
+Mettre à jour la variable dans [`.github/workflows/deploy-azure.yml`](file:///C:/Works/FrenchOpen/.github/workflows/deploy-azure.yml) :
+```yaml
+env:
+  AZURE_WEBAPP_NAME: "open-de-france"   # ← doit correspondre EXACTEMENT au nom Azure
+```
+
+### 3.4 Pipeline — ce qui se passe à chaque `git push` sur `main`
+
+```
+git push origin main
+      │
+      ▼
+┌─────────────────────────────┐
+│  Job 1 : Build & Test       │
+│  1. dotnet restore          │
+│  2. dotnet build --Release  │
+│  3. dotnet test (85 tests)  │
+│  4. dotnet publish          │
+│  5. Upload artefact         │
+└─────────────┬───────────────┘
+              │ si succès
+              ▼
+┌─────────────────────────────┐
+│  Job 2 : Deploy             │
+│  1. az login (SP)           │
+│  2. azure/webapps-deploy    │
+│  3. az logout               │
+└─────────────────────────────┘
+      │
+      ▼
+  https://open-de-france.azurewebsites.net ✅
+```
 
 ---
 
@@ -178,14 +220,92 @@ ENTRYPOINT ["dotnet", "OpenDeFrance.Web.dll"]
 
 | Fichier | Rôle |
 |---|---|
-| `appsettings.json` | Placeholder connection string Azure SQL |
-| `appsettings.Development.json` | SQLite local (dev sans Azure) |
-| `Program.cs` | Auto-détection SQL Server vs SQLite selon la connection string |
-| `.github/workflows/deploy-azure.yml` | Pipeline CI/CD GitHub Actions |
+| `appsettings.json` | `DatabaseProvider=SqlServer` uniquement — **pas de connection string** |
+| `appsettings.Development.json` | `DatabaseProvider=Sqlite` + connection string SQLite locale |
+| `Program.cs` | Détection explicite via `DatabaseProvider`, logs de démarrage détaillés |
+| `.github/workflows/deploy-azure.yml` | Pipeline CI/CD GitHub Actions (Service Principal) |
 
 ## ✅ Comportement selon l'environnement
 
-| Environnement | Connection string | Provider |
+| Environnement | `DatabaseProvider` | Connection string | Provider utilisé |
+|---|---|---|---|
+| **Dev local** | `Sqlite` (appsettings.Development.json) | `Data Source=tournament.db` | SQLite |
+| **Azure (prod)** | `SqlServer` (appsettings.json) | Injectée par Azure App Service | SQL Server |
+
+## 🌐 WebSockets sur Azure App Service
+
+> [!IMPORTANT]
+> Azure App Service **désactive les WebSockets par défaut**. Sans activation manuelle, Blazor génère dans la console :
+> ```
+> Warning: Failed to connect via WebSockets, using the Long Polling fallback transport.
+> ```
+> Ce warning est **bénin** si Long Polling fonctionne — mais il génère une latence plus élevée pour les mises à jour temps-réel.
+
+### Option A — Rester en Long Polling (simple, sans action Azure)
+Le code actuel force `transport = 4` (Long Polling uniquement) dans [`App.razor`](file:///C:/Works/FrenchOpen/src/OpenDeFrance.Web/Components/App.razor). **Aucune action requise.** La mise à jour des scores a ~1-2 sec de délai, acceptable pour une compétition.
+
+### Option B — Activer les WebSockets (meilleures performances)
+
+**Via le Portail Azure :**
+1. App Service → **Configuration** → onglet **Paramètres généraux**
+2. **Web sockets** → **Activé**
+3. Enregistrer → Redémarrer l'app
+
+**Via Azure CLI :**
+```bash
+az webapp config set \
+  --name open-de-france \
+  --resource-group rg-kyokushin \
+  --web-sockets-enabled true
+```
+
+**Puis dans [`App.razor`](file:///C:/Works/FrenchOpen/src/OpenDeFrance.Web/Components/App.razor), changer :**
+```js
+// Avant (Long Polling uniquement)
+var transport = 4;
+
+// Après (WebSocket + LongPolling fallback)
+var transport = 1 | 4;
+```
+
+> [!NOTE]
+> WebSockets nécessitent le tier **B1 minimum** (pas disponible sur F1 gratuit). En tier F1, restez en Long Polling.
+
+---
+
+## 🔑 Configuration requise dans Azure App Service
+
+### Onglet "Application Settings"
+
+| Nom | Valeur |
+|---|---|
+| `ASPNETCORE_ENVIRONMENT` | `Production` |
+| `DatabaseProvider` | `SqlServer` |
+
+### Onglet "Connection Strings"
+
+| Nom | Valeur | Type |
 |---|---|---|
-| **Dev local** | `Data Source=tournament.db` | SQLite |
-| **Azure (prod)** | `Server=tcp:...database.windows.net...` | SQL Server |
+| `DefaultConnection` | `Server=tcp:championships.database.windows.net,1433;Initial Catalog=FrenchOpen2027;User ID=...;Password=...;Encrypt=True;` | **Custom** |
+
+> [!CAUTION]
+> La connection string **ne doit PAS être dans `appsettings.json`** (sécurité). Elle est uniquement dans Azure App Service → Configuration → Connection Strings.
+
+> [!IMPORTANT]
+> Le type doit être **Custom** (pas SQLAzure, pas SQLServer). Avec le type Custom, Azure injecte la connection string comme variable d'environnement `CUSTOMCONNSTR_DefaultConnection`, automatiquement mappée à `ConnectionStrings:DefaultConnection` par ASP.NET Core.
+
+## 🩺 Diagnostics de démarrage
+
+Au démarrage, l'application affiche dans les logs (Azure App Service → Log stream) :
+
+```
+╔══════════════════════════════════════════════════════╗
+║  ENVIRONMENT  : Production                           ║
+║  DatabaseProvider : SqlServer                        ║
+║  ConnStr trouvée  : OUI                              ║
+║  ConnStr début    : Server=tcp:championships...      ║
+╚══════════════════════════════════════════════════════╝
+[DB] ✅ Utilisation de SQL SERVER
+```
+
+**Si vous voyez `SQLite` ou `NON`** → la connection string n'est pas injectée correctement par Azure.
