@@ -118,11 +118,14 @@
                                 {
                                     <!-- Current Kumite Match Banner -->
                                     <div class="p-3 bg-light border-bottom">
-                                        <h6 class="fw-bold text-primary mb-2">@Lang[match.Category?.Name]</h6>
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <span class="badge bg-primary">@(Lang[match.Category.Name])</span>
+                                        </div>
 
                                         <!-- Fighters Aka vs Shiro -->
                                         <div class="row g-2 text-center align-items-center mb-2">
-                                            <div class="col-5 p-2 rounded bg-danger text-white overflow-hidden">
+                                            <!-- AKA (en haut sur mobile col-12, à gauche sur desktop col-md-5) -->
+                                            <div class="col-12 col-md-5 p-2 rounded bg-danger text-white overflow-hidden">
                                                 <div class="auto-scroll-container fw-bold small" title="@match.AkaDisplayName">
                                                     <span class="auto-scroll-content">@match.AkaDisplayName</span>
                                                 </div>
@@ -133,8 +136,8 @@
                                                 >
                                                     <img 
                                                         src="@match.AkaCompetitor?.FlagImageUrl"
-                                                        alt="@match.AkaCompetitor.Country"
-                                                        title="@match.AkaCompetitor.Country"
+                                                        alt="@match.AkaCompetitor?.Country"
+                                                        title="@match.AkaCompetitor?.Country"
                                                         class="border rounded-1 me-1 flex-shrink-0"
                                                         style="width: 22px; height: 15px; object-fit: cover; vertical-align: middle; box-shadow: 0 1px 2px rgba(0,0,0,0.15);" 
                                                     />
@@ -143,13 +146,17 @@
                                                     </div>
                                                 </div>
                                                 <div class="mt-1 badge bg-dark text-nowrap" style="font-size: 0.75rem;">
-                                                    <small class="auto-scroll-content">@match.AkaCompetitor.GradeName</small>
+                                                    <small class="auto-scroll-content">@match.AkaCompetitor?.GradeName</small>
                                                 </div>
                                             </div>
 
-                                            <div class="col-2 fw-bold text-muted small">VS</div>
+                                            <!-- VS (au milieu) -->
+                                            <div class="col-12 col-md-2 fw-bold text-muted small py-1 py-md-0">
+                                                <span class="badge bg-light text-secondary border">VS</span>
+                                            </div>
 
-                                            <div class="col-5 p-2 rounded border-secondary border overflow-hidden">
+                                            <!-- SHIRO (en bas sur mobile col-12, à droite sur desktop col-md-5) -->
+                                            <div class="col-12 col-md-5 p-2 rounded border-secondary border overflow-hidden">
                                                 <div class="auto-scroll-container fw-bold small" title="@match.ShiroDisplayName">
                                                     <span class="auto-scroll-content">@match.ShiroDisplayName</span>
                                                 </div>
@@ -160,8 +167,8 @@
                                                 >
                                                     <img 
                                                         src="@match.ShiroCompetitor?.FlagImageUrl"
-                                                        alt="@match.ShiroCompetitor.Country"
-                                                        title="@match.ShiroCompetitor.Country"
+                                                        alt="@match.ShiroCompetitor?.Country"
+                                                        title="@match.ShiroCompetitor?.Country"
                                                         class="border rounded-1 me-1 flex-shrink-0"
                                                         style="width: 22px; height: 15px; object-fit: cover; vertical-align: middle; box-shadow: 0 1px 2px rgba(0,0,0,0.15);" 
                                                     />
@@ -170,7 +177,7 @@
                                                     </div>
                                                 </div>
                                                 <div class="mt-1 badge bg-secondary text-nowrap" style="font-size: 0.75rem;">
-                                                    <small class="auto-scroll-content">@match.AkaCompetitor.GradeName</small>
+                                                    <small class="auto-scroll-content">@match.ShiroCompetitor?.GradeName</small>
                                                 </div>
                                             </div>
                                         </div>
