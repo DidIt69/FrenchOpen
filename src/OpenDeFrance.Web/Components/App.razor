@@ -15,83 +15,40 @@
 </head>
 
 <body>
-    <!-- Bannière de diagnostic visuel pour iPhone / Safari (visible 4s si OK, permanent si erreur) -->
-    <div id="blazor-diag-bar" style="position:fixed; top:0; left:0; right:0; z-index:99999; padding:4px 8px; font-size:12px; font-family:monospace; background:#333; color:#fff; text-align:center; display:none;">
-        <span id="blazor-diag-text">Initialisation...</span>
+    <!-- Bannière de diagnostic visuel (visible uniquement en cas d'erreur JS) -->
+    <div id="blazor-diag-bar" style="position:fixed; top:0; left:0; right:0; z-index:99999; padding:6px 12px; font-size:13px; font-family:system-ui, -apple-system, sans-serif; background:#c0392b; color:#fff; text-align:center; display:none; box-shadow:0 2px 8px rgba(0,0,0,0.4);">
+        <span id="blazor-diag-text"></span>
     </div>
+
+    <script>
+        // Diagnostic immédiat pour capturer toute erreur JS sur mobile / Safari
+        window.onerror = function (msg, url, lineNo) {
+            var bar = document.getElementById('blazor-diag-bar');
+            var txt = document.getElementById('blazor-diag-text');
+            if (bar && txt) {
+                bar.style.display = 'block';
+                var file = url ? url.split('/').pop() : 'inline';
+                txt.innerText = '⚠️ Erreur JS: ' + msg + ' (' + file + ':' + lineNo + ')';
+            }
+            return false;
+        };
+
+        window.addEventListener('unhandledrejection', function (ev) {
+            var bar = document.getElementById('blazor-diag-bar');
+            var txt = document.getElementById('blazor-diag-text');
+            if (bar && txt) {
+                bar.style.display = 'block';
+                txt.innerText = '⚠️ Rejet Promise: ' + (ev.reason ? (ev.reason.message || ev.reason) : 'inconnu');
+            }
+        });
+    </script>
 
     <Routes @rendermode="InteractiveServer" />
     <ReconnectModal />
     <script src="js/tournament-audio.js"></script>
     <script src="js/auto-scroll.js"></script>
-    <script src="@Assets["_framework/blazor.web.js"]" autostart="false"></script>
-    <script>
-        (function () {
-            var bar = document.getElementById('blazor-diag-bar');
-            var txt = document.getElementById('blazor-diag-text');
-
-            function showDiag(msg, bg) {
-                if (bar && txt) {
-                    bar.style.display = 'block';
-                    bar.style.background = bg || '#333';
-                    txt.innerText = msg;
-                }
-            }
-
-            // Capture toutes les erreurs JavaScript (y compris sur iPhone)
-            window.onerror = function (msg, url, lineNo) {
-                var file = url ? url.split('/').pop() : 'inline';
-                showDiag('⚠️ Erreur JS: ' + msg + ' (' + file + ':' + lineNo + ')', '#c0392b');
-                return false;
-            };
-
-            window.addEventListener('unhandledrejection', function (ev) {
-                showDiag('⚠️ Rejet Promise: ' + (ev.reason ? (ev.reason.message || ev.reason) : 'inconnu'), '#c0392b');
-            });
-
-            // Affiche le dernier élément touché/cliqué pour vérifier la détection tactile
-            document.addEventListener('click', function (e) {
-                var target = e.target;
-                var desc = target.tagName.toLowerCase();
-                if (target.id) desc += '#' + target.id;
-                else if (target.className && typeof target.className === 'string') desc += '.' + target.className.split(' ')[0];
-                showDiag('👆 Clic détecté sur: <' + desc + '>', '#2c3e50');
-                setTimeout(function () {
-                    if (bar && bar.style.background === 'rgb(44, 62, 80)') bar.style.display = 'none';
-                }, 2000);
-            }, true);
-
-            // Démarrage manuel de Blazor avec fallback SignalR LongPolling
-            var transport = 4; // LongPolling uniquement
-            showDiag('⏳ Connexion Blazor en cours...', '#d35400');
-
-            Blazor.start({
-                circuit: {
-                    configureSignalR: function (builder) {
-                        builder.withUrl("/_blazor", { transport: transport });
-                    },
-                    reconnectionOptions: {
-                        maxRetries: 15,
-                        retryIntervalMilliseconds: 2000
-                    }
-                }
-            }).then(function () {
-                showDiag('🟢 Blazor connecté (Circuit OK)', '#27ae60');
-                setTimeout(function () {
-                    if (bar && bar.style.background === 'rgb(39, 174, 96)') bar.style.display = 'none';
-                }, 4000);
-            }).catch(function (err) {
-                showDiag('🔴 Échec connexion Blazor: ' + (err.message || err), '#c0392b');
-            });
-
-            // Safari mobile : force cursor:pointer sur body pour le bubbling des événements
-            if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-                if (document.body) {
-                    document.body.style.cursor = "pointer";
-                }
-            }
-        })();
-    </script>
+    <!-- Démarrage natif automatique de Blazor (.NET 10 standard) -->
+    <script src="@Assets["_framework/blazor.web.js"]"></script>
 </body>
 
 </html>
