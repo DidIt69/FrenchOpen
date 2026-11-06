@@ -36,6 +36,11 @@ main {
 /* Mobile & Tablet Drawer (< 768px) */
 @media (max-width: 767.98px) {
     .sidebar {
+        display: none !important;
+    }
+
+    .sidebar.show-mobile {
+        display: block !important;
         position: fixed;
         top: 0;
         bottom: 0;
@@ -43,23 +48,18 @@ main {
         width: 290px;
         max-width: 85vw;
         height: 100vh;
+        height: 100dvh;
         z-index: 1050;
-        transform: translateX(-100%);
-        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.3s ease;
-        box-shadow: none;
-        overflow-y: auto;
-        /* CRUCIAL pour Safari iOS : sans visibility:hidden et pointer-events:none,
-           l'élément fixed avec z-index 1050 intercepte les taps sur les 290px de gauche,
-           bloquant complètement le clic sur le bouton de menu (hamburger) ! */
-        visibility: hidden;
-        pointer-events: none;
-    }
-
-    .sidebar.show-mobile {
         transform: translateX(0);
         box-shadow: 4px 0 25px rgba(0, 0, 0, 0.6);
-        visibility: visible;
-        pointer-events: auto;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        animation: slideInLeft 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    @keyframes slideInLeft {
+        from { transform: translateX(-100%); }
+        to { transform: translateX(0); }
     }
 
     .sidebar-backdrop {
