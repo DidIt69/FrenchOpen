@@ -183,7 +183,7 @@
                                         </div>
 
                                         <!-- Live Timer -->
-                                        <div class="d-flex justify-content-between align-items-center mt-2 pt-2 border-top">
+                                        <div class="d-flex justify-content-between align-items-center mt-4 pt-2 border-top">
                                             <span class="font-monospace fs-4 fw-bold @(match.IsTimerRunning ? "text-success" : "text-muted")">
                                                 ⏱️ @FormatSeconds(match.RemainingSeconds)
                                             </span>
@@ -359,7 +359,7 @@
                             <!-- Upcoming Kata Performances -->
                             <div class="p-3">
                                 <h6 class="text-uppercase text-secondary fw-bold small mb-2">
-                                    @(Lang["NextKataPassages"])
+                                    @(Lang["NextKata"])
                                 </h6>
                                 @{
                                     var upcomingKatas = tatami.AssignedKataPerformances

@@ -159,6 +159,7 @@ public class LanguageService : ILanguageService
         ["NoKataOnTatami"] = new() { ["fr"] = "Aucun passage Kata en cours sur ce tatami", ["en"] = "No Kata sequence is currently in progress on this tatami" },
         ["NoFightOnTatami"] = new() { ["fr"] = "Aucun combat en cours sur ce tatami", ["en"] = "No match currently taking place on this tatami" },
         ["NextKataPassages"] = new() { ["fr"] = "⏭️ Prochains passages Kata", ["en"] = "⏭️ Next Kata passages" },
+        ["NextKata"] = new() { ["fr"] = "⏭️ Prochains passages", ["en"] = "⏭️ Next Pasages" },
         ["NextFight"] = new() { ["fr"] = "⏭️ Prochains combats", ["en"] = "⏭️ Next fights" },
         ["NoOtherPassagesPending"] = new() { ["fr"] = "Aucun autre passage en attente.", ["en"] = "No other passages pending." },
         ["NoOtherFightPending"] = new() { ["fr"] = "Aucun autre combat programmé pour le moment.", ["en"] = "No other fight scheduled at the moment." },
