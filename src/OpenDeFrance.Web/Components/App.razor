@@ -47,8 +47,9 @@
     <ReconnectModal />
     <script src="js/tournament-audio.js"></script>
     <script src="js/auto-scroll.js"></script>
-    <!-- Démarrage natif automatique de Blazor (.NET 10 standard) -->
-    <script src="@Assets["_framework/blazor.web.js"]"></script>
+    <!-- Script Blazor Web compatible universellement (transpilé pour Safari 15+ / iOS 16+) -->
+    <!-- Corrige le bug ASP.NET Core #57326 / #58212 : SyntaxError: Unexpected token '{' sur Safari iOS -->
+    <script src="js/blazor.web.safari.js"></script>
 </body>
 
 </html>
