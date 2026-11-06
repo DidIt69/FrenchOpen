@@ -59,7 +59,8 @@ main {
         position: fixed;
         inset: 0;
         background: rgba(0, 0, 0, 0.55);
-        backdrop-filter: blur(2px);
+        /* backdrop-filter supprimé : bug Safari — crée un stacking context qui
+           peut intercepter les événements touch et bloquer les @onclick Blazor */
         z-index: 1040;
         animation: fadeIn 0.2s ease-out;
     }
@@ -82,7 +83,10 @@ main {
         height: 100vh;
         position: sticky;
         top: 0;
-        overflow: hidden;
+        /* overflow:hidden supprimé sur desktop — sur Safari, overflow:hidden sur un parent
+           avec position:sticky peut empêcher la propagation des événements touch vers les
+           éléments enfants (boutons Blazor @onclick non déclenchés) */
+        overflow-y: auto;
     }
 
     .sidebar.collapsed-desktop {
