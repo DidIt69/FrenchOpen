@@ -9,13 +9,13 @@
 
     @if (isSidebarOpenMobile)
     {
-        <div class="sidebar-backdrop d-md-none" @onclick="CloseMobileSidebar" @ontouchstart="() => {}"></div>
+        <div class="sidebar-backdrop d-md-none" @onclick="CloseMobileSidebar"></div>
     }
 
     <main>
         <div class="top-row px-2 px-md-3 d-flex justify-content-between align-items-center">
             <div class="d-flex align-items-center gap-2">
-                <button class="btn btn-sm btn-outline-secondary toggle-sidebar-btn d-flex align-items-center gap-1" @onclick="ToggleSidebar" @ontouchstart="() => {}" title="Menu">
+                <button class="btn btn-sm btn-outline-secondary toggle-sidebar-btn d-flex align-items-center gap-1" @onclick="ToggleSidebar" title="Menu">
                     <span class="fs-6">☰</span>
                     <span class="fw-bold d-none d-md-inline">@(isSidebarCollapsedDesktop ? Lang["ShowMenu"] : Lang["HideMenu"])</span>
                 </button>

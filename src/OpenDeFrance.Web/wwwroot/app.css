@@ -104,11 +104,19 @@ h1:focus {
 
 
 /* ==========================================================================
-   Fix Safari / iOS : les <button> nécessitent cursor:pointer et
-   touch-action:manipulation pour que les taps soient reconnus correctement.
-   Sans cela, Safari peut ignorer le premier tap sur un <button> ou un élément
-   interactif qui ne contient que du SVG ou des pseudo-éléments.
+   Fix Safari iOS : 
+   1. Active le bubbling d'événements de clic vers Blazor (cursor:pointer sur body).
+   2. touch-action:manipulation supprime le délai de 300ms sur les taps.
+   3. pointer-events:none sur les enfants de boutons évite que les <span> ou <svg>
+      n'interceptent l'événement tactile à la place du bouton lui-même.
    ========================================================================== */
+@media (hover: none) and (pointer: coarse) {
+    html, body {
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+    }
+}
+
 button,
 [role="button"],
 .btn {
@@ -117,11 +125,8 @@ button,
     -webkit-tap-highlight-color: transparent;
 }
 
-/* Empêche les effets de survol de bloquer le clic sur mobile */
-@media (hover: none) {
-    .btn:hover, button:hover {
-        background-color: unset !important;
-        color: inherit !important;
-        border-color: unset !important;
-    }
+button > *,
+.btn > *,
+[role="button"] > * {
+    pointer-events: none;
 }

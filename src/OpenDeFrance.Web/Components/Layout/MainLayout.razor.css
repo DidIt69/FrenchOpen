@@ -45,14 +45,21 @@ main {
         height: 100vh;
         z-index: 1050;
         transform: translateX(-100%);
-        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.3s ease;
         box-shadow: none;
         overflow-y: auto;
+        /* CRUCIAL pour Safari iOS : sans visibility:hidden et pointer-events:none,
+           l'élément fixed avec z-index 1050 intercepte les taps sur les 290px de gauche,
+           bloquant complètement le clic sur le bouton de menu (hamburger) ! */
+        visibility: hidden;
+        pointer-events: none;
     }
 
     .sidebar.show-mobile {
         transform: translateX(0);
         box-shadow: 4px 0 25px rgba(0, 0, 0, 0.6);
+        visibility: visible;
+        pointer-events: auto;
     }
 
     .sidebar-backdrop {
@@ -83,6 +90,8 @@ main {
         height: 100vh;
         position: sticky;
         top: 0;
+        visibility: visible;
+        pointer-events: auto;
         /* overflow:hidden supprimé sur desktop — sur Safari, overflow:hidden sur un parent
            avec position:sticky peut empêcher la propagation des événements touch vers les
            éléments enfants (boutons Blazor @onclick non déclenchés) */

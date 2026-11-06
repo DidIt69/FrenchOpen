@@ -8,7 +8,6 @@
         <button type="button"
                 class="btn lang-pill-btn @(Lang.CurrentLanguage == "fr" ? "active" : "")"
                 @onclick='() => SetLanguage("fr")'
-                @ontouchstart="() => {}"
                 title="Français"
                 aria-label="Français">
             <svg class="flag-icon-svg" viewBox="0 0 900 600" width="20" height="14" aria-hidden="true">
@@ -22,7 +21,6 @@
         <button type="button"
                 class="btn lang-pill-btn @(Lang.CurrentLanguage == "en" ? "active" : "")"
                 @onclick='() => SetLanguage("en")'
-                @ontouchstart="() => {}"
                 title="English"
                 aria-label="English">
             <svg class="flag-icon-svg" viewBox="0 0 60 30" width="20" height="14" aria-hidden="true">

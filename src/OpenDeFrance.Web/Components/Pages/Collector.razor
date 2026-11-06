@@ -33,14 +33,14 @@
                     <button class="btn btn-sm btn-outline-success text-white" @onclick="RefreshData">
                         🔄 Actualiser
                     </button>
-                    <button class="btn btn-primary" @onmousedown="OpenInfo">
+                    <button class="btn btn-primary" @onclick="OpenInfo">
                         <svg xmlns="http://w3.org" width="16" height="16" viewBox="0 0 18 18">
                             <rect fill="#FFFFFF" x="8" y="7" width="2" height="7"/>
                             <rect fill="#FFFFFF" x="8" y="3" width="2" height="2"/>
                             <circle fill="none" stroke="#FFFFFF" stroke-width="2" stroke-miterlimit="10" cx="9" cy="9" r="8"/>
                         </svg>
                     </button>
-                    <button class="btn btn-primary" @onmousedown="OpenFilter">
+                    <button class="btn btn-primary" @onclick="OpenFilter">
                         @if(selectedTatamiId == 0 && selectedDayFilter == 0 && selectedUrgencyFilter == "all" && searchTerm == string.Empty) 
                         {
                             <svg xmlns="http://w3.org" width="16" height="16" fill="currentColor" class="bi bi-funnel" viewBox="0 0 16 16">

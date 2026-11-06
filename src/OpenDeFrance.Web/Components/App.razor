@@ -61,17 +61,21 @@
 
             // Safari mobile : force cursor:pointer sur body pour que les taps soient reconnus
             if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-                document.addEventListener("DOMContentLoaded", function () {
+                if (document.body) {
                     document.body.style.cursor = "pointer";
-                });
+                } else {
+                    document.addEventListener("DOMContentLoaded", function () {
+                        document.body.style.cursor = "pointer";
+                    });
+                }
             }
         })();
     </script>
     <!-- Indicateur visible si Blazor ne se connecte pas (Safari, réseau lent...) -->
-    <div id="blazor-status" style="display:none; position:fixed; bottom:16px; right:16px; background:#c0392b; color:white; padding:10px 16px; border-radius:8px; z-index:9999; font-weight:bold; font-size:14px; align-items:center; gap:8px; box-shadow:0 2px 8px rgba(0,0,0,0.3);">
+    <!-- <div id="blazor-status" style="display:none; position:fixed; bottom:16px; right:16px; background:#c0392b; color:white; padding:10px 16px; border-radius:8px; z-index:9999; font-weight:bold; font-size:14px; align-items:center; gap:8px; box-shadow:0 2px 8px rgba(0,0,0,0.3);">
         <span>⚠️</span>
         <span>Blazor non connecté — rechargez la page</span>
-    </div>
+    </div> -->
 </body>
 
 </html>
