@@ -305,8 +305,14 @@
                                                     </div>
 
                                                     <!-- Ligne SHIRO -->
-                                                    <div class="d-flex align-items-center gap-1 text-nowrap" style="overflow: hidden; max-width: 100%;">
-                                                        <span class="badge bg-white border border-secondary p-0 me-1 flex-shrink-0" style="width: 8px; height: 8px; border-radius: 50%; display: inline-block;"></span>
+                                                    <div 
+                                                        class="d-flex align-items-center gap-1 text-nowrap" 
+                                                        style="overflow: hidden; max-width: 100%;"
+                                                    >
+                                                        <span 
+                                                            class="badge bg-white border border-secondary p-0 me-1 flex-shrink-0" 
+                                                            style="width: 8px; height: 8px; border-radius: 50%; display: inline-block;"
+                                                        />
                                                         
                                                         @if (up.ShiroCompetitor != null)
                                                         {
@@ -496,13 +502,19 @@
                     {
                         <span class="badge @(cat.Type == CompetitionType.Kumite ? "bg-danger" : "bg-primary") text-white d-inline-flex align-items-center gap-1 py-1 px-2 shadow-sm" style="font-size: 0.8rem;">
                             <span>@(cat.Type == CompetitionType.Kumite ? "🥊" : "🥋") @cat.Name</span>
-                            <button type="button" class="btn-close btn-close-white ms-1" style="font-size: 0.55rem;"
-                                    aria-label="Supprimer" @onclick="() => ToggleCategorySelection(cat.Id)"></button>
+                            <button 
+                                type="button" 
+                                class="btn-close btn-close-white ms-1" 
+                                style="font-size: 0.55rem;"
+                                aria-label="Supprimer" @onclick="() => ToggleCategorySelection(cat.Id)"
+                            />
                         </span>
                     }
                 }
-                <button class="btn btn-sm btn-link text-danger p-0 ms-2 text-decoration-none small fw-bold"
-                        @onclick="ClearCategorySelection">
+                <button 
+                    class="btn btn-sm btn-link text-danger p-0 ms-2 text-decoration-none small fw-bold"
+                    @onclick="ClearCategorySelection"
+                >
                     ✕ @Lang["ResetFilter"]
                 </button>
             </div>
@@ -567,10 +579,14 @@
 
                             @if (item.IsKata)
                             {
-                                <!-- Ligne 2 : Position (#numéro), Type (KATA) et compétiteur -->
+                                <!-- Ligne 2 : Position (#numéro), Type (KATA) -->
                                 <div class="d-flex align-items-center gap-1 mb-1 flex-wrap">
                                     <span class="badge bg-info text-dark flex-shrink-0" style="font-size:0.7rem;">#@item.Number</span>
                                     <span class="badge bg-primary flex-shrink-0" style="font-size:0.65rem;">KATA</span>
+                                </div>
+
+                                <!-- Ligne 3 : Compétiteur -->
+                                <div class="d-flex align-items-center gap-1 mb-1 flex-wrap">
                                     @if (!string.IsNullOrEmpty(item.KataFlagUrl))
                                     {
                                         <img 
@@ -582,9 +598,13 @@
                                         />
                                     }
                                     <strong>@item.KataCompetitorName</strong>
+                                </div>
+
+                                <!-- Ligne 4 : Compétiteur Club -->
+                                <div class="d-flex align-items-center gap-1 mb-1 flex-wrap">
                                     @if (!string.IsNullOrWhiteSpace(item.KataClub) || !string.IsNullOrWhiteSpace(item.KataGrade))
                                     {
-                                        <small class="text-muted" style="font-size: 0.75rem;">(@string.Join(" • ", new[] { item.KataClub, item.KataGrade }.Where(s => !string.IsNullOrWhiteSpace(s))))</small>
+                                        <small class="text-muted" style="font-size: 0.75rem;">@string.Join(" • ", new[] { item.KataClub, item.KataGrade }.Where(s => !string.IsNullOrWhiteSpace(s)))</small>
                                     }
                                 </div>
                             }
@@ -661,6 +681,11 @@
                                           @onclick="() => FilterSingleCategory(item.CategoryId)">
                                         @Lang[item.CategoryName]
                                     </span>
+                                </div>
+                            </div>
+
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div class="d-flex align-items-center gap-1 flex-wrap">
                                     @if (item.IsKata && (!string.IsNullOrWhiteSpace(item.Notes) || !string.IsNullOrWhiteSpace(item.Score)))
                                     {
                                         <small class="text-muted">@item.Notes @item.Score</small>
@@ -682,15 +707,21 @@
                                         <div class="d-flex align-items-center gap-1 flex-wrap">
                                             <span class="badge bg-info text-dark me-1 flex-shrink-0">#@item.Number</span>
                                             <span class="badge bg-primary me-1 flex-shrink-0" style="font-size:0.65rem;">KATA</span>
+                                        </div>
+
+                                        <div class="d-flex align-items-center gap-1 flex-wrap">
                                             @if (!string.IsNullOrEmpty(item.KataFlagUrl))
                                             {
                                                 <img src="@item.KataFlagUrl" alt="@item.KataCountry" title="@item.KataCountry"
                                                      class="border rounded-1 me-1 flex-shrink-0" style="width: 18px; height: 12px; object-fit: cover;" />
                                             }
                                             <strong class="text-truncate me-1">@item.KataCompetitorName</strong>
+                                        </div>
+
+                                        <div class="d-flex align-items-center gap-1 flex-wrap">
                                             @if (!string.IsNullOrWhiteSpace(item.KataClub) || !string.IsNullOrWhiteSpace(item.KataGrade))
                                             {
-                                                <small class="text-muted text-truncate me-2" style="font-size: 0.8rem;">(@string.Join(" • ", new[] { item.KataClub, item.KataGrade }.Where(s => !string.IsNullOrWhiteSpace(s))))</small>
+                                                <small class="text-muted text-truncate me-2" style="font-size: 0.8rem;">@string.Join(" • ", new[] { item.KataClub, item.KataGrade }.Where(s => !string.IsNullOrWhiteSpace(s)))</small>
                                             }
                                         </div>
                                     }
@@ -715,14 +746,18 @@
                                                 />
                                             }
                                             <strong class="text-danger text-truncate me-1">@item.AkaName</strong>
+                                        </div>
+
+                                        <!-- Ligne 3 : AKA Club Kyu -->
+                                        <div class="d-flex align-items-center gap-1 flex-wrap ms-3">
                                             @if (!string.IsNullOrWhiteSpace(item.AkaClub) || !string.IsNullOrWhiteSpace(item.AkaGrade))
                                             {
-                                                <small class="text-muted text-truncate me-2" style="font-size: 0.8rem;">(@string.Join(" • ", new[] { item.AkaClub, item.AkaGrade }.Where(s => !string.IsNullOrWhiteSpace(s))))</small>
+                                                <small class="text-muted text-truncate me-2" style="font-size: 0.8rem;">@string.Join(" • ", new[] { item.AkaClub, item.AkaGrade }.Where(s => !string.IsNullOrWhiteSpace(s)))</small>
                                             }
                                         </div>
 
-                                        <!-- Ligne 3 : SHIRO sur sa propre ligne -->
-                                        <div class="d-flex align-items-center gap-1 flex-wrap ms-1">
+                                        <!-- Ligne 4 : SHIRO sur sa propre ligne -->
+                                        <div class="d-flex align-items-center gap-1 flex-wrap">
                                             <span class="badge bg-white border border-secondary p-0 me-1 flex-shrink-0" style="width: 8px; height: 8px; border-radius: 50%; display: inline-block;"></span>
                                             @if (!string.IsNullOrEmpty(item.ShiroFlagUrl))
                                             {
@@ -730,9 +765,13 @@
                                                      class="border rounded-1 me-1 flex-shrink-0" style="width: 18px; height: 12px; object-fit: cover;" />
                                             }
                                             <strong class="text-truncate me-1">@item.ShiroName</strong>
+                                        </div>
+
+                                        <!-- Ligne 5 : SHIRO Club Kyu -->
+                                        <div class="d-flex align-items-center gap-1 flex-wrap ms-3">
                                             @if (!string.IsNullOrWhiteSpace(item.ShiroClub) || !string.IsNullOrWhiteSpace(item.ShiroGrade))
                                             {
-                                                <small class="text-muted text-truncate" style="font-size: 0.8rem;">(@string.Join(" • ", new[] { item.ShiroClub, item.ShiroGrade }.Where(s => !string.IsNullOrWhiteSpace(s))))</small>
+                                                <small class="text-muted text-truncate" style="font-size: 0.8rem;">@string.Join(" • ", new[] { item.ShiroClub, item.ShiroGrade }.Where(s => !string.IsNullOrWhiteSpace(s)))</small>
                                             }
                                         </div>
                                     }
