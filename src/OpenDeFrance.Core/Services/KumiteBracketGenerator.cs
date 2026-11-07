@@ -457,7 +457,7 @@ public class KumiteBracketGenerator : IKumiteBracketGenerator
             1 => "Semi-Final",
             2 => "Quarter Final",
             3 => "Round of 16",
-            4 => "Roudn of 32",
+            4 => "Round of 32",
             _ => $"Turn {round}"
         };
     }

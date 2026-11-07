@@ -3,33 +3,33 @@
 @rendermode InteractiveServer
 @inject ITournamentService TournamentService
 @inject IJSRuntime JS
-@implements IDisposable
 @inject ILanguageService Lang
+@inject UserPreferencesService Preferences
+@implements IDisposable
 
 <PageTitle>Open de France 2027</PageTitle>
 
 <div class="container-fluid py-3">
     <!-- Top Hero Banner -->
     <div class="p-3 mb-4 rounded-3 text-white shadow" style="background: linear-gradient(135deg, #1b2838 0%, #0d121d 100%); border-left: 5px solid #ffc107;">
-        <div class="d-flex flex-row align-items-center gap-2">
+        <div class="d-flex flex-row align-items-center justify-content-between flex-wrap gap-2">
             <div>
                 <h1 class="h3 fw-bold mb-0 fs-4">🥋 @Lang["FrenchOpen2027"]</h1>
             </div>
-            <div class="flex-grow-1 d-flex flex-wrap gap-2 justify-content-end">
-                <button class="btn btn-primary" @onclick="OpenTatamiFilter">
-                    @if(selectedTatamiIds.Count == 0) 
+            <div class="d-flex align-items-center gap-2">
+                <label for="tatamiSelect" class="form-label text-warning mb-0 fw-bold small text-nowrap d-none d-sm-inline">
+                    🥋 @Lang["Tatami"] :
+                </label>
+                <select id="tatamiSelect" class="form-select form-select-sm bg-dark text-white border-secondary fw-semibold shadow-sm"
+                        style="min-width: 170px; max-width: 240px; cursor: pointer;"
+                        value="@selectedTatamiId"
+                        @onchange="OnTatamiSelectChanged">
+                    <option value="0">🌐 @Lang["AllTatamis"]</option>
+                    @foreach (var t in tatamis)
                     {
-                        <svg xmlns="http://w3.org" width="16" height="16" fill="currentColor" class="bi bi-funnel" viewBox="0 0 16 16">
-                            <path d="M1.5 1.5A.5.5 0 0 1 2 1h12a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.128.334L10 8.692V13.5a.5.5 0 0 1-.342.474l-3 1A.5.5 0 0 1 6 14.5V8.692L1.128 3.834A.5.5 0 0 1 1 3.5zm1 .5v1.308l4.372 4.858A.5.5 0 0 1 7 8.5v5.306l2-.666V8.5a.5.5 0 0 1 .128-.334L13.5 3.308V2z"/>
-                        </svg>
-                    } 
-                    else 
-                    {
-                        <svg xmlns="http://w3.org" width="16" height="16" fill="currentColor" class="bi bi-funnel-fill" viewBox="0 0 16 16">
-                            <path d="M1.5 1.5A.5.5 0 0 1 2 1h12a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.128.334L10 8.692V13.5a.5.5 0 0 1-.342.474l-3 1A.5.5 0 0 1 6 14.5V8.692L1.128 3.834A.5.5 0 0 1 1 3.5z"/>
-                        </svg>
-                    }   
-                </button>
+                        <option value="@t.Id">@t.Name</option>
+                    }
+                </select>
             </div>
         </div>
     </div>
@@ -49,10 +49,41 @@
         <div class="row g-4 mb-5">
             @foreach (var tatami in DisplayedTatamis)
             {
+                var currentKata = (activeDay.HasValue && tatami.CurrentKataPerformance?.CompetitionDay != activeDay.Value)
+                    ? null
+                    : tatami.CurrentKataPerformance;
+                bool hasActiveKata = currentKata != null && currentKata.Status != MatchStatus.Finished;
+                bool hasUpcomingKata = tatami.AssignedKataPerformances
+                    .Any(p => p.Status != MatchStatus.Finished && (!activeDay.HasValue || p.CompetitionDay == activeDay.Value));
+                bool hasKataToDisplay = hasActiveKata || hasUpcomingKata;
+
+                bool hasKumiteMatches = tatami.AssignedKumiteMatches
+                    .Any(m => (!activeDay.HasValue || m.CompetitionDay == activeDay.Value));
+
+                // S'il n'y a plus de kata à afficher, on affiche les combats Kumité
+                bool showKumite = tatami.CurrentDiscipline == CompetitionType.Kumite || (!hasKataToDisplay && hasKumiteMatches);
+
+                var currentMatch = (activeDay.HasValue && tatami.CurrentKumiteMatch?.CompetitionDay != activeDay.Value)
+                    ? null
+                    : tatami.CurrentKumiteMatch;
+
+                if (showKumite && (currentMatch == null || currentMatch.Status == MatchStatus.Finished))
+                {
+                    var activeMatch = tatami.AssignedKumiteMatches
+                        .FirstOrDefault(m => (m.Status == MatchStatus.InProgress || m.Status == MatchStatus.Ready) && (!activeDay.HasValue || m.CompetitionDay == activeDay.Value));
+                    if (activeMatch != null)
+                    {
+                        currentMatch = activeMatch;
+                    }
+                    else if (currentMatch?.Status == MatchStatus.Finished)
+                    {
+                        currentMatch = null;
+                    }
+                }
                 <div class="@GetTatamiColClass()">
                 <div class="card h-100 shadow border-0 overflow-hidden">
                     <!-- Tatami Header -->
-                    <div class="card-header py-3 d-flex justify-content-between align-items-center @(tatami.IsPaused ? "bg-warning text-dark" : tatami.CurrentDiscipline == CompetitionType.Kumite ? "bg-dark text-white" : "bg-primary text-white")">
+                    <div class="card-header py-3 d-flex justify-content-between align-items-center @(tatami.IsPaused ? "bg-warning text-dark" : showKumite ? "bg-dark text-white" : "bg-primary text-white")">
                         <div>
                             <span class="fs-5 fw-bold">@tatami.Name</span>
                         </div>
@@ -60,18 +91,18 @@
                         {
                             <span class="badge bg-dark text-warning fs-6 fw-bold">⏸ PAUSE / PUB</span>
                         }
-                        else if (tatami.CurrentDiscipline == CompetitionType.Kumite)
+                        else if (showKumite)
                         {
-                            @if (tatami.CurrentKumiteMatch != null && tatami.CurrentKumiteMatch.Status != MatchStatus.Finished)
+                            @if (currentMatch != null && currentMatch.Status != MatchStatus.Finished && (!activeDay.HasValue || currentMatch.CompetitionDay == activeDay.Value))
                             {
-                                <span class="badge bg-warning text-dark fs-6 fw-bold">Kumite #@tatami.CurrentKumiteMatch.MatchNumber</span>
+                                <span class="badge bg-warning text-dark fs-6 fw-bold">Kumite #@currentMatch.MatchNumber</span>
                             }
                         }
                         else
                         {
-                            @if (tatami.CurrentKataPerformance != null && tatami.CurrentKataPerformance.Status != MatchStatus.Finished)
+                            @if (currentKata != null && currentKata.Status != MatchStatus.Finished && (!activeDay.HasValue || currentKata.CompetitionDay == activeDay.Value))
                             {
-                                <span class="badge bg-warning text-dark fs-6 fw-bold">Kata #@tatami.CurrentKataPerformance.PerformanceOrder</span>
+                                <span class="badge bg-warning text-dark fs-6 fw-bold">Kata #@currentKata.PerformanceOrder</span>
                             }
                         }
                     </div>
@@ -94,12 +125,12 @@
                                 }
                             </div>
                         }
-                        else if (tatami.CurrentDiscipline == CompetitionType.Kumite)
+                        else if (showKumite)
                         {
-                            var isKataFinished = TournamentService.IsKataCompetitionFinished(tatamiId: tatami.Id);
+                            var isKataFinished = TournamentService.IsKataCompetitionFinished(competitionDay: activeDay, tatamiId: tatami.Id);
                             if (!isKataFinished)
                             {
-                                var pendingKatas = TournamentService.GetPendingKataCount(tatamiId: tatami.Id);
+                                var pendingKatas = TournamentService.GetPendingKataCount(competitionDay: activeDay, tatamiId: tatami.Id);
                                 <div class="p-4 text-center py-5">
                                     <div class="fs-1 mb-2">🥋</div>
                                     <h5 class="fw-bold text-dark mb-1">@Lang["KataInProgressFightsPending"]</h5>
@@ -113,7 +144,7 @@
                             }
                             else
                             {
-                                var match = tatami.CurrentKumiteMatch;
+                                var match = currentMatch;
                                 if (match != null)
                                 {
                                     <!-- Current Kumite Match Banner -->
@@ -213,8 +244,13 @@
                                         @Lang["NextFight"]
                                     </h6>
                                     @{
-                                        var upcoming = tatami.AssignedKumiteMatches
-                                            .Where(m => m.Status != MatchStatus.Finished && m.Id != match?.Id)
+                                        var upcomingKumite = tatami.AssignedKumiteMatches
+                                            .Where(m => m.Status != MatchStatus.Finished && m.Id != match?.Id);
+                                        if (activeDay.HasValue)
+                                        {
+                                            upcomingKumite = upcomingKumite.Where(m => m.CompetitionDay == activeDay.Value);
+                                        }
+                                        var upcoming = upcomingKumite
                                             .OrderBy(m => m.MatchNumber)
                                             .Take(3)
                                             .ToList();
@@ -306,7 +342,7 @@
                         else
                         {
                             <!-- Kata Tatami Live View -->
-                            var kata = tatami.CurrentKataPerformance;
+                            var kata = currentKata;
                             if (kata != null)
                             {
                                 <div class="p-3 bg-light border-bottom">
@@ -362,8 +398,13 @@
                                     @(Lang["NextKata"])
                                 </h6>
                                 @{
-                                    var upcomingKatas = tatami.AssignedKataPerformances
-                                        .Where(p => p.Status != MatchStatus.Finished && p.Id != kata?.Id)
+                                    var upcomingKata = tatami.AssignedKataPerformances
+                                        .Where(p => p.Status != MatchStatus.Finished && p.Id != kata?.Id);
+                                    if (activeDay.HasValue)
+                                    {
+                                        upcomingKata = upcomingKata.Where(p => p.CompetitionDay == activeDay.Value);
+                                    }
+                                    var upcomingKatas = upcomingKata
                                         .OrderBy(p => p.PerformanceOrder)
                                         .Take(3)
                                         .ToList();
@@ -416,12 +457,10 @@
         <div class="card-header py-3 bg-dark text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
             <div class="d-flex align-items-center gap-2 flex-wrap">
                 <h5 class="mb-0 fw-bold">@Lang["Program"]</h5>
-                @if (selectedTatamiIds.Count > 0)
+                @if (selectedTatamiId > 0)
                 {
                     <span class="badge bg-warning text-dark small">
-                        @(selectedTatamiIds.Count == 1
-                            ? (tatamis.FirstOrDefault(t => t.Id == selectedTatamiIds.First())?.Name ?? "Tatami filtré")
-                            : $"{selectedTatamiIds.Count} tatamis filtrés")
+                        @(tatamis.FirstOrDefault(t => t.Id == selectedTatamiId)?.Name ?? "Tatami filtré")
                     </span>
                 }
                 @if (selectedCategoryIds.Count > 0)
@@ -477,7 +516,7 @@
         {
             <div class="p-4 text-center text-muted">
                 <em>Aucune rencontre ou kata ne correspond aux filtres sélectionnés.</em>
-                @if (selectedCategoryIds.Count > 0 || selectedTatamiIds.Count > 0 || !string.IsNullOrWhiteSpace(searchTerm) || hideFinished)
+                @if (selectedCategoryIds.Count > 0 || selectedTatamiId > 0 || !string.IsNullOrWhiteSpace(searchTerm) || hideFinished)
                 {
                     <div class="mt-2 d-flex justify-content-center gap-2">
                         <button class="btn btn-sm btn-outline-secondary" @onclick="ResetAllProgramFilters">
@@ -762,58 +801,7 @@
         </div>
     </div>
 
-    @if(isTatamiFilterOpen) 
-    {
-        <!-- Le fond noir semi-transparent (Backdrop) -->
-        <div class="modal-backdrop fade show"></div>
 
-        <!-- La structure de la modale Bootstrap -->
-        <div class="modal fade show d-block" tabindex="-1" role="dialog">
-            <div class="modal-dialog modal-dialog-centered" role="document">
-                <div class="modal-content bg-dark">                
-                    <!-- En-tête -->
-                    <div class="modal-header">
-                        <h5 class="modal-title text-white">@Lang["Filter"]</h5>
-                        <button 
-                            type="button" 
-                            style="margin: calc(-0.5rem) calc(-0.5rem) calc(-0.5rem) auto;background: transparent;border: 0px;"
-                            @onclick="CloseTatamiFilter" 
-                        >
-                            <svg xmlns='http://www.w3.org/2000/svg' width="16" height="16" fill="#FFF" class="bi bi-funnel-fill" viewBox="0 0 16 16">
-                                <path d='M.293.293a1 1 0 0 1 1.414 0L8 6.586 14.293.293a1 1 0 1 1 1.414 1.414L9.414 8l6.293 6.293a1 1 0 0 1-1.414 1.414L8 9.414l-6.293 6.293a1 1 0 0 1-1.414-1.414L6.586 8 .293 1.707a1 1 0 0 1 0-1.414z'/>
-                            </svg>
-                        </button>
-                    </div>
-                
-                    <!-- Corps -->
-                    <div class="modal-body d-flex gap-2 align-self-center">
-                        @foreach (var t in tatamis)
-                        {
-                            bool isSelected = selectedTatamiIds.Contains(t.Id);
-                            <button
-                                type="button"
-                                class="btn btn-sm tatami-toggle-btn @(isSelected ? "btn-primary fw-bold shadow-sm" : "btn-outline-primary")"
-                                @onclick="() => ToggleTatamiSelection(t.Id)"
-                            >
-                                @t.Name
-                            </button>
-                        }
-                    </div>
-                
-                    <!-- Pied de page -->
-                    <div class="modal-footer">
-                        <button 
-                            type="button" 
-                            class="btn class-secondary text-white" 
-                            @onclick="CloseTatamiFilter"
-                        >
-                            Fermer
-                        </button>
-                    </div>            
-                </div>
-            </div>
-        </div>
-    }
 
     @if(isListFilterOpen) 
     {
@@ -983,11 +971,10 @@
     private string searchTerm = string.Empty;
     private string disciplineFilter = "all";
     private bool hideFinished = true;
-    private HashSet<int> selectedTatamiIds = new();
+    private int selectedTatamiId = 0; // 0 = Tous les tatamis
     private HashSet<int> selectedCategoryIds = new();
     private bool isCategoryDropdownOpen = false;
     private string categorySearchTerm = string.Empty;
-    private bool isTatamiFilterOpen = false;
     private bool isListFilterOpen = false;
 
     public class ScheduleItem
@@ -1028,26 +1015,44 @@
     {
         if (QueryTatamiId.HasValue && tatamis.Any(t => t.Id == QueryTatamiId.Value))
         {
-            selectedTatamiIds.Clear();
-            selectedTatamiIds.Add(QueryTatamiId.Value);
+            selectedTatamiId = QueryTatamiId.Value;
+            Preferences.SelectedTatamiId = selectedTatamiId;
         }
     }
 
-    private void OpenTatamiFilter()
+    private async Task OnTatamiSelectChanged(ChangeEventArgs e)
     {
-        isTatamiFilterOpen = true;
+        if (int.TryParse(e.Value?.ToString(), out int val))
+        {
+            await SetSelectedTatami(val);
+        }
     }
 
-    private void CloseTatamiFilter()
+    private async Task SetSelectedTatami(int val)
     {
-        isTatamiFilterOpen = false;
+        selectedTatamiId = val;
+        Preferences.SelectedTatamiId = val;
+
+        if (selectedCategoryIds.Count > 0 && val > 0)
+        {
+            var validIds = categories
+                .Where(c => IsCategoryMatchingDayAndTatami(c))
+                .Select(c => c.Id)
+                .ToHashSet();
+            selectedCategoryIds.IntersectWith(validIds);
+        }
+
+        try
+        {
+            await JS.InvokeVoidAsync("localStorage.setItem", "home_selectedTatamiId", val.ToString());
+        }
+        catch { }
     }
 
-    private void ApplyTatamiFilter()
+    private async Task SelectAllTatamis()
     {
-        isTatamiFilterOpen = false;
+        await SetSelectedTatami(0);
     }
-
 
     private void OpenListFilter()
     {
@@ -1062,24 +1067,6 @@
     private void ApplyListFilter()
     {
         isListFilterOpen = false;
-    }
-
-
-    private void SelectAllTatamis()
-    {
-        selectedTatamiIds.Clear();
-    }
-
-    private void ToggleTatamiSelection(int tatamiId)
-    {
-        if (selectedTatamiIds.Contains(tatamiId))
-        {
-            selectedTatamiIds.Remove(tatamiId);
-        }
-        else
-        {
-            selectedTatamiIds.Add(tatamiId);
-        }
     }
 
     private void ToggleCategoryDropdown()
@@ -1126,7 +1113,7 @@
     private void ResetAllProgramFilters()
     {
         selectedCategoryIds.Clear();
-        selectedTatamiIds.Clear();
+        _ = SetSelectedTatami(0);
         searchTerm = string.Empty;
         disciplineFilter = "all";
         hideFinished = true;
@@ -1165,17 +1152,38 @@
         return finished == total;
     }
 
+    private bool IsCategoryMatchingDayAndTatami(Category c)
+    {
+        // Filtrage par journée (jour actif)
+        if (activeDay.HasValue)
+        {
+            bool matchesDay = c.CompetitionDay == activeDay.Value
+                || allMatches.Any(m => m.CategoryId == c.Id && m.CompetitionDay == activeDay.Value)
+                || allKatas.Any(k => k.CategoryId == c.Id && k.CompetitionDay == activeDay.Value);
+
+            if (!matchesDay) return false;
+        }
+
+        // Filtrage par tatami sélectionné
+        if (selectedTatamiId > 0)
+        {
+            bool matchesTatami = c.AssignedTatamiId == selectedTatamiId
+                || allMatches.Any(m => m.CategoryId == c.Id && (m.TatamiId == selectedTatamiId || (!m.TatamiId.HasValue && c.AssignedTatamiId == selectedTatamiId)))
+                || allKatas.Any(k => k.CategoryId == c.Id && (k.TatamiId == selectedTatamiId || (!k.TatamiId.HasValue && c.AssignedTatamiId == selectedTatamiId)));
+
+            if (!matchesTatami) return false;
+        }
+
+        return true;
+    }
+
     private IEnumerable<Category> FilteredCategoryChoices
     {
         get
         {
-            var list = categories.Where(c => GetCategoryCompetitorCount(c) > 0);
-
-            // Filtre jour actif
-            if (activeDay.HasValue)
-            {
-                list = list.Where(c => c.CompetitionDay == activeDay.Value);
-            }
+            var list = categories
+                .Where(c => GetCategoryCompetitorCount(c) > 0)
+                .Where(c => IsCategoryMatchingDayAndTatami(c));
 
             if (disciplineFilter == "kata")
             {
@@ -1196,10 +1204,17 @@
         }
     }
 
-    private IEnumerable<Tatami> DisplayedTatamis =>
-        selectedTatamiIds.Count == 0
-            ? tatamis
-            : tatamis.Where(t => selectedTatamiIds.Contains(t.Id));
+    private IEnumerable<Tatami> DisplayedTatamis
+    {
+        get
+        {
+            if (selectedTatamiId > 0 && tatamis.Any(t => t.Id == selectedTatamiId))
+            {
+                return tatamis.Where(t => t.Id == selectedTatamiId);
+            }
+            return tatamis;
+        }
+    }
 
     private string GetTatamiColClass()
     {
@@ -1214,6 +1229,11 @@
         RefreshData();
         TournamentService.OnStateChanged += HandleStateChanged;
         Lang.OnLanguageChanged += HandleLanguageChanged;
+
+        if (Preferences.SelectedTatamiId.HasValue)
+        {
+            selectedTatamiId = Preferences.SelectedTatamiId.Value;
+        }
     }
 
     private void RefreshData()
@@ -1247,7 +1267,7 @@
                     if (activeDay.HasValue && k.CompetitionDay != activeDay.Value) continue;
 
                     int? tatamiId = k.TatamiId ?? k.Category?.AssignedTatamiId;
-                    if (selectedTatamiIds.Count > 0 && (!tatamiId.HasValue || !selectedTatamiIds.Contains(tatamiId.Value)))
+                    if (selectedTatamiId > 0 && (!tatamiId.HasValue || tatamiId.Value != selectedTatamiId))
                     {
                         continue;
                     }
@@ -1298,7 +1318,7 @@
                     if (activeDay.HasValue && m.CompetitionDay != activeDay.Value) continue;
 
                     int? tatamiId = m.TatamiId ?? m.Category?.AssignedTatamiId;
-                    if (selectedTatamiIds.Count > 0 && (!tatamiId.HasValue || !selectedTatamiIds.Contains(tatamiId.Value)))
+                    if (selectedTatamiId > 0 && (!tatamiId.HasValue || tatamiId.Value != selectedTatamiId))
                     {
                         continue;
                     }
@@ -1311,9 +1331,12 @@
                     var tatami = tatamis.FirstOrDefault(t => t.Id == tatamiId);
                     string tName = m.Tatami?.Name ?? tatami?.Name ?? (tatamiId.HasValue ? $"Tatami {tatamiId}" : "-");
 
+                    bool isTatamiKumite = tatami != null && (tatami.CurrentDiscipline == CompetitionType.Kumite
+                        || !tatami.AssignedKataPerformances.Any(p => p.Status != MatchStatus.Finished && (!activeDay.HasValue || p.CompetitionDay == activeDay.Value)));
+
                     bool isCurrent = tatami != null
-                        && tatami.CurrentDiscipline == CompetitionType.Kumite
-                        && tatami.CurrentKumiteMatchId == m.Id
+                        && isTatamiKumite
+                        && (tatami.CurrentKumiteMatchId == m.Id || tatami.CurrentKumiteMatch?.Id == m.Id)
                         && m.Status != MatchStatus.Finished;
 
                     items.Add(new ScheduleItem
@@ -1377,6 +1400,35 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (firstRender && !QueryTatamiId.HasValue)
+        {
+            try
+            {
+                var saved = await JS.InvokeAsync<string?>("localStorage.getItem", "home_selectedTatamiId");
+                if (!string.IsNullOrEmpty(saved) && int.TryParse(saved, out int tid))
+                {
+                    if (tid == 0 || tatamis.Any(t => t.Id == tid))
+                    {
+                        if (selectedTatamiId != tid)
+                        {
+                            selectedTatamiId = tid;
+                            Preferences.SelectedTatamiId = tid;
+                            if (selectedCategoryIds.Count > 0 && tid > 0)
+                            {
+                                var validIds = categories
+                                    .Where(c => IsCategoryMatchingDayAndTatami(c))
+                                    .Select(c => c.Id)
+                                    .ToHashSet();
+                                selectedCategoryIds.IntersectWith(validIds);
+                            }
+                            StateHasChanged();
+                        }
+                    }
+                }
+            }
+            catch { }
+        }
+
         try
         {
             await JS.InvokeVoidAsync("autoScrollManager.update");

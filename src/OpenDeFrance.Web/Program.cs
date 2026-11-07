@@ -71,6 +71,7 @@ builder.Services.AddAuthorization();
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddSingleton<IAuthService, AuthService>();
 builder.Services.AddScoped<ILanguageService, LanguageService>();
+builder.Services.AddScoped<UserPreferencesService>();
 
 // ─── Configuration de la base de données ───────────────────────────────────
 // Priorité de configuration (du plus fort au plus faible) :

@@ -1536,8 +1536,8 @@ public class TournamentService : ITournamentService, IHostedService
                         tatami.CurrentKataPerformanceId = null;
                         tatami.CurrentKataPerformance = null;
 
-                        // Si tatami mixte et plus de Katas en attente sur ce tatami, basculer vers les combats
-                        if (tatami.Discipline == CompetitionType.Both)
+                        // Si plus de Katas en attente sur ce tatami, basculer vers les combats s'il y en a
+                        if (tatami.Discipline == CompetitionType.Both || tatami.AssignedKumiteMatches.Count > 0)
                         {
                             tatami.CurrentDiscipline = CompetitionType.Kumite;
                             if (tatami.CurrentKumiteMatch == null && tatami.AssignedKumiteMatches.Count > 0)
@@ -2153,6 +2153,7 @@ public class TournamentService : ITournamentService, IHostedService
                         // SQL Server : ADD COLUMN avec IF NOT EXISTS via sys.columns
                         try { db.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Tatamis') AND name = 'IsPaused') ALTER TABLE [Tatamis] ADD [IsPaused] BIT NOT NULL DEFAULT 0;"); } catch { }
                         try { db.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Tatamis') AND name = 'PauseMessage') ALTER TABLE [Tatamis] ADD [PauseMessage] NVARCHAR(MAX) NULL;"); } catch { }
+                        try { db.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Advertisements') AND name = 'VideoUrl') ALTER TABLE [Advertisements] ADD [VideoUrl] NVARCHAR(MAX) NULL;"); } catch { }
 
                         // Créer la table Advertisements si elle n'existe pas (SQL Server)
                         try
@@ -2166,6 +2167,7 @@ public class TournamentService : ITournamentService, IHostedService
                                         [Subtitle]               NVARCHAR(MAX)  NULL,
                                         [Description]            NVARCHAR(MAX)  NULL,
                                         [ImageUrl]               NVARCHAR(MAX)  NULL,
+                                        [VideoUrl]               NVARCHAR(MAX)  NULL,
                                         [LogoUrl]                NVARCHAR(MAX)  NULL,
                                         [WebsiteUrl]             NVARCHAR(MAX)  NULL,
                                         [DisplayDurationSeconds] INT            NOT NULL DEFAULT 8,
@@ -2181,6 +2183,7 @@ public class TournamentService : ITournamentService, IHostedService
                         // SQLite : ALTER TABLE simple (échoue silencieusement si colonne existe déjà)
                         try { db.Database.ExecuteSqlRaw("ALTER TABLE Tatamis ADD COLUMN IsPaused INTEGER NOT NULL DEFAULT 0;"); } catch { }
                         try { db.Database.ExecuteSqlRaw("ALTER TABLE Tatamis ADD COLUMN PauseMessage TEXT NULL;"); } catch { }
+                        try { db.Database.ExecuteSqlRaw("ALTER TABLE Advertisements ADD COLUMN VideoUrl TEXT NULL;"); } catch { }
 
                         // Créer la table Advertisements si elle n'existe pas (SQLite)
                         try
@@ -2192,6 +2195,7 @@ public class TournamentService : ITournamentService, IHostedService
                                     Subtitle TEXT NULL,
                                     Description TEXT NULL,
                                     ImageUrl TEXT NULL,
+                                    VideoUrl TEXT NULL,
                                     LogoUrl TEXT NULL,
                                     WebsiteUrl TEXT NULL,
                                     DisplayDurationSeconds INTEGER NOT NULL DEFAULT 8,
@@ -2866,6 +2870,7 @@ public class TournamentService : ITournamentService, IHostedService
                 existing.Subtitle = ad.Subtitle;
                 existing.Description = ad.Description;
                 existing.ImageUrl = ad.ImageUrl;
+                existing.VideoUrl = ad.VideoUrl;
                 existing.LogoUrl = ad.LogoUrl;
                 existing.WebsiteUrl = ad.WebsiteUrl;
                 existing.DisplayDurationSeconds = ad.DisplayDurationSeconds > 0 ? ad.DisplayDurationSeconds : 8;
@@ -2911,6 +2916,7 @@ public class TournamentService : ITournamentService, IHostedService
                     Subtitle = a.Subtitle,
                     Description = a.Description,
                     ImageUrl = a.ImageUrl,
+                    VideoUrl = a.VideoUrl,
                     LogoUrl = a.LogoUrl,
                     WebsiteUrl = a.WebsiteUrl,
                     DisplayDurationSeconds = a.DisplayDurationSeconds,

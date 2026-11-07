@@ -1396,6 +1396,11 @@
                             }
                         </div>
                         <div class="col-md-6">
+                            <label class="form-label fw-bold">URL Vidéo</label>
+                            <input type="url" class="form-control" @bind="editingAd.VideoUrl" placeholder="https://... (.mp4, .webm, YouTube, Vimeo)" />
+                            <small class="text-muted d-block mt-1">Si renseignée, la vidéo est diffusée en boucle (muette) sur l'écran TV.</small>
+                        </div>
+                        <div class="col-md-6">
                             <label class="form-label fw-bold">URL Logo</label>
                             <input type="url" class="form-control" @bind="editingAd.LogoUrl" placeholder="https://example.com/logo.png" />
                             @if (!string.IsNullOrEmpty(editingAd.LogoUrl))
@@ -1466,11 +1471,15 @@
                                 <td class="text-muted small">@ad.Subtitle</td>
                                 <td><span class="badge bg-info text-dark">@ad.DisplayDurationSeconds s</span></td>
                                 <td>
+                                    @if (!string.IsNullOrEmpty(ad.VideoUrl))
+                                    {
+                                        <span class="badge bg-danger me-1">🎥 Vidéo</span>
+                                    }
                                     @if (!string.IsNullOrEmpty(ad.ImageUrl))
                                     {
                                         <img src="@ad.ImageUrl" alt="" style="height: 40px; max-width: 80px; object-fit: contain; border-radius: 4px;" />
                                     }
-                                    else
+                                    else if (string.IsNullOrEmpty(ad.VideoUrl))
                                     {
                                         <span class="text-muted small">—</span>
                                     }
@@ -1596,6 +1605,7 @@
             Subtitle = ad.Subtitle,
             Description = ad.Description,
             ImageUrl = ad.ImageUrl,
+            VideoUrl = ad.VideoUrl,
             LogoUrl = ad.LogoUrl,
             WebsiteUrl = ad.WebsiteUrl,
             DisplayDurationSeconds = ad.DisplayDurationSeconds,

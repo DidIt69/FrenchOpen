@@ -551,7 +551,7 @@
 
     private Tatami? tatami;
     private List<Tatami> tatamis = new();
-    private double[] judgeInputScores = new double[5] { 50, 50, 50, 50, 50 };
+    private double[] judgeInputScores = new double[5];
     private int selectedDayFilter = 0;
     private int tournamentDaysCount = 1;
     private string pauseMessage = "";
@@ -602,10 +602,7 @@
         }
         else 
         {
-            for (int i = 0; i < 5; i++)
-            {
-                judgeInputScores[i] = 50;
-            }
+            judgeInputScores = new double[5];
         }
     }
 
