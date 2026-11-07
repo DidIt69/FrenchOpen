@@ -9,6 +9,7 @@ public interface IKataTournamentManager
     List<KataPerformance> InitializeRound2Placeholders(Category category, int qualifiersCount);
     void AssignRound2Qualifiers(List<KataPerformance> qualifiedRound1, List<KataPerformance> round2Slots);
     void CalculateScore(KataPerformance performance, List<double> judgeScores);
+    void CalculateLiveScore(KataPerformance performance, List<double> judgeScores);
     List<KataPerformance> FinalizeRound1AndQualify(Category category, List<KataPerformance> round1Performances);
     List<KataPerformance> InitializeRound2(Category category, List<KataPerformance> qualifiedRound1Performances);
     List<KataPerformance> FinalizeRound2(List<KataPerformance> round2Performances);
@@ -187,6 +188,51 @@ public class KataTournamentManager : IKataTournamentManager
         }
 
         performance.Status = MatchStatus.Finished;
+    }
+
+    /// <summary>
+    /// Calcule les notes en temps réel pendant la saisie sans marquer le passage comme terminé.
+    /// Les notes nulles ou 0 sont préservées dans la liste pour permettre l'affichage individuel en direct.
+    /// </summary>
+    public void CalculateLiveScore(KataPerformance performance, List<double> judgeScores)
+    {
+        if (judgeScores == null || judgeScores.Count == 0)
+        {
+            performance.JudgeScores.Clear();
+            performance.DroppedLowestScore = null;
+            performance.DroppedHighestScore = null;
+            performance.FinalScore = 0;
+            return;
+        }
+
+        // Arrondir les notes saisies, conserver 0 pour les juges non saisis
+        performance.JudgeScores = judgeScores.Select(s => s > 0 ? Math.Round(s) : 0).ToList();
+        var validScores = performance.JudgeScores.Where(s => s >= 50).OrderBy(s => s).ToList();
+
+        if (validScores.Count >= 5)
+        {
+            performance.DroppedLowestScore = validScores.First();
+            performance.DroppedHighestScore = validScores.Last();
+            var middleScores = validScores.Skip(1).Take(validScores.Count - 2).ToList();
+            performance.FinalScore = Math.Round(middleScores.Sum());
+        }
+        else if (validScores.Count >= 3)
+        {
+            performance.DroppedLowestScore = null;
+            performance.DroppedHighestScore = null;
+            performance.FinalScore = Math.Round(validScores.Sum());
+        }
+        else
+        {
+            performance.DroppedLowestScore = null;
+            performance.DroppedHighestScore = null;
+            performance.FinalScore = 0;
+        }
+
+        if (performance.Status == MatchStatus.Pending)
+        {
+            performance.Status = MatchStatus.InProgress;
+        }
     }
 
     /// <summary>

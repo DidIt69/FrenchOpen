@@ -340,25 +340,34 @@
                     <!-- Judges scores grid -->
                     <div class="judges-grid-container my-4">
                         <div class="d-flex justify-content-center gap-4">
+                            @{
+                                int? lowestIdx = null;
+                                int? highestIdx = null;
+                                if (kata.DroppedLowestScore.HasValue && kata.DroppedHighestScore.HasValue && kata.JudgeScores.Count(s => s >= 50) >= 5)
+                                {
+                                    lowestIdx = kata.JudgeScores.IndexOf(kata.DroppedLowestScore.Value);
+                                    highestIdx = kata.JudgeScores.LastIndexOf(kata.DroppedHighestScore.Value);
+                                }
+                            }
                             @for (int j = 0; j < 5; j++)
                             {
                                 int judgeNum = j + 1;
                                 double? score = kata.JudgeScores.Count > j ? kata.JudgeScores[j] : null;
-                                bool isLowest = score.HasValue && score == kata.DroppedLowestScore;
-                                bool isHighest = score.HasValue && score == kata.DroppedHighestScore;
+                                bool isLowest = lowestIdx.HasValue && j == lowestIdx.Value;
+                                bool isHighest = highestIdx.HasValue && j == highestIdx.Value;
 
                                 <div class="judge-score-box @(isLowest ? "dropped" : "") @(isHighest ? "dropped" : "")">
-                                    <div class="judge-num">Juge @judgeNum</div>
+                                    <div class="judge-num">@Lang["Judge"] @judgeNum</div>
                                     <div class="judge-val">
-                                        @(score.HasValue ? score.Value.ToString("0") : "--")
+                                        @(score.HasValue && score.Value > 0 ? score.Value.ToString("0") : "--")
                                     </div>
                                     @if (isLowest)
                                     {
-                                        <div class="dropped-badge">Note basse</div>
+                                        <div class="dropped-badge">@Lang["LowestScore"]</div>
                                     }
                                     else if (isHighest)
                                     {
-                                        <div class="dropped-badge">Note haute</div>
+                                        <div class="dropped-badge">@Lang["HighestScore"]</div>
                                     }
                                 </div>
                             }
@@ -369,7 +378,7 @@
                     @if (kata.FinalScore > 0)
                     {
                         <div class="final-score-container mt-4">
-                            <span class="fs-3 text-secondary text-uppercase fw-bold me-3">Note Finale Retenue :</span>
+                            <span class="fs-3 text-secondary text-uppercase fw-bold me-3">@Lang["FinalScore"]</span>
                             <span class="display-2 fw-black text-warning">@kata.FinalScore.ToString("0")</span>
                         </div>
                     }

@@ -24,6 +24,38 @@ public class KataTournamentTests
     }
 
     [Fact]
+    public void CalculateLiveScore_WithPartialScores_ShouldNotFinishAndKeepScores()
+    {
+        var perf = new KataPerformance { Status = MatchStatus.Pending };
+        var scores = new List<double> { 75, 80, 0, 0, 0 };
+
+        _manager.CalculateLiveScore(perf, scores);
+
+        Assert.Equal(MatchStatus.InProgress, perf.Status);
+        Assert.Null(perf.DroppedLowestScore);
+        Assert.Null(perf.DroppedHighestScore);
+        Assert.Equal(0, perf.FinalScore);
+        Assert.Equal(5, perf.JudgeScores.Count);
+        Assert.Equal(75, perf.JudgeScores[0]);
+        Assert.Equal(80, perf.JudgeScores[1]);
+        Assert.Equal(0, perf.JudgeScores[2]);
+    }
+
+    [Fact]
+    public void CalculateLiveScore_With5Judges_ShouldCalculateMinMaxAndFinal_WhileRemainingInProgress()
+    {
+        var perf = new KataPerformance { Status = MatchStatus.Pending };
+        var scores = new List<double> { 70, 75, 72, 80, 74 };
+
+        _manager.CalculateLiveScore(perf, scores);
+
+        Assert.Equal(MatchStatus.InProgress, perf.Status);
+        Assert.Equal(70, perf.DroppedLowestScore);
+        Assert.Equal(80, perf.DroppedHighestScore);
+        Assert.Equal(221, perf.FinalScore);
+    }
+
+    [Fact]
     public void FinalizeRound1AndQualify_ShouldQualifyTop4Competitors()
     {
         var cat = new Category

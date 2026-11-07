@@ -41,8 +41,8 @@ public class KataPerformance
 
     public string GetScoresDisplay(OpenDeFrance.Core.Services.ILanguageService? lang = null)
     {
-        if (JudgeScores.Count > 0)
-            return string.Join(" | ", JudgeScores.Select(s => s.ToString("0")));
+        if (JudgeScores.Any(s => s > 0))
+            return string.Join(" | ", JudgeScores.Select(s => s > 0 ? s.ToString("0") : "-"));
 
         return lang?["NoScore"] ?? "-";
     }

@@ -1485,6 +1485,66 @@ public class TournamentService : ITournamentService, IHostedService
         }
     }
 
+    public void UpdateLiveKataScores(int performanceId, List<double> scores)
+    {
+        lock (_lock)
+        {
+            var perf = _kataPerformances.FirstOrDefault(p => p.Id == performanceId);
+            if (perf == null) return;
+
+            _kataManager.CalculateLiveScore(perf, scores);
+            SaveKataStateToDatabase(perf.Id);
+
+            if (perf.TatamiId.HasValue)
+            {
+                var tatami = _tatamis.FirstOrDefault(t => t.Id == perf.TatamiId.Value);
+                if (tatami != null && tatami.CurrentKataPerformanceId == perf.Id)
+                {
+                    tatami.CurrentKataPerformance = perf;
+                }
+                NotifyChange(perf.TatamiId.Value);
+            }
+            else
+            {
+                NotifyChange();
+            }
+        }
+    }
+
+    public void ResetKataScores(int performanceId)
+    {
+        lock (_lock)
+        {
+            var perf = _kataPerformances.FirstOrDefault(p => p.Id == performanceId);
+            if (perf == null) return;
+
+            perf.JudgeScores.Clear();
+            perf.DroppedLowestScore = null;
+            perf.DroppedHighestScore = null;
+            perf.FinalScore = 0;
+            if (perf.Status == MatchStatus.Finished)
+            {
+                perf.Status = MatchStatus.InProgress;
+            }
+
+            SaveKataStateToDatabase(perf.Id);
+
+            if (perf.TatamiId.HasValue)
+            {
+                var tatami = _tatamis.FirstOrDefault(t => t.Id == perf.TatamiId.Value);
+                if (tatami != null && tatami.CurrentKataPerformanceId == perf.Id)
+                {
+                    tatami.CurrentKataPerformance = perf;
+                }
+                NotifyChange(perf.TatamiId.Value);
+            }
+            else
+            {
+                NotifyChange();
+            }
+        }
+    }
+
     public void SubmitKataScores(int performanceId, List<double> scores)
     {
         lock (_lock)

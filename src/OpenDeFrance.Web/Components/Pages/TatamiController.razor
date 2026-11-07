@@ -425,7 +425,17 @@
                         </div>
 
                         <!-- Formulaire 5 juges -->
-                        <h5 class="fw-bold mb-3">Notes des 5 Juges (de 50 à 99) :</h5>
+                        <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                            <h5 class="fw-bold mb-0">Notes des 5 Juges (de 50 à 99) :</h5>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-sm btn-outline-info" @onclick="FillSampleScores" type="button" title="Générer des notes de test aléatoires">
+                                    🎲 Exemples
+                                </button>
+                                <button class="btn btn-sm btn-outline-warning" @onclick="ResetCurrentScores" type="button" title="Réinitialiser les notes">
+                                    🔄 Réinitialiser
+                                </button>
+                            </div>
+                        </div>
                         <div class="row g-2 mb-3">
                             @for (int i = 0; i < 5; i++)
                             {
@@ -438,17 +448,29 @@
                                         min="50" 
                                         max="99" 
                                         class="form-control form-control-lg text-center fw-bold px-1"
+                                        placeholder="--"
                                         @bind="judgeInputScores[idx]" 
+                                        @bind:event="oninput"
+                                        @bind:after="OnLiveScoreChanged"
                                     />
                                 </div>
                             }
                         </div>
 
-                        <div class="d-flex flex-wrap gap-2">
+                        <div class="d-flex flex-wrap gap-2 align-items-center">
+                            <button 
+                                class="btn btn-primary btn-lg px-3 fw-bold" 
+                                @onclick="SendLiveScores" 
+                                style="min-height: 48px;"
+                                type="button"
+                            >
+                                📡 Diffuser en direct
+                            </button>
                             <button 
                                 class="btn btn-success btn-lg px-4 fw-bold flex-grow-1 flex-md-grow-0" 
                                 @onclick="SubmitScores" 
                                 style="min-height: 48px;"
+                                type="button"
                             >
                                 💾 Valider et Enregistrer les Notes
                             </button>
@@ -551,7 +573,9 @@
 
     private Tatami? tatami;
     private List<Tatami> tatamis = new();
-    private double[] judgeInputScores = new double[5];
+    private double?[] judgeInputScores = new double?[5];
+    private int? _lastLoadedKataId = null;
+    private bool _isBroadcastingLive = false;
     private int selectedDayFilter = 0;
     private int tournamentDaysCount = 1;
     private string pauseMessage = "";
@@ -593,16 +617,22 @@
         tatamis = TournamentService.GetTatamis();
         tatami = TournamentService.GetTatami(TatamiId);
 
-        if (tatami?.CurrentKataPerformance != null && tatami.CurrentKataPerformance.JudgeScores.Count == 5)
+        int? currentKataId = tatami?.CurrentKataPerformanceId;
+        if (currentKataId != _lastLoadedKataId)
         {
-            for (int i = 0; i < 5; i++)
+            _lastLoadedKataId = currentKataId;
+            if (tatami?.CurrentKataPerformance != null && tatami.CurrentKataPerformance.JudgeScores.Count > 0)
             {
-                judgeInputScores[i] = tatami.CurrentKataPerformance.JudgeScores[i];
+                for (int i = 0; i < 5; i++)
+                {
+                    double val = tatami.CurrentKataPerformance.JudgeScores.Count > i ? tatami.CurrentKataPerformance.JudgeScores[i] : 0;
+                    judgeInputScores[i] = val > 0 ? val : null;
+                }
             }
-        }
-        else 
-        {
-            judgeInputScores = new double[5];
+            else 
+            {
+                judgeInputScores = new double?[5];
+            }
         }
     }
 
@@ -614,6 +644,8 @@
 
     private async void HandleTatamiUpdated(int updatedTatamiId)
     {
+        if (_isBroadcastingLive) return;
+
         if (updatedTatamiId == TatamiId || updatedTatamiId == 0)
         {
             RefreshData();
@@ -665,17 +697,62 @@
         RefreshData();
     }
 
+    private void OnLiveScoreChanged()
+    {
+        SendLiveScores();
+    }
+
+    private void SendLiveScores()
+    {
+        if (tatami?.CurrentKataPerformanceId.HasValue == true)
+        {
+            _isBroadcastingLive = true;
+            try
+            {
+                var scoresToSend = new List<double>();
+                for (int i = 0; i < 5; i++)
+                {
+                    double s = judgeInputScores[i] ?? 0;
+                    if (s > 0)
+                    {
+                        s = Math.Clamp(Math.Round(s), 50, 100);
+                    }
+                    scoresToSend.Add(s);
+                }
+
+                TournamentService.UpdateLiveKataScores(tatami.CurrentKataPerformanceId.Value, scoresToSend);
+            }
+            finally
+            {
+                _isBroadcastingLive = false;
+            }
+        }
+    }
+
+    private void ResetCurrentScores()
+    {
+        if (tatami?.CurrentKataPerformanceId.HasValue == true)
+        {
+            judgeInputScores = new double?[5];
+            TournamentService.ResetKataScores(tatami.CurrentKataPerformanceId.Value);
+            RefreshData();
+        }
+    }
+
     private void SubmitScores()
     {
         if (tatami?.CurrentKataPerformanceId.HasValue == true)
         {
-            // Arrondir et restreindre les notes entre 55 et 100
+            var scoresToSend = new List<double>();
             for (int i = 0; i < 5; i++)
             {
-                judgeInputScores[i] = Math.Clamp(Math.Round(judgeInputScores[i]), 55, 100);
+                double s = judgeInputScores[i] ?? 0;
+                if (s > 0)
+                    s = Math.Clamp(Math.Round(s), 50, 100);
+                scoresToSend.Add(s);
             }
 
-            TournamentService.SubmitKataScores(tatami.CurrentKataPerformanceId.Value, judgeInputScores.ToList());
+            TournamentService.SubmitKataScores(tatami.CurrentKataPerformanceId.Value, scoresToSend);
             RefreshData();
         }
     }
@@ -687,6 +764,7 @@
         {
             judgeInputScores[i] = rand.Next(70, 86); // Ex: 75, 82, 78, 80...
         }
+        SendLiveScores();
     }
 
     private void QualifyTour1(int categoryId)

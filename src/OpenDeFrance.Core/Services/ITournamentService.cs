@@ -65,6 +65,8 @@ public interface ITournamentService
 
     // Contrôle Tatami Kata
     void SetTatamiCurrentKata(int tatamiId, int performanceId);
+    void UpdateLiveKataScores(int performanceId, List<double> scores);
+    void ResetKataScores(int performanceId);
     void SubmitKataScores(int performanceId, List<double> scores);
     void QualifyKataRound1(int categoryId);
     void FinalizeKataRound2(int categoryId);
