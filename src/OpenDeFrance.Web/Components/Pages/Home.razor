@@ -457,12 +457,9 @@
         <div class="card-header py-3 bg-dark text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
             <div class="d-flex align-items-center gap-2 flex-wrap">
                 <h5 class="mb-0 fw-bold">@Lang["Program"]</h5>
-                @if (selectedTatamiId > 0)
-                {
-                    <span class="badge bg-warning text-dark small">
-                        @(tatamis.FirstOrDefault(t => t.Id == selectedTatamiId)?.Name ?? "Tatami filtré")
-                    </span>
-                }
+                <span class="badge @(selectedTatamiId > 0 ? "bg-warning text-dark" : "bg-secondary text-light") fw-bold" style="font-size: 0.9rem;">
+                    @(selectedTatamiId > 0 ? $"🥋 {GetSelectedTatamiName()}" : $"🌐 {Lang["AllTatamis"]}")
+                </span>
                 @if (selectedCategoryIds.Count > 0)
                 {
                     <span class="badge bg-info text-dark small">
@@ -813,8 +810,13 @@
             <div class="modal-dialog modal-dialog-centered" role="document">
                 <div class="modal-content bg-dark">                
                     <!-- En-tête -->
-                    <div class="modal-header">
-                        <h5 class="modal-title text-white">@Lang["Filter"]</h5>
+                    <div class="modal-header d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center gap-2">
+                            <h5 class="modal-title text-white mb-0">@Lang["Filter"]</h5>
+                            <span class="badge @(selectedTatamiId > 0 ? "bg-warning text-dark" : "bg-secondary text-light") fw-bold">
+                                @(selectedTatamiId > 0 ? $"🥋 {GetSelectedTatamiName()}" : $"🌐 {Lang["AllTatamis"]}")
+                            </span>
+                        </div>
                         <button 
                             type="button" 
                             style="margin: calc(-0.5rem) calc(-0.5rem) calc(-0.5rem) auto;background: transparent;border: 0px;"
@@ -827,7 +829,13 @@
                     </div>
                 
                     <!-- Corps -->
-                    <div class="modal-body d-flex gap-2 align-self-center">
+                    <div class="modal-body d-flex flex-column gap-2 align-self-center w-100">
+                        <div class="d-flex align-items-center justify-content-between pb-2 border-bottom border-secondary small text-light">
+                            <span>🥋 @Lang["Tatami"] :</span>
+                            <span class="badge @(selectedTatamiId > 0 ? "bg-warning text-dark" : "bg-secondary text-light") fw-bold">
+                                @(selectedTatamiId > 0 ? GetSelectedTatamiName() : Lang["AllTatamis"])
+                            </span>
+                        </div>
                         <div class="d-flex gap-2 align-items-center flex-wrap">
                             <div class="btn-group btn-group-sm">
                                 <button class="btn @(disciplineFilter == "all" ? "btn-warning" : "btn-outline-light")" @onclick='() => disciplineFilter = "all"'>@Lang["All"]</button>
@@ -1052,6 +1060,15 @@
     private async Task SelectAllTatamis()
     {
         await SetSelectedTatami(0);
+    }
+
+    private string GetSelectedTatamiName()
+    {
+        if (selectedTatamiId > 0)
+        {
+            return tatamis.FirstOrDefault(t => t.Id == selectedTatamiId)?.Name ?? $"Tatami {selectedTatamiId}";
+        }
+        return Lang["AllTatamis"];
     }
 
     private void OpenListFilter()
