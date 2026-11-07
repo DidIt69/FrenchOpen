@@ -65,13 +65,13 @@
                         class="btn @(tatami.CurrentDiscipline == CompetitionType.Kumite ? "btn-danger fw-bold active" : "btn-outline-danger")"
                         @onclick="() => SwitchDiscipline(CompetitionType.Kumite)"
                     >
-                        🥊 Mode Kumité (@tatami.AssignedKumiteMatches.Count)
+                        🥊 Mode Kumité (@RemainingKumiteCount)
                     </button>
                     <button 
                         class="btn @(tatami.CurrentDiscipline == CompetitionType.Kata ? "btn-primary fw-bold active" : "btn-outline-primary")"
                         @onclick="() => SwitchDiscipline(CompetitionType.Kata)"
                     >
-                        🥋 Mode Kata (@tatami.AssignedKataPerformances.Count)
+                        🥋 Mode Kata (@RemainingKataCount)
                     </button>
                 </div>
             </div>
@@ -79,12 +79,12 @@
 
         @if (tatami.CurrentDiscipline == CompetitionType.Kumite)
         {
-            @if (!TournamentService.IsKataCompetitionFinished(tatamiId: TatamiId))
+            @if (!TournamentService.IsKataCompetitionFinished(competitionDay: TargetDay > 0 ? TargetDay : null, tatamiId: TatamiId))
             {
                 <div class="alert alert-warning border-warning d-flex align-items-center gap-2 mb-3 shadow-sm py-2 px-3">
                     <span class="fs-4">🥋</span>
                     <div>
-                        <strong>Épreuves Kata en cours :</strong> Les katas se déroulent en premier sur ce tatami (@TournamentService.GetPendingKataCount(tatamiId: TatamiId) restant(s)). Les combats ne doivent être lancés qu'une fois les Katas de ce tatami terminés.
+                        <strong>Épreuves Kata en cours :</strong> Les katas se déroulent en premier sur ce tatami (@TournamentService.GetPendingKataCount(competitionDay: TargetDay > 0 ? TargetDay : null, tatamiId: TatamiId) restant(s)). Les combats ne doivent être lancés qu'une fois les Katas de ce tatami terminés.
                     </div>
                 </div>
             }
@@ -578,7 +578,19 @@
     private bool _isBroadcastingLive = false;
     private int selectedDayFilter = 0;
     private int tournamentDaysCount = 1;
+    private int? activeDay = null;
+    private bool _hasInitializedDayFilter = false;
     private string pauseMessage = "";
+
+    private int TargetDay => selectedDayFilter > 0 ? selectedDayFilter : (activeDay ?? 0);
+
+    private int RemainingKumiteCount => tatami != null
+        ? tatami.AssignedKumiteMatches.Count(m => m.Status != MatchStatus.Finished && (TargetDay == 0 || m.CompetitionDay == TargetDay))
+        : 0;
+
+    private int RemainingKataCount => tatami != null
+        ? tatami.AssignedKataPerformances.Count(p => p.Status != MatchStatus.Finished && (TargetDay == 0 || p.CompetitionDay == TargetDay))
+        : 0;
 
     private IEnumerable<KumiteMatch> FilteredKumiteMatches => tatami != null
         ? tatami.AssignedKumiteMatches.Where(m => selectedDayFilter == 0 || m.CompetitionDay == selectedDayFilter).OrderBy(m => m.MatchNumber)
@@ -612,6 +624,15 @@
         if (tournament != null)
         {
             tournamentDaysCount = Math.Max(1, tournament.DaysCount);
+            activeDay = tournament.ActiveDay;
+            if (!_hasInitializedDayFilter)
+            {
+                _hasInitializedDayFilter = true;
+                if (activeDay.HasValue)
+                {
+                    selectedDayFilter = activeDay.Value;
+                }
+            }
         }
 
         tatamis = TournamentService.GetTatamis();
