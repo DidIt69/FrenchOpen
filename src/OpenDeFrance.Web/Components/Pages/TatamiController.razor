@@ -19,13 +19,6 @@
             <div>
                 <h2 class="mb-0 fw-bold">
                     ⏱️ Table - @tatami.Name
-                    <span class="badge @(tatami.CurrentDiscipline == CompetitionType.Kumite ? "bg-danger" : "bg-primary") ms-2">
-                        @tatami.CurrentDiscipline
-                    </span>
-                    @if (tatami.Discipline == CompetitionType.Both)
-                    {
-                        <span class="badge bg-success ms-1 fs-6">Mixte (Kumité &amp; Kata)</span>
-                    }
                 </h2>
             </div>
             <div class="d-flex gap-2 flex-wrap">
@@ -56,22 +49,18 @@
         @if (tatami.Discipline == CompetitionType.Both)
         {
             <div class="alert alert-light border shadow-sm py-2 px-3 mb-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
-                <div class="d-flex align-items-center gap-2">
-                    <span class="fw-bold">🥋 Mode actif du Tatami :</span>
-                    <span class="text-muted small">Ce tatami accueille Kumité et Kata. Basculez d'un mode à l'autre selon le programme :</span>
-                </div>
                 <div class="btn-group">
-                    <button 
-                        class="btn @(tatami.CurrentDiscipline == CompetitionType.Kumite ? "btn-danger fw-bold active" : "btn-outline-danger")"
-                        @onclick="() => SwitchDiscipline(CompetitionType.Kumite)"
-                    >
-                        🥊 Mode Kumité (@RemainingKumiteCount)
-                    </button>
                     <button 
                         class="btn @(tatami.CurrentDiscipline == CompetitionType.Kata ? "btn-primary fw-bold active" : "btn-outline-primary")"
                         @onclick="() => SwitchDiscipline(CompetitionType.Kata)"
                     >
-                        🥋 Mode Kata (@RemainingKataCount)
+                        🥋 Kata (@RemainingKataCount)
+                    </button>
+                    <button 
+                        class="btn @(tatami.CurrentDiscipline == CompetitionType.Kumite ? "btn-danger fw-bold active" : "btn-outline-danger")"
+                        @onclick="() => SwitchDiscipline(CompetitionType.Kumite)"
+                    >
+                        🥊 Kumité (@RemainingKumiteCount)
                     </button>
                 </div>
             </div>
@@ -103,8 +92,8 @@
                 <div class="card bg-dark text-white mb-3">
                     <div class="card-body d-flex justify-content-between align-items-center">
                         <div>
-                            <span class="badge bg-warning text-dark fs-5 me-2">Match #@match.MatchNumber</span>
-                            <span class="fs-4 fw-bold">@Lang[match.Category?.Name]</span>
+                            <span class="badge bg-warning text-dark fs-6">Match #@match.MatchNumber</span>
+                            <span class="badge bg-secondary ms-2 fs-6">@Lang[match.Category?.Name]</span>
                             <span class="badge bg-secondary ms-2 fs-6">@Lang[match.RoundName]</span>
                         </div>
                         <div>
@@ -114,7 +103,7 @@
                                     ⚠️ @match.CurrentPeriodName
                                 </span>
                             }
-                            <span class="badge @(match.IsTimerRunning ? "bg-success" : "bg-warning text-dark") fs-5 px-3 py-2">
+                            <span class="badge @(match.IsTimerRunning ? "bg-success" : "bg-warning text-dark") fs-6 px-3 py-2">
                                 @(match.IsTimerRunning ? "EN COURS" : "ARRÊTÉ")
                             </span>
                         </div>
@@ -175,51 +164,6 @@
                                 </div>
                             </div>
                             <div class="card-body text-center">
-                                <!-- <div class="row g-2 mb-3">
-                                    <div class="col-6">
-                                        <div class="p-2 border rounded bg-light">
-                                            <div class="text-muted fw-bold">WAZA-ARI</div>
-                                            <div class="display-4 fw-bold text-danger">@match.AkaWazaAri</div>
-                                            <div class="btn-group mt-2 w-100">
-                                                <button class="btn btn-outline-danger btn-sm" @onclick='() => AddScore(match.Id, CornerColor.Aka, "wazaari")'>+1</button>
-                                                <button class="btn btn-outline-secondary btn-sm" @onclick='() => AddScore(match.Id, CornerColor.Aka, "remove_wazaari")'>-1</button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-6">
-                                        <div class="p-2 border rounded bg-light">
-                                            <div class="text-muted fw-bold">IPPON</div>
-                                            <div class="display-4 fw-bold text-danger">@match.AkaIppon</div>
-                                            <button class="btn btn-danger btn-sm mt-2 w-100 fw-bold" @onclick='() => AddScore(match.Id, CornerColor.Aka, "ippon")'>
-                                                + IPPON
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div> -->
-
-                                <!-- <div class="row g-2 mb-3">
-                                    <div class="col-6">
-                                        <div class="p-2 border rounded">
-                                            <span class="text-muted">CHUI (Avertiss.) : </span>
-                                            <strong class="text-warning fs-5">@match.AkaChui</strong>
-                                            <div class="btn-group btn-group-sm w-100 mt-1">
-                                                <button class="btn btn-outline-warning" @onclick='() => AddScore(match.Id, CornerColor.Aka, "chui")'>+1</button>
-                                                <button class="btn btn-outline-secondary" @onclick='() => AddScore(match.Id, CornerColor.Aka, "remove_chui")'>-1</button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-6">
-                                        <div class="p-2 border rounded">
-                                            <span class="text-muted">GENTEN (Pénalité) : </span>
-                                            <strong class="text-danger fs-5">@match.AkaGenten</strong>
-                                            <div class="btn-group btn-group-sm w-100 mt-1">
-                                                <button class="btn btn-outline-danger" @onclick='() => AddScore(match.Id, CornerColor.Aka, "genten")'>+1</button>
-                                                <button class="btn btn-outline-secondary" @onclick='() => AddScore(match.Id, CornerColor.Aka, "remove_genten")'>-1</button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div> -->
-
                                 <div class="d-grid gap-2">
                                     <button class="btn btn-danger btn-lg fw-bold" @onclick="() => DeclareWinner(CornerColor.Aka, MatchWinnerReason.WazaAriDecision)">
                                         🏆 DÉCLARER VAINQUEUR AKA
@@ -255,51 +199,6 @@
                                 </div>
                             </div>
                             <div class="card-body text-center">
-                                <!-- <div class="row g-2 mb-3">
-                                    <div class="col-6">
-                                        <div class="p-2 border rounded bg-light">
-                                            <div class="text-muted fw-bold">WAZA-ARI</div>
-                                            <div class="display-4 fw-bold text-dark">@match.ShiroWazaAri</div>
-                                            <div class="btn-group mt-2 w-100">
-                                                <button class="btn btn-outline-dark btn-sm" @onclick='() => AddScore(match.Id, CornerColor.Shiro, "wazaari")'>+1</button>
-                                                <button class="btn btn-outline-secondary btn-sm" @onclick='() => AddScore(match.Id, CornerColor.Shiro, "remove_wazaari")'>-1</button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-6">
-                                        <div class="p-2 border rounded bg-light">
-                                            <div class="text-muted fw-bold">IPPON</div>
-                                            <div class="display-4 fw-bold text-dark">@match.ShiroIppon</div>
-                                            <button class="btn btn-dark btn-sm mt-2 w-100 fw-bold" @onclick='() => AddScore(match.Id, CornerColor.Shiro, "ippon")'>
-                                                + IPPON
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div> -->
-
-                                <!-- <div class="row g-2 mb-3">
-                                    <div class="col-6">
-                                        <div class="p-2 border rounded">
-                                            <span class="text-muted">CHUI (Avertiss.) : </span>
-                                            <strong class="text-warning fs-5">@match.ShiroChui</strong>
-                                            <div class="btn-group btn-group-sm w-100 mt-1">
-                                                <button class="btn btn-outline-warning" @onclick='() => AddScore(match.Id, CornerColor.Shiro, "chui")'>+1</button>
-                                                <button class="btn btn-outline-secondary" @onclick='() => AddScore(match.Id, CornerColor.Shiro, "remove_chui")'>-1</button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-6">
-                                        <div class="p-2 border rounded">
-                                            <span class="text-muted">GENTEN (Pénalité) : </span>
-                                            <strong class="text-danger fs-5">@match.ShiroGenten</strong>
-                                            <div class="btn-group btn-group-sm w-100 mt-1">
-                                                <button class="btn btn-outline-danger" @onclick='() => AddScore(match.Id, CornerColor.Shiro, "genten")'>+1</button>
-                                                <button class="btn btn-outline-secondary" @onclick='() => AddScore(match.Id, CornerColor.Shiro, "remove_genten")'>-1</button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div> -->
-
                                 <div class="d-grid gap-2">
                                     <button class="btn btn-dark btn-lg fw-bold" @onclick="() => DeclareWinner(CornerColor.Shiro, MatchWinnerReason.WazaAriDecision)">
                                         🏆 DÉCLARER VAINQUEUR SHIRO
@@ -324,6 +223,14 @@
                                 <option value="@d">📅 Jour @d</option>
                             }
                         </select>
+                        <button 
+                            class="btn btn-sm @(hideFinished ? "btn-warning text-dark fw-bold" : "btn-outline-secondary") d-flex align-items-center gap-1"
+                            @onclick="() => hideFinished = !hideFinished"
+                            type="button"
+                            title="@(hideFinished ? Lang["ShowFinished"] : Lang["HideFinished"])"
+                        >
+                            <span>@(hideFinished ? $"👁️ {Lang["ShowFinished"]}" : $"👁️‍🗨️ {Lang["HideFinished"]}")</span>
+                        </button>
                         <span class="badge bg-secondary">@FilteredKumiteMatches.Count() combat(s)</span>
                     </div>
                 </div>
@@ -349,17 +256,102 @@
                                 <tr class="@(isCurrent ? "table-warning fw-bold" : "")">
                                     <td>#@m.MatchNumber</td>
                                     <td><span class="badge bg-light text-dark border">Jour @m.CompetitionDay</span></td>
-                                    <td>@Lang[m.Category?.Name]</td>
-                                    <td>@Lang[m.RoundName]</td>
-                                    <td class="text-danger">@m.AkaDisplayName</td>
-                                    <td class="text-dark">@m.ShiroDisplayName</td>
+                                    <td>
+                                        <span class="badge bg-secondary small">@Lang[m.Category?.Name]</span>                                        
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-secondary small">@Lang[m.RoundName]</span>
+                                    </td>
+                                    <td>
+                                        @if(m.AkaCompetitor != null) 
+                                        {
+                                        <div class="auto-scroll-container fw-bold small" title="@m.AkaCompetitor?.FullName">
+                                            <span class="auto-scroll-content">@m.AkaCompetitor?.FullName</span>
+                                        </div>
+                                        <div class="auto-scroll-container fw-bold small" title="@m.AkaCompetitor?.Club">
+                                            <img 
+                                                src="@m.AkaCompetitor?.FlagImageUrl"
+                                                alt="@m.AkaCompetitor?.Country"
+                                                title="@m.AkaCompetitor?.Country"
+                                                class="border rounded-1 me-1 flex-shrink-0"
+                                                style="width: 22px; height: 15px; object-fit: cover; vertical-align: middle; box-shadow: 0 1px 2px rgba(0,0,0,0.15);" 
+                                            />
+                                            
+                                            <span class="auto-scroll-content">@m.AkaCompetitor?.Club</span>
+                                        </div>
+                                        <div class="auto-scroll-container fw-bold small" title="@m.AkaCompetitor?.Club">
+                                            <span class="auto-scroll-content">@m.AkaCompetitor?.GradeName</span>
+                                        </div>
+                                        }
+                                    </td>
+                                    <td>
+                                        @if(m.ShiroCompetitor != null) 
+                                        {
+                                            <div class="auto-scroll-container fw-bold small" title="@m.ShiroCompetitor?.FullName">
+                                                <span class="auto-scroll-content">@m.ShiroCompetitor?.FullName</span>
+                                            </div>
+                                            <div class="auto-scroll-container fw-bold small" title="@m.ShiroCompetitor?.Club">
+                                                <img 
+                                                    src="@m.ShiroCompetitor?.FlagImageUrl"
+                                                    alt="@m.ShiroCompetitor?.Country"
+                                                    title="@m.ShiroCompetitor?.Country"
+                                                    class="border rounded-1 me-1 flex-shrink-0"
+                                                    style="width: 22px; height: 15px; object-fit: cover; vertical-align: middle; box-shadow: 0 1px 2px rgba(0,0,0,0.15);" 
+                                                />
+                                            
+                                                <span class="auto-scroll-content">@m.ShiroCompetitor?.Club</span>
+                                            </div>
+                                            <div class="auto-scroll-container fw-bold small" title="@m.ShiroCompetitor?.Club">
+                                                <span class="auto-scroll-content">@m.ShiroCompetitor?.GradeName</span>
+                                            </div>
+                                        }
+                                    </td>
                                     <td>
                                         <span class="badge @(m.Status == MatchStatus.Finished ? "bg-success" : (isCurrent ? "bg-primary" : "bg-secondary"))">
                                             @m.Status
                                         </span>
                                     </td>
                                     <td>
-                                        @(m.WinnerCompetitor != null ? $"🏆 {m.WinnerCompetitor.FullName}" : "-")
+                                        @if(m.WinnerCompetitor != null) {
+                                        <div class="auto-scroll-container fw-bold small" title="@m.WinnerCompetitor?.FullName">
+                                            @if(m.WinnerCompetitor != null) 
+                                            {
+                                                <span class="auto-scroll-content">🏆 @m.WinnerCompetitor?.FullName</span>
+                                            }
+                                            else 
+                                            {
+                                                <span class="auto-scroll-content">--</span>
+                                            }
+                                        </div>
+                                        <div class="auto-scroll-container fw-bold small" title="@m.WinnerCompetitor?.Club">
+                                            <img 
+                                                src="@m.WinnerCompetitor?.FlagImageUrl"
+                                                alt="@m.WinnerCompetitor?.Country"
+                                                title="@m.WinnerCompetitor?.Country"
+                                                class="border rounded-1 me-1 flex-shrink-0"
+                                                style="width: 22px; height: 15px; object-fit: cover; vertical-align: middle; box-shadow: 0 1px 2px rgba(0,0,0,0.15);" 
+                                            />
+                                            
+                                            @if(m.WinnerCompetitor != null) 
+                                            {
+                                                <span class="auto-scroll-content">@m.WinnerCompetitor?.Club</span>
+                                            }
+                                            else 
+                                            {
+                                                <span class="auto-scroll-content">--</span>
+                                            }
+                                        </div>
+                                        <div class="auto-scroll-container fw-bold small" title="@m.WinnerCompetitor?.Club">
+                                            @if(m.WinnerCompetitor != null) 
+                                            {
+                                                <span class="auto-scroll-content">@m.WinnerCompetitor?.GradeName</span>
+                                            }
+                                            else 
+                                            {
+                                                <span class="auto-scroll-content">--</span>
+                                            }
+                                        </div>
+                                        }
                                     </td>
                                     <td>
                                         @if (!isCurrent)
@@ -413,9 +405,21 @@
                                     }
                                     @kata.Competitor?.FullName
                                 </h3>
-                                <p class="lead mb-1">@kata.Competitor?.CountryWithFlag • @kata.Competitor?.Club • Grade : @kata.Competitor?.Grade</p>
+                                <div class="mb-1 small">
+                                    <img 
+                                        src="@kata.Competitor?.FlagImageUrl"
+                                        alt="@kata.Competitor?.Country"
+                                        title="@kata.Competitor?.Country"
+                                        class="border rounded-1 me-1 flex-shrink-0"
+                                        style="width: 22px; height: 15px; object-fit: cover; vertical-align: middle; box-shadow: 0 1px 2px rgba(0,0,0,0.15);" 
+                                    />
+                                    @kata.Competitor?.Club
+                                </div>
+                                <p class="mb-1 small">
+                                    @Lang[kata.Competitor?.GradeName]
+                                </p>
                                 <div class="badge bg-warning text-dark fs-5">
-                                    Kata imposé : <strong>@kata.KataName</strong>
+                                    <strong>@kata.KataName</strong>
                                 </div>
                             </div>
                             <div class="col-md-5 text-end">
@@ -428,9 +432,6 @@
                         <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
                             <h5 class="fw-bold mb-0">Notes des 5 Juges (de 50 à 99) :</h5>
                             <div class="d-flex gap-2">
-                                <button class="btn btn-sm btn-outline-info" @onclick="FillSampleScores" type="button" title="Générer des notes de test aléatoires">
-                                    🎲 Exemples
-                                </button>
                                 <button class="btn btn-sm btn-outline-warning" @onclick="ResetCurrentScores" type="button" title="Réinitialiser les notes">
                                     🔄 Réinitialiser
                                 </button>
@@ -459,20 +460,12 @@
 
                         <div class="d-flex flex-wrap gap-2 align-items-center">
                             <button 
-                                class="btn btn-primary btn-lg px-3 fw-bold" 
-                                @onclick="SendLiveScores" 
-                                style="min-height: 48px;"
-                                type="button"
-                            >
-                                📡 Diffuser en direct
-                            </button>
-                            <button 
                                 class="btn btn-success btn-lg px-4 fw-bold flex-grow-1 flex-md-grow-0" 
                                 @onclick="SubmitScores" 
                                 style="min-height: 48px;"
                                 type="button"
                             >
-                                💾 Valider et Enregistrer les Notes
+                                💾 Valider
                             </button>
                         </div>
                     }
@@ -483,7 +476,7 @@
             <div class="card">
                 <div class="card-header bg-light d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <div class="d-flex align-items-center gap-3">
-                        <h5 class="mb-0 fw-bold">Liste des passages Kata</h5>
+                        <h5 class="mb-0 fw-bold">Liste des passages</h5>
                         <div class="d-flex align-items-center gap-1">
                             <span class="small fw-bold text-muted">Jour :</span>
                             <select class="form-select form-select-sm" style="width: auto;" @bind="selectedDayFilter">
@@ -495,18 +488,15 @@
                             </select>
                         </div>
                     </div>
-                    @if (tatami.CurrentKataPerformance != null && tatami.CurrentKataPerformance.CategoryId > 0)
-                    {
-                        int catId = tatami.CurrentKataPerformance.CategoryId;
-                        <div class="btn-group">
-                            <button class="btn btn-primary btn-sm" @onclick="() => QualifyTour1(catId)">
-                                🏁 Clôturer Tour 1 &amp; Qualifier les @(tatami.CurrentKataPerformance?.Category?.KataQualifiersCount ?? 4) meilleurs
-                            </button>
-                            <button class="btn btn-warning btn-sm" @onclick="() => FinalizeTour2(catId)">
-                                🏆 Clôturer Tour 2 & Podium Final
-                            </button>
-                        </div>
-                    }
+                    <div class="d-flex align-items-center gap-2">
+                        <button class="btn btn-sm @(hideFinished ? "btn-warning text-dark fw-bold" : "btn-outline-secondary") d-flex align-items-center gap-1"
+                                @onclick="() => hideFinished = !hideFinished"
+                                type="button"
+                                title="@(hideFinished ? Lang["ShowFinished"] : Lang["HideFinished"])">
+                            <span>@(hideFinished ? $"👁️ {Lang["ShowFinished"]}" : $"👁️‍🗨️ {Lang["HideFinished"]}")</span>
+                        </button>
+                        <span class="badge bg-secondary">@FilteredKataPerformances.Count() passage(s)</span>
+                    </div>
                 </div>
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0">
@@ -514,9 +504,9 @@
                             <tr>
                                 <th>Ordre</th>
                                 <th>Jour</th>
+                                <th>Catégorie</th>
                                 <th>Tour</th>
                                 <th>Compétiteur</th>
-                                <th>Club</th>
                                 <th>Kata</th>
                                 <th>Notes</th>
                                 <th>Note</th>
@@ -532,20 +522,60 @@
                                     <td>#@p.PerformanceOrder</td>
                                     <td><span class="badge bg-light text-dark border">Jour @p.CompetitionDay</span></td>
                                     <td>
+                                        <div class="fw-bold small">
+                                            <span class="badge bg-secondary small">@Lang[p.Category.Name]</span>
+                                        </div>
+                                    </td>
+                                    <td>
                                         <span class="badge @(p.Round == KataRound.Turn1 ? "bg-info text-dark" : "bg-warning text-dark")">
-                                            @p.Round
+                                            @Lang[p.Round.ToString()]
                                         </span>
                                     </td>
-                                    <td>@(p.Competitor != null ? p.Competitor.FullName : "(En attente de qualification)")</td>
-                                    <td>@p.Competitor?.Club</td>
-                                    <td>@p.KataName</td>
-                                    <td><small class="text-muted">@p.ScoresDisplay</small></td>
+                                    <td>
+                                        @if(p.Competitor != null) 
+                                        {
+                                            <div>
+                                                <div class="auto-scroll-container fw-bold small" title="@p.Competitor?.FullName">
+                                                    <span class="auto-scroll-content">@p.Competitor?.FullName</span>
+                                                </div>
+                                                <div class="auto-scroll-container fw-bold small" title="@p.Competitor?.Club">
+                                                    <img 
+                                                        src="@p.Competitor?.FlagImageUrl"
+                                                        alt="@p.Competitor?.Country"
+                                                        title="@p.Competitor?.Country"
+                                                        class="border rounded-1 me-1 flex-shrink-0"
+                                                        style="width: 22px; height: 15px; object-fit: cover; vertical-align: middle; box-shadow: 0 1px 2px rgba(0,0,0,0.15);" 
+                                                    />
+                                                
+                                                    <span class="auto-scroll-content">@p.Competitor?.Club</span>
+                                                </div>
+                                                <div class="auto-scroll-container fw-bold small" title="@p.Competitor?.Club">
+                                                    <span class="auto-scroll-content">@p.Competitor?.GradeName</span>
+                                                </div>
+                                            </div>
+                                        }
+                                        else {
+                                            <div class="auto-scroll-container fw-bold small" title="@p.Competitor?.Club">
+                                                <span class="auto-scroll-content">(En attente de qualification)</span>
+                                            </div>
+                                        }
+                                    </td>
+                                    <td>
+                                        <div class="fw-bold small">
+                                            <span class="badge bg-secondary small">@p.KataName</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="auto-scroll-container fw-bold small" title="@p.ScoresDisplay">
+                                            <span class="badge bg-secondary small">@p.ScoresDisplay</span>
+                                        </div>
+                                    </td>
                                     <td><strong class="fs-5 text-primary">@(p.FinalScore > 0 ? p.FinalScore.ToString("0") : "-")</strong></td>
                                     <td>
                                         @if (p.RankInRound.HasValue)
                                         {
                                             <span class="badge @(p.IsQualifiedForTour2 ? "bg-success" : "bg-secondary")">
-                                                @(p.RankInRound.Value == 1 ? "🥇 1er" : (p.RankInRound.Value == 2 ? "🥈 2e" : (p.RankInRound.Value == 3 ? "🥉 3e" : $"{p.RankInRound}e")))
+                                                @(p.RankInRound.Value == 1 ? "1er" : (p.RankInRound.Value == 2 ? "2e " : (p.RankInRound.Value == 3 ? "3e " : $"{p.RankInRound}e ")))
                                             </span>
                                         }
                                     </td>
@@ -592,12 +622,21 @@
         ? tatami.AssignedKataPerformances.Count(p => p.Status != MatchStatus.Finished && (TargetDay == 0 || p.CompetitionDay == TargetDay))
         : 0;
 
+    private bool hideFinished = false;
+
     private IEnumerable<KumiteMatch> FilteredKumiteMatches => tatami != null
-        ? tatami.AssignedKumiteMatches.Where(m => selectedDayFilter == 0 || m.CompetitionDay == selectedDayFilter).OrderBy(m => m.MatchNumber)
+        ? tatami.AssignedKumiteMatches
+            .Where(m => (selectedDayFilter == 0 || m.CompetitionDay == selectedDayFilter)
+                     && (!hideFinished || m.Status != MatchStatus.Finished || m.Id == tatami.CurrentKumiteMatchId))
+            .OrderBy(m => m.MatchNumber)
         : Enumerable.Empty<KumiteMatch>();
 
     private IEnumerable<KataPerformance> FilteredKataPerformances => tatami != null
-        ? tatami.AssignedKataPerformances.Where(p => selectedDayFilter == 0 || p.CompetitionDay == selectedDayFilter).OrderBy(p => p.Round).ThenBy(p => p.PerformanceOrder)
+        ? tatami.AssignedKataPerformances
+            .Where(p => (selectedDayFilter == 0 || p.CompetitionDay == selectedDayFilter)
+                     && (!hideFinished || p.Status != MatchStatus.Finished || p.Id == tatami.CurrentKataPerformanceId))
+            .OrderBy(p => p.Round)
+            .ThenBy(p => p.PerformanceOrder)
         : Enumerable.Empty<KataPerformance>();
 
     protected override void OnInitialized()

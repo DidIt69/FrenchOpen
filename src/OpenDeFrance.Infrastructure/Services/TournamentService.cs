@@ -163,6 +163,7 @@ public class TournamentService : ITournamentService, IHostedService
             comp.Gender = updated.Gender;
             comp.IsKumiteRegistered = updated.IsKumiteRegistered;
             comp.IsKataRegistered = updated.IsKataRegistered;
+            comp.Status = updated.Status;
 
             if (categoryIds != null)
             {
@@ -193,6 +194,19 @@ public class TournamentService : ITournamentService, IHostedService
             }
 
             SaveAllToDatabase();
+            NotifyChange();
+        }
+    }
+
+    public void SetCompetitorStatus(int competitorId, CompetitorStatus status)
+    {
+        lock (_lock)
+        {
+            var comp = _competitors.FirstOrDefault(c => c.Id == competitorId);
+            if (comp == null) return;
+
+            comp.Status = status;
+            SaveCompetitorStateToDatabase(comp.Id);
             NotifyChange();
         }
     }
@@ -1365,7 +1379,7 @@ public class TournamentService : ITournamentService, IHostedService
                 SaveMatchStateToDatabase(match.NextMatch.Id);
             }
 
-            // Propagation du perdant vers la Petite Finale (3e place) si applicable
+            // Propagation du perdant vers la Petite Finale si applicable
             if (match.BronzeMatch != null)
             {
                 var loser = (winnerCorner == CornerColor.Aka) ? match.ShiroCompetitor : match.AkaCompetitor;
@@ -2214,6 +2228,7 @@ public class TournamentService : ITournamentService, IHostedService
                         try { db.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Tatamis') AND name = 'IsPaused') ALTER TABLE [Tatamis] ADD [IsPaused] BIT NOT NULL DEFAULT 0;"); } catch { }
                         try { db.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Tatamis') AND name = 'PauseMessage') ALTER TABLE [Tatamis] ADD [PauseMessage] NVARCHAR(MAX) NULL;"); } catch { }
                         try { db.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Advertisements') AND name = 'VideoUrl') ALTER TABLE [Advertisements] ADD [VideoUrl] NVARCHAR(MAX) NULL;"); } catch { }
+                        try { db.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Competitors') AND name = 'Status') ALTER TABLE [Competitors] ADD [Status] INT NOT NULL DEFAULT 0;"); } catch { }
 
                         // Créer la table Advertisements si elle n'existe pas (SQL Server)
                         try
@@ -2244,6 +2259,7 @@ public class TournamentService : ITournamentService, IHostedService
                         try { db.Database.ExecuteSqlRaw("ALTER TABLE Tatamis ADD COLUMN IsPaused INTEGER NOT NULL DEFAULT 0;"); } catch { }
                         try { db.Database.ExecuteSqlRaw("ALTER TABLE Tatamis ADD COLUMN PauseMessage TEXT NULL;"); } catch { }
                         try { db.Database.ExecuteSqlRaw("ALTER TABLE Advertisements ADD COLUMN VideoUrl TEXT NULL;"); } catch { }
+                        try { db.Database.ExecuteSqlRaw("ALTER TABLE Competitors ADD COLUMN Status INTEGER NOT NULL DEFAULT 0;"); } catch { }
 
                         // Créer la table Advertisements si elle n'existe pas (SQLite)
                         try
@@ -2501,7 +2517,8 @@ public class TournamentService : ITournamentService, IHostedService
                 Grade = c.Grade,
                 Gender = c.Gender,
                 IsKumiteRegistered = c.IsKumiteRegistered,
-                IsKataRegistered = c.IsKataRegistered
+                IsKataRegistered = c.IsKataRegistered,
+                Status = c.Status
             }).ToList();
             InsertWithIdentity("Competitors", () =>
             {
@@ -2741,6 +2758,40 @@ public class TournamentService : ITournamentService, IHostedService
                     entity.RankInRound = local.RankInRound;
                     entity.IsQualifiedForTour2 = local.IsQualifiedForTour2;
                     entity.Status = local.Status;
+                    db.SaveChanges();
+                }
+            }
+            catch { }
+        });
+    }
+
+    private void SaveCompetitorStateToDatabase(int compId)
+    {
+        Task.Run(() =>
+        {
+            try
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<TournamentDbContext>();
+                var local = _competitors.FirstOrDefault(c => c.Id == compId);
+                if (local == null) return;
+
+                var entity = db.Competitors.FirstOrDefault(c => c.Id == compId);
+                if (entity != null)
+                {
+                    entity.Status = local.Status;
+                    entity.BibNumber = local.BibNumber;
+                    entity.FirstName = local.FirstName;
+                    entity.LastName = local.LastName;
+                    entity.Country = local.Country;
+                    entity.Club = local.Club;
+                    entity.BirthDate = local.BirthDate;
+                    entity.Age = local.Age;
+                    entity.Weight = local.Weight;
+                    entity.Grade = local.Grade;
+                    entity.Gender = local.Gender;
+                    entity.IsKumiteRegistered = local.IsKumiteRegistered;
+                    entity.IsKataRegistered = local.IsKataRegistered;
                     db.SaveChanges();
                 }
             }

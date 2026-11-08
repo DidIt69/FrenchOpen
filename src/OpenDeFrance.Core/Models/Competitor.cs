@@ -17,6 +17,7 @@ public class Competitor
     public Gender Gender { get; set; } = Gender.Male;
     public bool IsKumiteRegistered { get; set; } = true;
     public bool IsKataRegistered { get; set; } = false;
+    public CompetitorStatus Status { get; set; } = CompetitorStatus.Absent;
 
     public List<Category> Categories { get; set; } = new();
 
@@ -28,6 +29,22 @@ public class Competitor
     public string BibDisplay => BibNumber.HasValue ? $"#{BibNumber.Value}" : "";
     public string DisplayInfo => $"{(BibNumber.HasValue ? $"[N°{BibNumber.Value}] " : "")}{FullName} ({CountryWithFlag} - {Club}) - {Grade} - {Weight:F1}kg";
     public string GradeName => GetGradeName(Grade);
+
+    public string StatusBadgeClass => Status switch
+    {
+        CompetitorStatus.Present => "bg-success text-white",
+        CompetitorStatus.Absent => "bg-danger text-white",
+        CompetitorStatus.Eliminated => "bg-secondary text-white",
+        _ => "bg-secondary text-white"
+    };
+
+    public string StatusName => Status switch
+    {
+        CompetitorStatus.Present => "Présent",
+        CompetitorStatus.Absent => "Absent",
+        CompetitorStatus.Eliminated => "Éliminé",
+        _ => Status.ToString()
+    };
 
     public static string GetGradeName(BeltGrade grade) 
     {

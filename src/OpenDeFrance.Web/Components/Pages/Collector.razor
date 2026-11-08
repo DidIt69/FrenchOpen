@@ -117,6 +117,14 @@
                                         <span class="badge @(item.Corner == CornerColor.Aka ? "bg-danger" : (item.Corner == CornerColor.Shiro ? "bg-dark" : "bg-primary"))">
                                             @(item.Corner == CornerColor.Aka ? "🔴 COIN AKA" : (item.Corner == CornerColor.Shiro ? "⚪ COIN SHIRO" : "🥋 KATA"))
                                         </span>
+                                        @if (item.CompetitorStatus == CompetitorStatus.Absent)
+                                        {
+                                            <span class="badge bg-danger text-white">🔴 Absent</span>
+                                        }
+                                        else if (item.CompetitorStatus == CompetitorStatus.Eliminated)
+                                        {
+                                            <span class="badge bg-secondary text-white">⚫ Éliminé</span>
+                                        }
                                     </div>
                                     <h4 class="fw-bold mb-0 auto-scroll-content">@item.FullName</h4>
                                 </div>
@@ -390,6 +398,8 @@
         public string RoundName { get; set; } = string.Empty;
 
         public int? BibNumber { get; set; }
+        public int? CompetitorId { get; set; }
+        public CompetitorStatus CompetitorStatus { get; set; } = CompetitorStatus.Absent;
         public string FullName { get; set; } = string.Empty;
         public string Club { get; set; } = string.Empty;
         public string Country { get; set; } = string.Empty;
@@ -546,6 +556,8 @@
                         CategoryName = p.Category?.Name ?? "Kata",
                         RoundName = p.Round == KataRound.Turn1 ? "1er Tour" : "2e Tour (Finale)",
                         BibNumber = p.Competitor?.BibNumber,
+                        CompetitorId = p.CompetitorId,
+                        CompetitorStatus = p.Competitor?.Status ?? CompetitorStatus.Absent,
                         FullName = p.CompetitorDisplayName,
                         Club = p.Competitor?.Club ?? "Club inconnu",
                         Country = p.Competitor?.Country ?? "",
@@ -607,6 +619,8 @@
                             CategoryName = m.Category?.Name ?? "Kumité",
                             RoundName = m.RoundName,
                             BibNumber = m.AkaCompetitor?.BibNumber,
+                            CompetitorId = m.AkaCompetitorId,
+                            CompetitorStatus = m.AkaCompetitor?.Status ?? CompetitorStatus.Absent,
                             FullName = m.AkaDisplayName,
                             Club = m.AkaCompetitor?.Club ?? "Club inconnu",
                             Country = m.AkaCompetitor?.Country ?? "",
@@ -631,6 +645,8 @@
                             CategoryName = m.Category?.Name ?? "Kumité",
                             RoundName = m.RoundName,
                             BibNumber = m.ShiroCompetitor?.BibNumber,
+                            CompetitorId = m.ShiroCompetitorId,
+                            CompetitorStatus = m.ShiroCompetitor?.Status ?? CompetitorStatus.Absent,
                             FullName = m.ShiroDisplayName,
                             Club = m.ShiroCompetitor?.Club ?? "Club inconnu",
                             Country = m.ShiroCompetitor?.Country ?? "",

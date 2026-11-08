@@ -87,7 +87,7 @@ public class KumiteBracketGenerator : IKumiteBracketGenerator
                 Category = category,
                 BracketRound = totalRounds,
                 RoundFromFinal = 0,
-                RoundName = "Petite Finale (3e place)",
+                RoundName = "Petite Finale",
                 IsBronzeMatch = true,
                 TotalDurationSeconds = category.KumiteRegularDurationSeconds,
                 RemainingSeconds = category.KumiteRegularDurationSeconds,

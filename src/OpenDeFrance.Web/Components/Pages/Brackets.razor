@@ -233,7 +233,17 @@
                                                             {
                                                                 <span class="drag-handle" title="Glisser pour modifier le tirage">⠿</span>
                                                             }
-                                                            <span class="name text-truncate">@match.AkaDisplayName</span>
+                                                            <span class="name text-truncate">
+                                                                @match.AkaDisplayName
+                                                                @if (match.AkaCompetitor?.Status == CompetitorStatus.Absent)
+                                                                {
+                                                                    <span class="badge bg-danger ms-1 text-white" style="font-size:0.65rem;">ABS</span>
+                                                                }
+                                                                else if (match.AkaCompetitor?.Status == CompetitorStatus.Eliminated)
+                                                                {
+                                                                    <span class="badge bg-secondary ms-1 text-white" style="font-size:0.65rem;">ÉLIM</span>
+                                                                }
+                                                            </span>
                                                             <span class="score">
                                                                 @(match.AkaIppon > 0 ? "IPPON" : (match.AkaWazaAri > 0 ? $"{match.AkaWazaAri} W" : ""))
                                                             </span>
@@ -254,7 +264,17 @@
                                                             {
                                                                 <span class="drag-handle" title="Glisser pour modifier le tirage">⠿</span>
                                                             }
-                                                            <span class="name text-truncate">@match.ShiroDisplayName</span>
+                                                            <span class="name text-truncate">
+                                                                @match.ShiroDisplayName
+                                                                @if (match.ShiroCompetitor?.Status == CompetitorStatus.Absent)
+                                                                {
+                                                                    <span class="badge bg-danger ms-1 text-white" style="font-size:0.65rem;">ABS</span>
+                                                                }
+                                                                else if (match.ShiroCompetitor?.Status == CompetitorStatus.Eliminated)
+                                                                {
+                                                                    <span class="badge bg-secondary ms-1 text-white" style="font-size:0.65rem;">ÉLIM</span>
+                                                                }
+                                                            </span>
                                                             <span class="score">
                                                                 @(match.ShiroIppon > 0 ? "IPPON" : (match.ShiroWazaAri > 0 ? $"{match.ShiroWazaAri} W" : ""))
                                                             </span>
@@ -295,7 +315,17 @@
                                                     <!-- AKA -->
                                                     <div class="fighter-row aka @(bronzeMatch.WinnerCompetitorId == bronzeMatch.AkaCompetitorId && bronzeMatch.Status == MatchStatus.Finished ? "winner fw-bold" : "")">
                                                         <span class="corner-indicator red"></span>
-                                                        <span class="name text-truncate">@bronzeMatch.AkaDisplayName</span>
+                                                        <span class="name text-truncate">
+                                                            @bronzeMatch.AkaDisplayName
+                                                            @if (bronzeMatch.AkaCompetitor?.Status == CompetitorStatus.Absent)
+                                                            {
+                                                                <span class="badge bg-danger ms-1 text-white" style="font-size:0.65rem;">ABS</span>
+                                                            }
+                                                            else if (bronzeMatch.AkaCompetitor?.Status == CompetitorStatus.Eliminated)
+                                                            {
+                                                                <span class="badge bg-secondary ms-1 text-white" style="font-size:0.65rem;">ÉLIM</span>
+                                                            }
+                                                        </span>
                                                         <span class="score">
                                                             @(bronzeMatch.AkaIppon > 0 ? "IPPON" : (bronzeMatch.AkaWazaAri > 0 ? $"{bronzeMatch.AkaWazaAri} W" : ""))
                                                         </span>
@@ -304,7 +334,17 @@
                                                     <!-- SHIRO -->
                                                     <div class="fighter-row shiro @(bronzeMatch.WinnerCompetitorId == bronzeMatch.ShiroCompetitorId && bronzeMatch.Status == MatchStatus.Finished ? "winner fw-bold" : "")">
                                                         <span class="corner-indicator white"></span>
-                                                        <span class="name text-truncate">@bronzeMatch.ShiroDisplayName</span>
+                                                        <span class="name text-truncate">
+                                                            @bronzeMatch.ShiroDisplayName
+                                                            @if (bronzeMatch.ShiroCompetitor?.Status == CompetitorStatus.Absent)
+                                                            {
+                                                                <span class="badge bg-danger ms-1 text-white" style="font-size:0.65rem;">ABS</span>
+                                                            }
+                                                            else if (bronzeMatch.ShiroCompetitor?.Status == CompetitorStatus.Eliminated)
+                                                            {
+                                                                <span class="badge bg-secondary ms-1 text-white" style="font-size:0.65rem;">ÉLIM</span>
+                                                            }
+                                                        </span>
                                                         <span class="score">
                                                             @(bronzeMatch.ShiroIppon > 0 ? "IPPON" : (bronzeMatch.ShiroWazaAri > 0 ? $"{bronzeMatch.ShiroWazaAri} W" : ""))
                                                         </span>
@@ -362,7 +402,17 @@
                                                         {
                                                             <span class="drag-handle" title="Glisser pour modifier le tirage">⠿</span>
                                                         }
-                                                        <span class="name text-truncate">@match.AkaDisplayName</span>
+                                                        <span class="name text-truncate">
+                                                            @match.AkaDisplayName
+                                                            @if (match.AkaCompetitor?.Status == CompetitorStatus.Absent)
+                                                            {
+                                                                <span class="badge bg-danger ms-1 text-white" style="font-size:0.65rem;">ABS</span>
+                                                            }
+                                                            else if (match.AkaCompetitor?.Status == CompetitorStatus.Eliminated)
+                                                            {
+                                                                <span class="badge bg-secondary ms-1 text-white" style="font-size:0.65rem;">ÉLIM</span>
+                                                            }
+                                                        </span>
                                                         <span class="score">
                                                             @(match.AkaIppon > 0 ? "IPPON" : (match.AkaWazaAri > 0 ? $"{match.AkaWazaAri} W" : ""))
                                                         </span>
@@ -383,7 +433,17 @@
                                                         {
                                                             <span class="drag-handle" title="Glisser pour modifier le tirage">⠿</span>
                                                         }
-                                                        <span class="name text-truncate">@match.ShiroDisplayName</span>
+                                                        <span class="name text-truncate">
+                                                            @match.ShiroDisplayName
+                                                            @if (match.ShiroCompetitor?.Status == CompetitorStatus.Absent)
+                                                            {
+                                                                <span class="badge bg-danger ms-1 text-white" style="font-size:0.65rem;">ABS</span>
+                                                            }
+                                                            else if (match.ShiroCompetitor?.Status == CompetitorStatus.Eliminated)
+                                                            {
+                                                                <span class="badge bg-secondary ms-1 text-white" style="font-size:0.65rem;">ÉLIM</span>
+                                                            }
+                                                        </span>
                                                         <span class="score">
                                                             @(match.ShiroIppon > 0 ? "IPPON" : (match.ShiroWazaAri > 0 ? $"{match.ShiroWazaAri} W" : ""))
                                                         </span>
@@ -479,6 +539,14 @@
                                                     />
                                                 }
                                                 <strong>@p.CompetitorDisplayName</strong>
+                                                @if (p.Competitor?.Status == CompetitorStatus.Absent)
+                                                {
+                                                    <span class="badge bg-danger ms-1 text-white" style="font-size:0.65rem;">ABS</span>
+                                                }
+                                                else if (p.Competitor?.Status == CompetitorStatus.Eliminated)
+                                                {
+                                                    <span class="badge bg-secondary ms-1 text-white" style="font-size:0.65rem;">ÉLIM</span>
+                                                }
                                             </div>
 
                                             <!-- Ligne 3 : club + grade -->

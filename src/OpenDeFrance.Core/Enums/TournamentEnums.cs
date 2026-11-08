@@ -66,3 +66,10 @@ public enum KataRound
     Turn1 = 1,
     Turn2 = 2
 }
+
+public enum CompetitorStatus
+{
+    Absent = 0,
+    Present = 1,
+    Eliminated = 2
+}

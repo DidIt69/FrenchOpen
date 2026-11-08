@@ -127,4 +127,66 @@ public class CompetitorManagementTests
         Assert.DoesNotContain(service.GetCompetitors(), c => c.Id == added.Id);
         Assert.DoesNotContain(cat.Competitors, c => c.Id == added.Id);
     }
+
+    [Fact]
+    public void CompetitorStatus_DefaultAndSetCompetitorStatus_ShouldWorkAsExpected()
+    {
+        var service = CreateTournamentService();
+
+        var comp = new Competitor
+        {
+            Id = 5,
+            FirstName = "Kenji",
+            LastName = "Sato",
+            Country = "Japon"
+        };
+        service.GetCompetitors().Add(comp);
+
+        // Par défaut, le statut doit être Absent
+        Assert.Equal(CompetitorStatus.Absent, comp.Status);
+        Assert.Equal("Absent", comp.StatusName);
+        Assert.Equal("bg-danger text-white", comp.StatusBadgeClass);
+
+        // Changer en Présent
+        service.SetCompetitorStatus(5, CompetitorStatus.Present);
+        Assert.Equal(CompetitorStatus.Present, comp.Status);
+        Assert.Equal("Présent", comp.StatusName);
+        Assert.Equal("bg-success text-white", comp.StatusBadgeClass);
+
+        // Changer en Éliminé
+        service.SetCompetitorStatus(5, CompetitorStatus.Eliminated);
+        Assert.Equal(CompetitorStatus.Eliminated, comp.Status);
+        Assert.Equal("Éliminé", comp.StatusName);
+        Assert.Equal("bg-secondary text-white", comp.StatusBadgeClass);
+
+        // Revenir en Absent
+        service.SetCompetitorStatus(5, CompetitorStatus.Absent);
+        Assert.Equal(CompetitorStatus.Absent, comp.Status);
+    }
+
+    [Fact]
+    public void UpdateCompetitor_ShouldUpdateStatus()
+    {
+        var service = CreateTournamentService();
+
+        var comp = new Competitor
+        {
+            Id = 7,
+            FirstName = "Alex",
+            LastName = "Martin",
+            Status = CompetitorStatus.Present
+        };
+        service.GetCompetitors().Add(comp);
+
+        var updated = new Competitor
+        {
+            Id = 7,
+            FirstName = "Alex",
+            LastName = "Martin",
+            Status = CompetitorStatus.Eliminated
+        };
+
+        service.UpdateCompetitor(updated, new List<int>());
+        Assert.Equal(CompetitorStatus.Eliminated, comp.Status);
+    }
 }

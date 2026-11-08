@@ -22,6 +22,7 @@ public interface ITournamentService
     // Gestion des Compétiteurs
     Competitor AddCompetitor(Competitor competitor, List<int>? categoryIds = null);
     void UpdateCompetitor(Competitor competitor, List<int>? categoryIds = null);
+    void SetCompetitorStatus(int competitorId, CompetitorStatus status);
     bool DeleteCompetitor(int competitorId);
 
     // Setup & Tirages

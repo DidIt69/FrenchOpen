@@ -142,7 +142,7 @@
                                     class="form-check-label small mb-0 fw-bold" 
                                     for="bronzeSwitch"
                                 >
-                                    🥉 Petite Finale (3e place)
+                                    🥉 Petite Finale
                                 </label>
                             </div>
                         }
@@ -1017,7 +1017,7 @@
                     </button>
                 </div>
                 <div class="row g-2 align-items-center">
-                    <div class="col-md-4 col-sm-6">
+                    <div class="col-md-3 col-sm-6">
                         <div class="input-group input-group-sm">
                             <span class="input-group-text bg-white">🔍</span>
                             <input 
@@ -1033,7 +1033,7 @@
                             }
                         </div>
                     </div>
-                    <div class="col-md-4 col-sm-6">
+                    <div class="col-md-3 col-sm-6">
                         <div class="input-group input-group-sm">
                             <span class="input-group-text bg-white">📂 Catégorie</span>
                             <select 
@@ -1064,7 +1064,21 @@
                             </select>
                         </div>
                     </div>
-                    @if (!string.IsNullOrEmpty(competitorFilter) || selectedCompetitorCategoryFilter != 0 || selectedCompetitorDisciplineFilter != "all")
+                    <div class="col-md-2 col-sm-6">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-white">État</span>
+                            <select 
+                                class="form-select" 
+                                @bind="selectedCompetitorStatusFilter"
+                            >
+                                <option value="all">Tous (@competitors.Count)</option>
+                                <option value="present">🟢 Présents (@competitors.Count(c => c.Status == CompetitorStatus.Present))</option>
+                                <option value="absent">🔴 Absents (@competitors.Count(c => c.Status == CompetitorStatus.Absent))</option>
+                                <option value="eliminated">⚫ Éliminés (@competitors.Count(c => c.Status == CompetitorStatus.Eliminated))</option>
+                            </select>
+                        </div>
+                    </div>
+                    @if (!string.IsNullOrEmpty(competitorFilter) || selectedCompetitorCategoryFilter != 0 || selectedCompetitorDisciplineFilter != "all" || selectedCompetitorStatusFilter != "all")
                     {
                         <div class="col-auto">
                             <button class="btn btn-sm btn-outline-secondary" @onclick="ResetCompetitorFilters">
@@ -1080,6 +1094,7 @@
                         <tr>
                             <th>Dossard</th>
                             <th>Nom &amp; Prénom</th>
+                            <th>État</th>
                             <th>Pays</th>
                             <th>Club / Dojo</th>
                             <th>Sexe</th>
@@ -1104,6 +1119,23 @@
                                     </span>
                                 </td>
                                 <td><strong>@c.FullName</strong></td>
+                                <td>
+                                    <div class="dropdown">
+                                        <button class="btn btn-sm @c.StatusBadgeClass dropdown-toggle py-0 px-2 fw-bold" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Cliquer pour changer l'état">
+                                            @(c.Status switch {
+                                                CompetitorStatus.Present => "🟢 Présent",
+                                                CompetitorStatus.Absent => "🔴 Absent",
+                                                CompetitorStatus.Eliminated => "⚫ Éliminé",
+                                                _ => c.Status.ToString()
+                                            })
+                                        </button>
+                                        <ul class="dropdown-menu shadow-sm">
+                                            <li><button class="dropdown-item @(c.Status == CompetitorStatus.Present ? "active" : "")" type="button" @onclick="() => SetCompetitorStatus(c.Id, CompetitorStatus.Present)">🟢 Présent</button></li>
+                                            <li><button class="dropdown-item @(c.Status == CompetitorStatus.Absent ? "active" : "")" type="button" @onclick="() => SetCompetitorStatus(c.Id, CompetitorStatus.Absent)">🔴 Absent</button></li>
+                                            <li><button class="dropdown-item @(c.Status == CompetitorStatus.Eliminated ? "active" : "")" type="button" @onclick="() => SetCompetitorStatus(c.Id, CompetitorStatus.Eliminated)">⚫ Éliminé</button></li>
+                                        </ul>
+                                    </div>
+                                </td>
                                 <td>
                                     <span class="badge bg-light text-dark border">
                                         <img 
@@ -1227,7 +1259,7 @@
                                 </datalist>
                             </div>
 
-                            <div class="col-md-5">
+                            <div class="col-md-6">
                                 <label class="form-label fw-bold">Club / Dojo</label>
                                 <input type="text" class="form-control" @bind="editingCompetitor.Club" placeholder="Nom du club ou dojo" />
                             </div>
@@ -1237,6 +1269,15 @@
                                 <select class="form-select" @bind="editingCompetitor.Gender">
                                     <option value="@Gender.Male">Homme</option>
                                     <option value="@Gender.Female">Femme</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold">État</label>
+                                <select class="form-select" @bind="editingCompetitor.Status">
+                                    <option value="@CompetitorStatus.Present">🟢 Présent</option>
+                                    <option value="@CompetitorStatus.Absent">🔴 Absent</option>
+                                    <option value="@CompetitorStatus.Eliminated">⚫ Éliminé</option>
                                 </select>
                             </div>
 
@@ -1801,7 +1842,7 @@
         bool hasBronze = (bool)(e.Value ?? false);
         TournamentService.SetCategoryHasBronzeMatch(categoryId, hasBronze);
         statusMessage = hasBronze
-            ? "Petite finale (3e place) activée pour cette catégorie !"
+            ? "Petite finale activée pour cette catégorie !"
             : "Petite finale désactivée pour cette catégorie.";
         isError = false;
     }
@@ -2140,12 +2181,20 @@
     private HashSet<int> editingCompetitorCategoryIds = new();
     private int selectedCompetitorCategoryFilter = 0;
     private string selectedCompetitorDisciplineFilter = "all";
+    private string selectedCompetitorStatusFilter = "all";
 
     private void ResetCompetitorFilters()
     {
         competitorFilter = string.Empty;
         selectedCompetitorCategoryFilter = 0;
         selectedCompetitorDisciplineFilter = "all";
+        selectedCompetitorStatusFilter = "all";
+    }
+
+    private void SetCompetitorStatus(int competitorId, CompetitorStatus status)
+    {
+        TournamentService.SetCompetitorStatus(competitorId, status);
+        RefreshData();
     }
 
     private void OpenAddCompetitorModal()
@@ -2184,7 +2233,8 @@
             Grade = c.Grade,
             Gender = c.Gender,
             IsKumiteRegistered = c.IsKumiteRegistered,
-            IsKataRegistered = c.IsKataRegistered
+            IsKataRegistered = c.IsKataRegistered,
+            Status = c.Status
         };
 
         var compCats = categories
@@ -2296,6 +2346,19 @@
             else if (selectedCompetitorDisciplineFilter == "both")
             {
                 result = result.Where(c => c.IsKumiteRegistered && c.IsKataRegistered);
+            }
+
+            if (selectedCompetitorStatusFilter == "present")
+            {
+                result = result.Where(c => c.Status == CompetitorStatus.Present);
+            }
+            else if (selectedCompetitorStatusFilter == "absent")
+            {
+                result = result.Where(c => c.Status == CompetitorStatus.Absent);
+            }
+            else if (selectedCompetitorStatusFilter == "eliminated")
+            {
+                result = result.Where(c => c.Status == CompetitorStatus.Eliminated);
             }
 
             if (!string.IsNullOrWhiteSpace(competitorFilter))
