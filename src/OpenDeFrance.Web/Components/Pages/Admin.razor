@@ -859,6 +859,8 @@
                             <th style="min-width: 110px;"># Ordre</th>
                             <th>Catégorie</th>
                             <th>Discipline</th>
+                            <th>Âge</th>
+                            <th>Poids</th>
                             <th>Jour</th>
                             <th>Tatami Assigné</th>
                             <th>Inscrits</th>
@@ -896,6 +898,35 @@
                                     <span class="badge @(cat.Type == CompetitionType.Kumite ? "bg-danger" : "bg-primary")">
                                         @cat.Type
                                     </span>
+                                </td>
+                                <td>
+                                    <div class="d-flex align-items-center gap-1" style="min-width: 105px;">
+                                        <input type="number" class="form-control form-control-sm text-center p-1" style="width: 45px;"
+                                               min="4" max="99"
+                                               @bind="cat.MinAge" title="Âge minimum" />
+                                        <span>-</span>
+                                        <input type="number" class="form-control form-control-sm text-center p-1" style="width: 45px;"
+                                               min="4" max="99"
+                                               @bind="cat.MaxAge" title="Âge maximum" />
+                                        <span class="small text-muted">ans</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    @if (cat.Type == CompetitionType.Kumite)
+                                    {
+                                        <div class="d-flex align-items-center gap-1" style="min-width: 120px;">
+                                            <input type="number" step="0.5" class="form-control form-control-sm text-center p-1" style="width: 50px;"
+                                                   @bind="cat.MinWeight" placeholder="Min" title="Poids minimum (kg)" />
+                                            <span>-</span>
+                                            <input type="number" step="0.5" class="form-control form-control-sm text-center p-1" style="width: 50px;"
+                                                   @bind="cat.MaxWeight" placeholder="Max" title="Poids maximum (kg)" />
+                                            <span class="small text-muted">kg</span>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted small">Sans limite</span>
+                                    }
                                 </td>
                                 <td>
                                     <select 

@@ -61,6 +61,18 @@ public class Category
         }
     }
 
+    public string AgeLimitDisplay
+    {
+        get
+        {
+            if (MinAge > 0 && MaxAge < 99 && MinAge != MaxAge) return $"{MinAge} à {MaxAge} ans";
+            if (MinAge > 0 && MaxAge >= 99) return $"+{MinAge} ans";
+            if (MinAge <= 6 && MaxAge > 0 && MaxAge < 99) return $"-{MaxAge} ans";
+            if (MinAge == MaxAge && MinAge > 0) return $"{MinAge} ans";
+            return $"{MinAge} à {MaxAge} ans";
+        }
+    }
+
     public static double? ParseMaxWeightFromName(string name)
     {
         if (string.IsNullOrWhiteSpace(name)) return null;

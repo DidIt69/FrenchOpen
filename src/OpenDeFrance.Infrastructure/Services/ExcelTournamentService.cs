@@ -72,7 +72,10 @@ public class ExcelTournamentService : IExcelTournamentService
         // ==========================================
         var wsCat = workbook.Worksheets.Add("Catégories");
 
-        string[] catHeaders = { "Catégorie", "Discipline", "Jour", "Tatami", "Ordre" };
+        string[] catHeaders = {
+            "Catégorie", "Discipline", "Jour", "Tatami", "Ordre",
+            "Age Min", "Age Max", "Poids Min (kg)", "Poids Max (kg)"
+        };
 
         for (int i = 0; i < catHeaders.Length; i++)
         {
@@ -87,15 +90,15 @@ public class ExcelTournamentService : IExcelTournamentService
         var sampleCatRows = new List<object[]>
         {
             // Jour 1 : Senior Hommes -75kg sur Tatami 1 (Kumite) et Katas sur Tatami 3 (Kata)
-            new object[] { "Senior Hommes -75kg", "Kumite", 1, 1, 1 },
-            new object[] { "Senior Hommes Kata", "Kata", 1, 3, 2 },
+            new object[] { "Senior Hommes -75kg", "Kumite", 1, 1, 1, 18, 35, "", 75.0 },
+            new object[] { "Senior Hommes Kata", "Kata", 1, 3, 2, 18, 35, "", "" },
             
             // Jour 2 : Poids Lourds sur Tatami 2 (Kumite)
-            new object[] { "Senior Hommes +80kg", "Kumite", 2, 2, 1 },
+            new object[] { "Senior Hommes +80kg", "Kumite", 2, 2, 1, 18, 35, 80.0, "" },
 
             // Jour 2 : Féminines sur Tatami 1 (Kumite) et Katas sur Tatami 3 (Kata)
-            new object[] { "Senior Femmes -60kg", "Kumite", 2, 1, 2 },
-            new object[] { "Senior Femmes Kata", "Kata", 2, 3, 3 }
+            new object[] { "Senior Femmes -60kg", "Kumite", 2, 1, 2, 18, 35, "", 60.0 },
+            new object[] { "Senior Femmes Kata", "Kata", 2, 3, 3, 18, 35, "", "" }
         };
 
         for (int r = 0; r < sampleCatRows.Count; r++)
@@ -174,11 +177,11 @@ public class ExcelTournamentService : IExcelTournamentService
                 else if (h.Contains("prénom") || h.Contains("prenom")) colFirstName = c;
                 else if (h.Contains("pays") || h.Contains("country") || h.Contains("nation")) colCountry = c;
                 else if (h.Contains("sexe") || h.Contains("gender")) colGender = c;
-                else if (h.Contains("age") || h.Contains("âge")) colAge = c;
+                else if ((h.Contains("age") || h.Contains("âge")) && !h.Contains("min") && !h.Contains("max")) colAge = c;
                 else if (h.Contains("naissance") || h.Contains("birth")) colBirthDate = c;
                 else if (h.Contains("club") || h.Contains("dojo")) colClub = c;
                 else if (h.Contains("grade") || h.Contains("ceinture") || h.Contains("belt")) colGrade = c;
-                else if (h.Contains("poids") || h.Contains("weight")) colWeight = c;
+                else if ((h.Contains("poids") || h.Contains("weight")) && !h.Contains("min") && !h.Contains("max")) colWeight = c;
                 else if (h.Contains("kumite") && (h.Contains("jour") || h.Contains("day"))) colKumiteDay = c;
                 else if (h.Contains("kumite") && h.Contains("tatami")) colKumiteTatami = c;
                 else if (h.Contains("kata") && (h.Contains("jour") || h.Contains("day"))) colKataDay = c;
@@ -345,7 +348,8 @@ public class ExcelTournamentService : IExcelTournamentService
                 if (catRowCount >= 2)
                 {
                     int colCatName = 1, colDiscipline = -1, colCatDay = -1, colCatTatami = -1, colCatOrder = -1;
-                    int lastCatCol = wsCategories.LastColumnUsed()?.ColumnNumber() ?? 5;
+                    int colCatMinAge = -1, colCatMaxAge = -1, colCatMinWeight = -1, colCatMaxWeight = -1;
+                    int lastCatCol = wsCategories.LastColumnUsed()?.ColumnNumber() ?? 9;
                     for (int c = 1; c <= lastCatCol; c++)
                     {
                         string h = wsCategories.Cell(1, c).GetString().Trim().ToLowerInvariant();
@@ -354,6 +358,10 @@ public class ExcelTournamentService : IExcelTournamentService
                         else if (h.Contains("jour") || h.Contains("day")) colCatDay = c;
                         else if (h.Contains("tatami")) colCatTatami = c;
                         else if (h.Contains("ordre") || h.Contains("order") || h.Contains("rang") || h.Contains("sequence")) colCatOrder = c;
+                        else if ((h.Contains("age") || h.Contains("âge")) && (h.Contains("min") || h.Contains("inf") || h.Contains("début") || h.Contains("debut"))) colCatMinAge = c;
+                        else if ((h.Contains("age") || h.Contains("âge")) && (h.Contains("max") || h.Contains("sup") || h.Contains("fin"))) colCatMaxAge = c;
+                        else if ((h.Contains("poids") || h.Contains("weight") || h.Contains("poid")) && (h.Contains("min") || h.Contains("inf") || h.Contains(">") || h.Contains("+"))) colCatMinWeight = c;
+                        else if ((h.Contains("poids") || h.Contains("weight") || h.Contains("poid")) && (h.Contains("max") || h.Contains("sup") || h.Contains("<") || h.Contains("-"))) colCatMaxWeight = c;
                     }
 
                     for (int r = 2; r <= catRowCount; r++)
@@ -380,6 +388,46 @@ public class ExcelTournamentService : IExcelTournamentService
                             orderIndex = parsedOrder;
                         }
 
+                        int? minAge = null;
+                        if (colCatMinAge > 0)
+                        {
+                            string minAgeStr = row.Cell(colCatMinAge).GetString().Trim();
+                            if (int.TryParse(minAgeStr, out int parsedMinAge) && parsedMinAge > 0)
+                            {
+                                minAge = parsedMinAge;
+                            }
+                        }
+
+                        int? maxAge = null;
+                        if (colCatMaxAge > 0)
+                        {
+                            string maxAgeStr = row.Cell(colCatMaxAge).GetString().Trim();
+                            if (int.TryParse(maxAgeStr, out int parsedMaxAge) && parsedMaxAge > 0)
+                            {
+                                maxAge = parsedMaxAge;
+                            }
+                        }
+
+                        double? minWeight = null;
+                        if (colCatMinWeight > 0)
+                        {
+                            string minWeightStr = row.Cell(colCatMinWeight).GetString().Trim().Replace(',', '.');
+                            if (double.TryParse(minWeightStr, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double parsedMinWeight) && parsedMinWeight > 0)
+                            {
+                                minWeight = parsedMinWeight;
+                            }
+                        }
+
+                        double? maxWeight = null;
+                        if (colCatMaxWeight > 0)
+                        {
+                            string maxWeightStr = row.Cell(colCatMaxWeight).GetString().Trim().Replace(',', '.');
+                            if (double.TryParse(maxWeightStr, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double parsedMaxWeight) && parsedMaxWeight > 0)
+                            {
+                                maxWeight = parsedMaxWeight;
+                            }
+                        }
+
                         CompetitionType disc = CompetitionType.Kumite;
                         if (colDiscipline > 0)
                         {
@@ -396,14 +444,22 @@ public class ExcelTournamentService : IExcelTournamentService
                             existingCat.CompetitionDay = day;
                             existingCat.OrderIndex = orderIndex;
                             if (tatamiId.HasValue) existingCat.AssignedTatamiId = tatamiId.Value;
+                            if (minAge.HasValue) existingCat.MinAge = minAge.Value;
+                            if (maxAge.HasValue) existingCat.MaxAge = maxAge.Value;
+                            if (minWeight.HasValue) existingCat.MinWeight = minWeight.Value;
+                            if (maxWeight.HasValue) existingCat.MaxWeight = maxWeight.Value;
                         }
                         else
                         {
-                            var newCat = CreateCategoryWithKyokushinDefaults(catName, disc, Gender.Male, 20, 70.0);
+                            var newCat = CreateCategoryWithKyokushinDefaults(catName, disc, Gender.Male, minAge ?? 20, maxWeight ?? minWeight ?? 70.0);
                             newCat.Id = nextCatId++;
                             newCat.CompetitionDay = day;
                             newCat.OrderIndex = orderIndex;
                             if (tatamiId.HasValue) newCat.AssignedTatamiId = tatamiId.Value;
+                            if (minAge.HasValue) newCat.MinAge = minAge.Value;
+                            if (maxAge.HasValue) newCat.MaxAge = maxAge.Value;
+                            if (minWeight.HasValue) newCat.MinWeight = minWeight.Value;
+                            if (maxWeight.HasValue) newCat.MaxWeight = maxWeight.Value;
                             categoryDict[catName] = newCat;
                         }
                     }
@@ -488,39 +544,43 @@ public class ExcelTournamentService : IExcelTournamentService
 
     private Category CreateCategoryWithKyokushinDefaults(string name, CompetitionType type, Gender gender, int age, double weight)
     {
+        var (detectedMinAge, detectedMaxAge) = DetectAgeRangeFromName(name, age);
         var cat = new Category
         {
             Name = name,
             Type = type,
             Gender = gender,
-            MinAge = Math.Max(6, age - 2),
-            MaxAge = age + 2,
+            MinAge = detectedMinAge,
+            MaxAge = detectedMaxAge,
+            MinWeight = Category.ParseMinWeightFromName(name),
+            MaxWeight = Category.ParseMaxWeightFromName(name),
             KataQualifiersCount = 4
         };
 
         // Règles Kyokushin de durée suivant l'âge
-        if (age < 10)
+        int referenceAge = (detectedMinAge > 0 && detectedMinAge < 80) ? detectedMinAge : age;
+        if (referenceAge < 10)
         {
             cat.KumiteRegularDurationSeconds = 60; // 1 min
             cat.KumiteExtensionDurationSeconds = 60;
             cat.KataRound1MandatoryKata = "Taikyoku Sono Ichi";
             cat.KataRound2MandatoryKata = "Taikyoku Sono San";
         }
-        else if (age < 14)
+        else if (referenceAge < 14)
         {
             cat.KumiteRegularDurationSeconds = 90; // 1m30
             cat.KumiteExtensionDurationSeconds = 60;
             cat.KataRound1MandatoryKata = "Pinan Sono Ichi";
             cat.KataRound2MandatoryKata = "Pinan Sono Ni";
         }
-        else if (age < 18)
+        else if (referenceAge < 18)
         {
             cat.KumiteRegularDurationSeconds = 120; // 2 min
             cat.KumiteExtensionDurationSeconds = 90;
             cat.KataRound1MandatoryKata = "Pinan Sono San";
             cat.KataRound2MandatoryKata = "Gekisai Dai";
         }
-        else if (age >= 35)
+        else if (referenceAge >= 35)
         {
             cat.KumiteRegularDurationSeconds = 120; // 2 min vétéran
             cat.KumiteExtensionDurationSeconds = 90;
@@ -538,5 +598,52 @@ public class ExcelTournamentService : IExcelTournamentService
         }
 
         return cat;
+    }
+
+    public static (int MinAge, int MaxAge) DetectAgeRangeFromName(string name, int fallbackAge = 20)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return (Math.Max(6, fallbackAge - 2), fallbackAge + 2);
+
+        string lower = name.ToLowerInvariant();
+
+        // 1. Plage explicite: ex "8-9 ans", "10-11", "18-34 ans"
+        var rangeMatch = System.Text.RegularExpressions.Regex.Match(lower, @"\b(\d+)\s*[-/àa]\s*(\d+)\s*(?:ans|y\.?o\.?)?\b");
+        if (rangeMatch.Success 
+            && int.TryParse(rangeMatch.Groups[1].Value, out int rMin) 
+            && int.TryParse(rangeMatch.Groups[2].Value, out int rMax)
+            && rMin < rMax && rMin >= 4 && rMax <= 100)
+        {
+            return (rMin, rMax);
+        }
+
+        // 2. Plus de X ans: ex "+18 ans", "+35 ans", "+44 ans"
+        var plusMatch = System.Text.RegularExpressions.Regex.Match(lower, @"(?:\+|\bplus\s+de\s*|>\s*)(\d+)\s*(?:ans|y\.?o\.?)?\b");
+        if (plusMatch.Success && int.TryParse(plusMatch.Groups[1].Value, out int pMin) && pMin >= 4 && pMin <= 100)
+        {
+            return (pMin, 99);
+        }
+
+        // 3. Moins de X ans: ex "-18 ans"
+        var minusMatch = System.Text.RegularExpressions.Regex.Match(lower, @"(?:-|\bmoins\s+de\s*|<\s*)(\d+)\s*(?:ans|y\.?o\.?)?\b");
+        if (minusMatch.Success && int.TryParse(minusMatch.Groups[1].Value, out int pMax) && pMax >= 4 && pMax <= 100)
+        {
+            return (6, pMax);
+        }
+
+        // 4. Mots-clés des catégories Kyokushinkai
+        if (lower.Contains("poussin")) return (6, 7);
+        if (lower.Contains("pupille")) return (8, 9);
+        if (lower.Contains("benjamin")) return (10, 11);
+        if (lower.Contains("minime")) return (12, 13);
+        if (lower.Contains("cadet")) return (14, 15);
+        if (lower.Contains("junior")) return (16, 17);
+        if (lower.Contains("senior") || lower.Contains("élite") || lower.Contains("elite")) return (18, 34);
+        if (lower.Contains("vétéran") || lower.Contains("veteran") || lower.Contains("master")) return (35, 99);
+
+        // Fallback standard
+        int min = Math.Max(6, fallbackAge - 2);
+        int max = fallbackAge + 2;
+        return (min, max);
     }
 }
