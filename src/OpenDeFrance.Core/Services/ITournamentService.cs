@@ -8,6 +8,7 @@ public interface ITournamentService
     event Action? OnStateChanged;
     event Action<int>? OnTatamiUpdated;
     event Action<int>? OnTimerZero; // tatamiId
+    event Action<int, WeighInStationState>? OnWeighInStationUpdated; // stationId, state
 
     Tournament GetTournament();
     List<Tatami> GetTatamis();
@@ -85,4 +86,16 @@ public interface ITournamentService
     Advertisement AddAdvertisement(Advertisement ad);
     void UpdateAdvertisement(Advertisement ad);
     bool DeleteAdvertisement(int id);
+
+    // Contrôle & Écrans de Pesée (Weigh-in)
+    WeighInStationState GetWeighInStation(int stationId);
+    List<WeighInStationState> GetAllWeighInStations();
+    WeighInStationState ScanCompetitorForWeighIn(int stationId, string rawInput);
+    WeighInStationState UpdateWeighedWeight(int stationId, double? weight);
+    WeighInStationState ValidateWeighIn(int stationId, double weighedWeight);
+    WeighInStationState RejectWeighIn(int stationId, string? reason = null);
+    WeighInStationState ResetWeighInStation(int stationId);
+    Competitor? FindCompetitorByCode(string code);
+    List<Competitor> GetRecentWeighedCompetitors(int count = 10, int? stationId = null);
+    void CancelWeighInValidation(int competitorId);
 }

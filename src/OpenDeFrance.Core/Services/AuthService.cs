@@ -71,6 +71,18 @@ public class AuthService : IAuthService
             };
         }
 
+        // Pesée / WeighIn : contrôle du poids et validation des compétiteurs au smartphone
+        if ((u == "pesee" || u == "weighin" || u == "pesée") &&
+            (p == "pesee123" || p == "pesee" || p == "pesée" || p == "weighin" || p == "poids" || p == "balance"))
+        {
+            return new UserSession
+            {
+                Username = u,
+                Role = "WeighIn",
+                DisplayName = "Contrôleur de Pesée (Weigh-in)"
+            };
+        }
+
         return null;
     }
 }

@@ -38,4 +38,60 @@ public class Category
     public string DisplayDetails => Type == CompetitionType.Kumite
         ? $"{Name} - {KumiteRegularDurationSeconds}s (Prolong: {KumiteExtensionDurationSeconds}s)"
         : $"{Name} - T1: {KataRound1MandatoryKata} | T2: {KataRound2MandatoryKata} (Top {KataQualifiersCount})";
+
+    public double? EffectiveMaxWeight => MaxWeight.HasValue && MaxWeight.Value > 0
+        ? MaxWeight.Value
+        : ParseMaxWeightFromName(Name);
+
+    public double? EffectiveMinWeight => MinWeight.HasValue && MinWeight.Value > 0
+        ? MinWeight.Value
+        : ParseMinWeightFromName(Name);
+
+    public string WeightLimitDisplay
+    {
+        get
+        {
+            if (Type == CompetitionType.Kata) return "Sans limite (Kata)";
+            var min = EffectiveMinWeight;
+            var max = EffectiveMaxWeight;
+            if (min.HasValue && max.HasValue) return $"{min.Value:0.#} à {max.Value:0.#} kg";
+            if (max.HasValue) return $"-{max.Value:0.#} kg";
+            if (min.HasValue) return $"+{min.Value:0.#} kg";
+            return "Open (Toutes catégories)";
+        }
+    }
+
+    public static double? ParseMaxWeightFromName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return null;
+        var lower = name.ToLowerInvariant();
+        var matchMinus = System.Text.RegularExpressions.Regex.Match(lower, @"(?:-|\bmoins\s+de\s*|<\s*|\bu\s*)(\d+(?:[.,]\d+)?)\s*(?:kg)?");
+        if (matchMinus.Success && double.TryParse(matchMinus.Groups[1].Value.Replace(',', '.'), System.Globalization.CultureInfo.InvariantCulture, out var maxVal))
+        {
+            return maxVal;
+        }
+        var matchRange = System.Text.RegularExpressions.Regex.Match(lower, @"\d+\s*[-/]\s*(\d+(?:[.,]\d+)?)\s*(?:kg)?");
+        if (matchRange.Success && double.TryParse(matchRange.Groups[1].Value.Replace(',', '.'), System.Globalization.CultureInfo.InvariantCulture, out var rangeMax))
+        {
+            return rangeMax;
+        }
+        return null;
+    }
+
+    public static double? ParseMinWeightFromName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return null;
+        var lower = name.ToLowerInvariant();
+        var matchPlus = System.Text.RegularExpressions.Regex.Match(lower, @"(?:\+|\bplus\s+de\s*|>\s*|\bo\s*)(\d+(?:[.,]\d+)?)\s*(?:kg)?");
+        if (matchPlus.Success && double.TryParse(matchPlus.Groups[1].Value.Replace(',', '.'), System.Globalization.CultureInfo.InvariantCulture, out var minVal))
+        {
+            return minVal;
+        }
+        var matchRange = System.Text.RegularExpressions.Regex.Match(lower, @"(\d+(?:[.,]\d+)?)\s*[-/]\s*\d+\s*(?:kg)?");
+        if (matchRange.Success && double.TryParse(matchRange.Groups[1].Value.Replace(',', '.'), System.Globalization.CultureInfo.InvariantCulture, out var rangeMin))
+        {
+            return rangeMin;
+        }
+        return null;
+    }
 }

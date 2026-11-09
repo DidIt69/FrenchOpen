@@ -34,6 +34,9 @@ public class TournamentService : ITournamentService, IHostedService
     public event Action? OnStateChanged;
     public event Action<int>? OnTatamiUpdated;
     public event Action<int>? OnTimerZero;
+    public event Action<int, WeighInStationState>? OnWeighInStationUpdated;
+
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<int, WeighInStationState> _weighInStations = new();
 
     public TournamentService(
         IServiceScopeFactory scopeFactory,
@@ -2229,6 +2232,10 @@ public class TournamentService : ITournamentService, IHostedService
                         try { db.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Tatamis') AND name = 'PauseMessage') ALTER TABLE [Tatamis] ADD [PauseMessage] NVARCHAR(MAX) NULL;"); } catch { }
                         try { db.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Advertisements') AND name = 'VideoUrl') ALTER TABLE [Advertisements] ADD [VideoUrl] NVARCHAR(MAX) NULL;"); } catch { }
                         try { db.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Competitors') AND name = 'Status') ALTER TABLE [Competitors] ADD [Status] INT NOT NULL DEFAULT 0;"); } catch { }
+                        try { db.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Competitors') AND name = 'ActualWeight') ALTER TABLE [Competitors] ADD [ActualWeight] FLOAT NULL;"); } catch { }
+                        try { db.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Competitors') AND name = 'IsWeighInValidated') ALTER TABLE [Competitors] ADD [IsWeighInValidated] BIT NOT NULL DEFAULT 0;"); } catch { }
+                        try { db.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Competitors') AND name = 'WeighInDate') ALTER TABLE [Competitors] ADD [WeighInDate] DATETIME2 NULL;"); } catch { }
+                        try { db.Database.ExecuteSqlRaw("IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Competitors') AND name = 'WeighInStation') ALTER TABLE [Competitors] ADD [WeighInStation] NVARCHAR(MAX) NULL;"); } catch { }
 
                         // Créer la table Advertisements si elle n'existe pas (SQL Server)
                         try
@@ -2260,6 +2267,10 @@ public class TournamentService : ITournamentService, IHostedService
                         try { db.Database.ExecuteSqlRaw("ALTER TABLE Tatamis ADD COLUMN PauseMessage TEXT NULL;"); } catch { }
                         try { db.Database.ExecuteSqlRaw("ALTER TABLE Advertisements ADD COLUMN VideoUrl TEXT NULL;"); } catch { }
                         try { db.Database.ExecuteSqlRaw("ALTER TABLE Competitors ADD COLUMN Status INTEGER NOT NULL DEFAULT 0;"); } catch { }
+                        try { db.Database.ExecuteSqlRaw("ALTER TABLE Competitors ADD COLUMN ActualWeight REAL NULL;"); } catch { }
+                        try { db.Database.ExecuteSqlRaw("ALTER TABLE Competitors ADD COLUMN IsWeighInValidated INTEGER NOT NULL DEFAULT 0;"); } catch { }
+                        try { db.Database.ExecuteSqlRaw("ALTER TABLE Competitors ADD COLUMN WeighInDate TEXT NULL;"); } catch { }
+                        try { db.Database.ExecuteSqlRaw("ALTER TABLE Competitors ADD COLUMN WeighInStation TEXT NULL;"); } catch { }
 
                         // Créer la table Advertisements si elle n'existe pas (SQLite)
                         try
@@ -2518,7 +2529,11 @@ public class TournamentService : ITournamentService, IHostedService
                 Gender = c.Gender,
                 IsKumiteRegistered = c.IsKumiteRegistered,
                 IsKataRegistered = c.IsKataRegistered,
-                Status = c.Status
+                Status = c.Status,
+                ActualWeight = c.ActualWeight,
+                IsWeighInValidated = c.IsWeighInValidated,
+                WeighInDate = c.WeighInDate,
+                WeighInStation = c.WeighInStation
             }).ToList();
             InsertWithIdentity("Competitors", () =>
             {
@@ -2792,6 +2807,10 @@ public class TournamentService : ITournamentService, IHostedService
                     entity.Gender = local.Gender;
                     entity.IsKumiteRegistered = local.IsKumiteRegistered;
                     entity.IsKataRegistered = local.IsKataRegistered;
+                    entity.ActualWeight = local.ActualWeight;
+                    entity.IsWeighInValidated = local.IsWeighInValidated;
+                    entity.WeighInDate = local.WeighInDate;
+                    entity.WeighInStation = local.WeighInStation;
                     db.SaveChanges();
                 }
             }
@@ -3097,5 +3116,278 @@ public class TournamentService : ITournamentService, IHostedService
     {
         OnStateChanged?.Invoke();
         OnTatamiUpdated?.Invoke(tatamiId);
+    }
+
+    // ==========================================
+    // CONTRÔLE & ÉCRANS DE PESÉE (WEIGH-IN)
+    // ==========================================
+
+    public WeighInStationState GetWeighInStation(int stationId)
+    {
+        return _weighInStations.GetOrAdd(stationId, id => new WeighInStationState
+        {
+            StationId = id,
+            StationName = $"Poste {id}"
+        });
+    }
+
+    public List<WeighInStationState> GetAllWeighInStations()
+    {
+        GetWeighInStation(1);
+        GetWeighInStation(2);
+        return _weighInStations.Values.OrderBy(s => s.StationId).ToList();
+    }
+
+    public Competitor? FindCompetitorByCode(string code)
+    {
+        if (string.IsNullOrWhiteSpace(code)) return null;
+
+        var clean = code.Trim();
+
+        // 1. URL pattern: ex. "https://.../weighin?bib=101" ou "?id=42"
+        if (clean.Contains('?') || clean.Contains('&'))
+        {
+            var mBib = System.Text.RegularExpressions.Regex.Match(clean, @"[?&]bib=(\d+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (mBib.Success && int.TryParse(mBib.Groups[1].Value, out var bibVal))
+            {
+                var c = _competitors.FirstOrDefault(x => x.BibNumber == bibVal);
+                if (c != null) return c;
+            }
+            var mId = System.Text.RegularExpressions.Regex.Match(clean, @"[?&]id=(\d+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (mId.Success && int.TryParse(mId.Groups[1].Value, out var idVal))
+            {
+                var c = _competitors.FirstOrDefault(x => x.Id == idVal);
+                if (c != null) return c;
+            }
+        }
+
+        // 2. Format custom "KYOKUSHIN:ID:BIB" ou "KYOKUSHIN:ID"
+        if (clean.StartsWith("KYOKUSHIN:", StringComparison.OrdinalIgnoreCase))
+        {
+            var parts = clean.Split(':');
+            if (parts.Length >= 3 && int.TryParse(parts[2], out var bibNum))
+            {
+                var c = _competitors.FirstOrDefault(x => x.BibNumber == bibNum);
+                if (c != null) return c;
+            }
+            if (parts.Length >= 2 && int.TryParse(parts[1], out var compId))
+            {
+                var c = _competitors.FirstOrDefault(x => x.Id == compId);
+                if (c != null) return c;
+            }
+        }
+
+        // 3. Préfixes type "BIB:101", "#101", "DOSSARD:101", "ID:42"
+        if (clean.StartsWith("BIB:", StringComparison.OrdinalIgnoreCase) || clean.StartsWith("DOSSARD:", StringComparison.OrdinalIgnoreCase))
+        {
+            var numPart = clean.Split(':')[1].Trim();
+            if (int.TryParse(numPart, out var bib))
+            {
+                var c = _competitors.FirstOrDefault(x => x.BibNumber == bib);
+                if (c != null) return c;
+            }
+        }
+        if (clean.StartsWith("ID:", StringComparison.OrdinalIgnoreCase))
+        {
+            var numPart = clean.Split(':')[1].Trim();
+            if (int.TryParse(numPart, out var id))
+            {
+                var c = _competitors.FirstOrDefault(x => x.Id == id);
+                if (c != null) return c;
+            }
+        }
+        if (clean.StartsWith('#') && int.TryParse(clean.TrimStart('#'), out var hashBib))
+        {
+            var c = _competitors.FirstOrDefault(x => x.BibNumber == hashBib);
+            if (c != null) return c;
+        }
+
+        // 4. Nombre entier direct : tester d'abord par Dossard, puis par Id
+        if (int.TryParse(clean, out var number))
+        {
+            var byBib = _competitors.FirstOrDefault(x => x.BibNumber == number);
+            if (byBib != null) return byBib;
+
+            var byId = _competitors.FirstOrDefault(x => x.Id == number);
+            if (byId != null) return byId;
+        }
+
+        // 5. Recherche par nom / prénom
+        var lower = clean.ToLowerInvariant();
+        var byName = _competitors.FirstOrDefault(x =>
+            x.FullName.ToLowerInvariant().Contains(lower) ||
+            x.LastName.ToLowerInvariant() == lower);
+        if (byName != null) return byName;
+
+        return null;
+    }
+
+    public WeighInStationState ScanCompetitorForWeighIn(int stationId, string rawInput)
+    {
+        var station = GetWeighInStation(stationId);
+        var comp = FindCompetitorByCode(rawInput);
+
+        if (comp == null)
+        {
+            station.Status = WeighInStatus.Idle;
+            station.Competitor = null;
+            station.WeighedWeight = null;
+            station.StatusMessage = $"Aucun compétiteur trouvé pour le code : '{rawInput}'";
+            station.LastUpdated = DateTime.Now;
+            OnWeighInStationUpdated?.Invoke(stationId, station);
+            return station;
+        }
+
+        station.Competitor = comp;
+        station.KumiteCategory = comp.Categories.FirstOrDefault(c => c.Type == CompetitionType.Kumite);
+        station.KataCategory = comp.Categories.FirstOrDefault(c => c.Type == CompetitionType.Kata);
+        station.WeighedWeight = comp.ActualWeight ?? comp.Weight;
+        station.Status = comp.IsWeighInValidated ? WeighInStatus.Validated : WeighInStatus.Checking;
+        station.StatusMessage = comp.IsWeighInValidated ? "Pesée déjà validée" : "Compétiteur identifié - Veuillez vérifier le poids";
+        station.LastUpdated = DateTime.Now;
+
+        CalculateWeightDifference(station);
+
+        OnWeighInStationUpdated?.Invoke(stationId, station);
+        return station;
+    }
+
+    public WeighInStationState UpdateWeighedWeight(int stationId, double? weight)
+    {
+        var station = GetWeighInStation(stationId);
+        station.WeighedWeight = weight;
+        station.LastUpdated = DateTime.Now;
+        if (station.Status != WeighInStatus.Validated && station.Competitor != null)
+        {
+            station.Status = WeighInStatus.Checking;
+        }
+        CalculateWeightDifference(station);
+        OnWeighInStationUpdated?.Invoke(stationId, station);
+        return station;
+    }
+
+    public WeighInStationState ValidateWeighIn(int stationId, double weighedWeight)
+    {
+        var station = GetWeighInStation(stationId);
+        if (station.Competitor == null) return station;
+
+        var comp = station.Competitor;
+        comp.ActualWeight = weighedWeight;
+        comp.IsWeighInValidated = true;
+        comp.WeighInDate = DateTime.Now;
+        comp.WeighInStation = station.StationName;
+        comp.Status = CompetitorStatus.Present;
+
+        station.WeighedWeight = weighedWeight;
+        station.Status = WeighInStatus.Validated;
+        station.StatusMessage = $"Pesée validée : {comp.FullName} ({weighedWeight:F1} kg)";
+        station.LastUpdated = DateTime.Now;
+
+        CalculateWeightDifference(station);
+
+        SaveCompetitorStateToDatabase(comp.Id);
+        NotifyChange();
+        OnWeighInStationUpdated?.Invoke(stationId, station);
+        return station;
+    }
+
+    public WeighInStationState RejectWeighIn(int stationId, string? reason = null)
+    {
+        var station = GetWeighInStation(stationId);
+        station.Status = WeighInStatus.Rejected;
+        station.StatusMessage = reason ?? "Poids non conforme à la catégorie";
+        station.LastUpdated = DateTime.Now;
+        OnWeighInStationUpdated?.Invoke(stationId, station);
+        return station;
+    }
+
+    public WeighInStationState ResetWeighInStation(int stationId)
+    {
+        var station = GetWeighInStation(stationId);
+        station.Competitor = null;
+        station.KumiteCategory = null;
+        station.KataCategory = null;
+        station.WeighedWeight = null;
+        station.Status = WeighInStatus.Idle;
+        station.StatusMessage = null;
+        station.LastUpdated = DateTime.Now;
+        station.IsWeightValid = true;
+        station.WeightDifference = null;
+        OnWeighInStationUpdated?.Invoke(stationId, station);
+        return station;
+    }
+
+    public List<Competitor> GetRecentWeighedCompetitors(int count = 10, int? stationId = null)
+    {
+        var query = _competitors.Where(c => c.IsWeighInValidated);
+        if (stationId.HasValue)
+        {
+            var stationName = $"Poste {stationId.Value}";
+            query = query.Where(c => c.WeighInStation == stationName);
+        }
+        return query.OrderByDescending(c => c.WeighInDate ?? DateTime.MinValue).Take(count).ToList();
+    }
+
+    public void CancelWeighInValidation(int competitorId)
+    {
+        var comp = _competitors.FirstOrDefault(c => c.Id == competitorId);
+        if (comp == null) return;
+
+        comp.IsWeighInValidated = false;
+        comp.ActualWeight = null;
+        comp.WeighInDate = null;
+        comp.WeighInStation = null;
+        comp.Status = CompetitorStatus.Absent;
+
+        SaveCompetitorStateToDatabase(comp.Id);
+        NotifyChange();
+
+        foreach (var station in _weighInStations.Values)
+        {
+            if (station.Competitor?.Id == competitorId)
+            {
+                station.Status = WeighInStatus.Checking;
+                station.StatusMessage = "Validation de pesée annulée";
+                OnWeighInStationUpdated?.Invoke(station.StationId, station);
+            }
+        }
+    }
+
+    private static void CalculateWeightDifference(WeighInStationState station)
+    {
+        if (station.Competitor == null || !station.WeighedWeight.HasValue)
+        {
+            station.IsWeightValid = true;
+            station.WeightDifference = null;
+            return;
+        }
+
+        var weight = station.WeighedWeight.Value;
+        var cat = station.KumiteCategory;
+        if (cat == null)
+        {
+            station.IsWeightValid = true;
+            station.WeightDifference = 0;
+            return;
+        }
+
+        var max = cat.EffectiveMaxWeight;
+        var min = cat.EffectiveMinWeight;
+
+        if (max.HasValue && weight > max.Value)
+        {
+            station.IsWeightValid = false;
+            station.WeightDifference = Math.Round(weight - max.Value, 2);
+        }
+        else if (min.HasValue && weight < min.Value)
+        {
+            station.IsWeightValid = false;
+            station.WeightDifference = Math.Round(weight - min.Value, 2);
+        }
+        else
+        {
+            station.IsWeightValid = true;
+            station.WeightDifference = 0;
+        }
     }
 }

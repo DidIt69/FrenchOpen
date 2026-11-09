@@ -1012,9 +1012,17 @@
             <div class="card-header bg-light py-3">
                 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
                     <h5 class="mb-0 fw-bold">👥 Liste des Compétiteurs Inscrits (@FilteredCompetitors.Count() / @competitors.Count)</h5>
-                    <button class="btn btn-sm btn-primary" @onclick="OpenAddCompetitorModal">
-                        ➕ Nouveau Compétiteur
-                    </button>
+                    <div class="d-flex align-items-center gap-2">
+                        <button class="btn btn-sm btn-outline-dark" @onclick="OpenAllQrCodesModal" title="Générer la planche imprimable de tous les QR Codes">
+                            🖨️ Imprimer QR Codes
+                        </button>
+                        <a href="/weighin/controller" class="btn btn-sm btn-outline-primary" title="Accéder au poste de pesée">
+                            ⚖️ Contrôle Pesée
+                        </a>
+                        <button class="btn btn-sm btn-primary" @onclick="OpenAddCompetitorModal">
+                            ➕ Nouveau Compétiteur
+                        </button>
+                    </div>
                 </div>
                 <div class="row g-2 align-items-center">
                     <div class="col-md-3 col-sm-6">
@@ -1182,6 +1190,9 @@
                                     }
                                 </td>
                                 <td class="text-end text-nowrap">
+                                    <button class="btn btn-sm btn-outline-dark me-1" @onclick="() => OpenCompetitorQrModal(c)" title="Afficher et imprimer le QR Code">
+                                        📷 QR
+                                    </button>
                                     <button class="btn btn-sm btn-outline-primary" @onclick="() => OpenEditCompetitorModal(c)">
                                         ✏️ Modifier
                                     </button>
@@ -1368,6 +1379,84 @@
             </div>
         </div>
     }
+
+    <!-- MODAL QR CODE INDIVIDUEL -->
+    @if (isQrModalOpen && qrModalCompetitor != null)
+    {
+        <div class="modal fade show d-block" style="background-color: rgba(0,0,0,0.6);" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content text-center p-3">
+                    <div class="modal-header border-0 pb-0">
+                        <h5 class="modal-title fw-bold">Badge QR Code - @qrModalCompetitor.FullName</h5>
+                        <button type="button" class="btn-close" @onclick="CloseQrModal"></button>
+                    </div>
+                    <div class="modal-body py-3">
+                        <div class="p-3 bg-white border rounded shadow-sm d-inline-block mb-3">
+                            @((MarkupString)qrModalCompetitor.GetQrCodeSvg(12))
+                        </div>
+                        <h3 class="fw-bold mb-1">
+                            @(qrModalCompetitor.BibNumber.HasValue ? $"DOSSARD #{qrModalCompetitor.BibNumber}" : $"ID #{qrModalCompetitor.Id}")
+                        </h3>
+                        <div class="fs-5 text-secondary">@qrModalCompetitor.FullName</div>
+                        <div class="text-muted small">@qrModalCompetitor.Club • @qrModalCompetitor.Country</div>
+                        <div class="mt-2">
+                            <span class="badge @qrModalCompetitor.StatusBadgeClass fs-6">@qrModalCompetitor.StatusName</span>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-0 justify-content-center">
+                        <button type="button" class="btn btn-outline-secondary" @onclick="CloseQrModal">Fermer</button>
+                        <button type="button" class="btn btn-primary fw-bold" onclick="window.print()">🖨️ Imprimer ce badge</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- MODAL IMPRESSION DE TOUS LES QR CODES -->
+    @if (isAllQrModalOpen)
+    {
+        <div class="modal fade show d-block" style="background-color: rgba(0,0,0,0.7);" tabindex="-1">
+            <div class="modal-dialog modal-xl modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header bg-dark text-white">
+                        <h5 class="modal-title fw-bold">🖨️ Planche des QR Codes Compétiteurs (@competitors.Count badges)</h5>
+                        <button type="button" class="btn-close btn-close-white" @onclick="CloseAllQrCodesModal"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <div class="alert alert-info py-2 d-flex justify-content-between align-items-center">
+                            <span>Cette planche est prête pour impression (format grille 3 colonnes). Cliquez sur Imprimer pour lancer l'impression des badges.</span>
+                            <button class="btn btn-primary fw-bold" onclick="window.print()">🖨️ Lancer l'Impression</button>
+                        </div>
+                        <div class="row g-3 qr-print-sheet">
+                            @foreach (var comp in FilteredCompetitors.OrderBy(c => c.BibNumber ?? 9999))
+                            {
+                                <div class="col-md-4 col-sm-6 col-12 qr-badge-card">
+                                    <div class="card p-3 text-center border-2 h-100 shadow-sm" style="page-break-inside: avoid;">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <span class="badge bg-dark fs-6">
+                                                @(comp.BibNumber.HasValue ? $"#{comp.BibNumber}" : $"ID #{comp.Id}")
+                                            </span>
+                                            <span class="badge bg-secondary-subtle text-dark border small">@comp.GradeName</span>
+                                        </div>
+                                        <div class="my-2 p-1 bg-white d-inline-block mx-auto border rounded" style="max-width: 140px;">
+                                            @((MarkupString)comp.GetQrCodeSvg(6))
+                                        </div>
+                                        <h5 class="fw-bold mb-0 text-truncate">@comp.FullName</h5>
+                                        <div class="text-muted small text-truncate">@comp.Club • @comp.Country</div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CloseAllQrCodesModal">Fermer</button>
+                        <button type="button" class="btn btn-success fw-bold" onclick="window.print()">🖨️ Imprimer la planche</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
     <!-- ========================================== -->
     <!-- TAB : PUBLICITES & PAUSES                  -->
     <!-- ========================================== -->
@@ -2250,6 +2339,33 @@
         isCompetitorModalOpen = false;
         editingCompetitor = null;
         editingCompetitorCategoryIds.Clear();
+    }
+
+    // QR Codes Management
+    private bool isQrModalOpen = false;
+    private Competitor? qrModalCompetitor;
+    private bool isAllQrModalOpen = false;
+
+    private void OpenCompetitorQrModal(Competitor c)
+    {
+        qrModalCompetitor = c;
+        isQrModalOpen = true;
+    }
+
+    private void CloseQrModal()
+    {
+        isQrModalOpen = false;
+        qrModalCompetitor = null;
+    }
+
+    private void OpenAllQrCodesModal()
+    {
+        isAllQrModalOpen = true;
+    }
+
+    private void CloseAllQrCodesModal()
+    {
+        isAllQrModalOpen = false;
     }
 
     private void HandleBirthDateChange(ChangeEventArgs e)

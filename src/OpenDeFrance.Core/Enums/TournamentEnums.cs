@@ -73,3 +73,11 @@ public enum CompetitorStatus
     Present = 1,
     Eliminated = 2
 }
+
+public enum WeighInStatus
+{
+    Idle = 0,       // En attente d'un compétiteur
+    Checking = 1,   // Compétiteur scanné, pesée en cours
+    Validated = 2,  // Pesée validée avec succès (conforme)
+    Rejected = 3    // Poids non conforme ou refusé
+}

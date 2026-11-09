@@ -23,6 +23,11 @@ public class AuthServiceTests
     [InlineData("COLLECTOR", "collector", "Collector")]
     [InlineData("Collector", "appel", "Collector")]
     [InlineData("collector", "chambre", "Collector")]
+    [InlineData("pesee", "pesee123", "WeighIn")]
+    [InlineData("PESEE", "pesee", "WeighIn")]
+    [InlineData("weighin", "weighin", "WeighIn")]
+    [InlineData("pesee", "poids", "WeighIn")]
+    [InlineData("pesée", "balance", "WeighIn")]
     public void Authenticate_ValidCredentials_ReturnsExpectedRole(string username, string password, string expectedRole)
     {
         var session = _authService.Authenticate(username, password);
@@ -38,6 +43,7 @@ public class AuthServiceTests
     [InlineData("tv", "1234")]
     [InlineData("streamer", "wrongpass")]
     [InlineData("collector", "badpass")]
+    [InlineData("pesee", "wrongpassword")]
     [InlineData("unknown", "admin123")]
     [InlineData("", "")]
     [InlineData("   ", "admin123")]

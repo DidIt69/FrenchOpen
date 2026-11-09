@@ -19,6 +19,12 @@ public class Competitor
     public bool IsKataRegistered { get; set; } = false;
     public CompetitorStatus Status { get; set; } = CompetitorStatus.Absent;
 
+    // Informations de Pesée
+    public double? ActualWeight { get; set; } // Poids mesuré lors de la pesée officielle
+    public bool IsWeighInValidated { get; set; } = false;
+    public DateTime? WeighInDate { get; set; }
+    public string? WeighInStation { get; set; }
+
     public List<Category> Categories { get; set; } = new();
 
     public string FullName => $"{LastName.ToUpperInvariant()} {FirstName}";
@@ -29,6 +35,16 @@ public class Competitor
     public string BibDisplay => BibNumber.HasValue ? $"#{BibNumber.Value}" : "";
     public string DisplayInfo => $"{(BibNumber.HasValue ? $"[N°{BibNumber.Value}] " : "")}{FullName} ({CountryWithFlag} - {Club}) - {Grade} - {Weight:F1}kg";
     public string GradeName => GetGradeName(Grade);
+
+    public string QrCodePayload => BibNumber.HasValue ? BibNumber.Value.ToString() : Id.ToString();
+
+    public string GetQrCodeSvg(int pixelsPerModule = 10)
+    {
+        using var qrGenerator = new QRCoder.QRCodeGenerator();
+        using var qrCodeData = qrGenerator.CreateQrCode(QrCodePayload, QRCoder.QRCodeGenerator.ECCLevel.M);
+        var svgQrCode = new QRCoder.SvgQRCode(qrCodeData);
+        return svgQrCode.GetGraphic(pixelsPerModule);
+    }
 
     public string StatusBadgeClass => Status switch
     {

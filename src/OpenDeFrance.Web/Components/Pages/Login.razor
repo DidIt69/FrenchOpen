@@ -50,7 +50,7 @@
 
                                 <div class="mb-3">
                                     <label class="form-label fw-bold">Nom d'utilisateur</label>
-                                    <input type="text" name="username" class="form-control form-control-lg" placeholder="admin, table, tv, streamer ou collector" required autofocus />
+                                    <input type="text" name="username" class="form-control form-control-lg" placeholder="admin, table, tv, streamer, collector ou pesee" required autofocus />
                                 </div>
 
                                 <div class="mb-4">
@@ -101,6 +101,12 @@
                                    class="btn btn-outline-success d-flex justify-content-between align-items-center py-2 text-decoration-none">
                                     <span>🏃 <strong>Collector</strong></span>
                                     <span class="badge bg-success" style="width:90px;">collector</span>
+                                </a>
+
+                                <a href="@($"/api/auth/login?quick=pesee&returnUrl={Uri.EscapeDataString(ReturnUrl ?? "")}")"
+                                   class="btn btn-outline-warning d-flex justify-content-between align-items-center py-2 text-decoration-none">
+                                    <span>⚖️ <strong>Pesée</strong></span>
+                                    <span class="badge bg-warning text-dark" style="width:90px;">pesee</span>
                                 </a>
                             </div>
                         </NotAuthorized>

@@ -1,0 +1,779 @@
+@page "/weighin/display"
+@page "/weighin/display/{StationId:int}"
+@layout EmptyLayout
+@rendermode InteractiveServer
+@inject ITournamentService TournamentService
+@inject ILanguageService Lang
+@implements IDisposable
+
+<PageTitle>Écran Pesée Poste @currentStationId - Open de France</PageTitle>
+
+<div class="weighin-display-container">
+    <!-- Barre Supérieure (Header TV) -->
+    <header class="weighin-header">
+        <div class="d-flex align-items-center gap-3">
+            <img src="/logo-iko-france.svg" alt="IKO" class="weighin-logo" onerror="this.style.display='none'" />
+            <div>
+                <h1 class="weighin-title mb-0">OPEN DE FRANCE KYOKUSHIN 2027</h1>
+                <div class="weighin-subtitle">PESÉE OFFICIELLE • OFFICIAL WEIGH-IN</div>
+            </div>
+        </div>
+
+        <div class="d-flex align-items-center gap-3">
+            <div class="station-badge">
+                <span class="station-icon">⚖️</span>
+                <span>POSTE @currentStationId</span>
+            </div>
+            <div class="weighin-clock">
+                @currentTimeString
+            </div>
+        </div>
+    </header>
+
+    <!-- Corps Principal plein écran selon l'état -->
+    <main class="weighin-main">
+        @if (stationState.IsIdle || stationState.Competitor == null)
+        {
+            <!-- ============================================== -->
+            <!-- 1. ÉTAT VEILLE / ATTENTE D'UN ATHLÈTE         -->
+            <!-- ============================================== -->
+            <div class="idle-screen text-center animate-fade-in">
+                <div class="idle-icon-wrapper">
+                    <div class="idle-icon-pulse"></div>
+                    <div class="idle-icon">⚖️</div>
+                </div>
+
+                <h2 class="idle-heading">BIENVENUE À LA PESÉE</h2>
+                <p class="idle-lead">
+                    Veuillez monter sur la balance et présenter votre <strong>QR Code</strong> ou votre <strong>Dossard</strong> au vérificateur.
+                </p>
+
+                <div class="idle-footer-box">
+                    <div class="d-flex align-items-center justify-content-center gap-3">
+                        <span class="badge bg-success px-3 py-2 fs-5">Poste @currentStationId Prêt</span>
+                        <span class="text-white-50 fs-5">|</span>
+                        <span class="text-white-50 fs-5">🥋 Kyokushin Karate</span>
+                    </div>
+                </div>
+            </div>
+        }
+        else if (stationState.IsValidated)
+        {
+            <!-- ============================================== -->
+            <!-- 2. ÉTAT PESÉE VALIDÉE (SUCCÈS TRIOMPHAL)       -->
+            <!-- ============================================== -->
+            var comp = stationState.Competitor;
+            <div class="validated-screen animate-scale-up text-center">
+                <div class="validated-banner mb-3">
+                    <span class="validated-check">✅</span>
+                    <h2 class="validated-title mb-0">PESÉE VALIDÉE !</h2>
+                </div>
+
+                <div class="athlete-validated-card">
+                    <div class="d-flex justify-content-center align-items-center gap-3 mb-2">
+                        <img src="@comp.FlagImageUrl" alt="@comp.Country" class="validated-flag" />
+                        <span class="badge bg-dark fs-3 px-3 py-1">@(comp.BibNumber.HasValue ? $"DOSSARD #{comp.BibNumber}" : $"ID #{comp.Id}")</span>
+                    </div>
+
+                    <h1 class="validated-name">@comp.FullName</h1>
+                    <div class="validated-club">@comp.Club • @comp.Country</div>
+
+                    <div class="validated-specs-grid mt-4">
+                        <div class="spec-box">
+                            <div class="spec-label">POIDS OFFICIEL RETENU</div>
+                            <div class="spec-value text-success">@((stationState.WeighedWeight ?? comp.ActualWeight ?? comp.Weight).ToString("F1")) <span class="spec-unit">kg</span></div>
+                        </div>
+
+                        <div class="spec-box">
+                            <div class="spec-label">CATÉGORIE CONFIRMÉE</div>
+                            <div class="spec-value text-white">@(stationState.KumiteCategory?.Name ?? stationState.KataCategory?.Name ?? "Épreuve")</div>
+                        </div>
+
+                        <div class="spec-box">
+                            <div class="spec-label">STATUT EN DIRECT</div>
+                            <div class="spec-value text-success">🟢 PRÉSENT & QUALIFIÉ</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="validated-footer mt-4">
+                    <div class="alert alert-success fs-4 py-3 fw-bold shadow-lg">
+                        🥋 Bienvenue dans la compétition ! Veuillez vous diriger vers les vestiaires et l'échauffement.
+                    </div>
+                </div>
+            </div>
+        }
+        else if (stationState.IsRejected)
+        {
+            <!-- ============================================== -->
+            <!-- 3. ÉTAT HORS POIDS / REFUSÉ                   -->
+            <!-- ============================================== -->
+            var comp = stationState.Competitor;
+            <div class="rejected-screen animate-shake text-center">
+                <div class="rejected-banner mb-3">
+                    <span class="rejected-icon">⚠️</span>
+                    <h2 class="rejected-title mb-0">POIDS NON CONFORME</h2>
+                </div>
+
+                <div class="athlete-rejected-card">
+                    <div class="d-flex justify-content-center align-items-center gap-3 mb-2">
+                        <img src="@comp.FlagImageUrl" alt="@comp.Country" class="validated-flag" />
+                        <span class="badge bg-dark fs-3 px-3 py-1">#(comp.BibNumber)</span>
+                    </div>
+
+                    <h1 class="validated-name text-white">@comp.FullName</h1>
+                    <div class="validated-club text-white-50">@comp.Club • @comp.Country</div>
+
+                    <div class="rejected-specs-grid mt-4">
+                        <div class="spec-box border-danger">
+                            <div class="spec-label text-danger">POIDS MESURÉ</div>
+                            <div class="spec-value text-danger">@((stationState.WeighedWeight ?? comp.Weight).ToString("F1")) <span class="spec-unit">kg</span></div>
+                        </div>
+
+                        <div class="spec-box">
+                            <div class="spec-label">LIMITE CATÉGORIE</div>
+                            <div class="spec-value text-warning">@(stationState.KumiteCategory?.WeightLimitDisplay ?? "Sans limite")</div>
+                        </div>
+
+                        @if (stationState.WeightDifference.HasValue && stationState.WeightDifference.Value > 0)
+                        {
+                            <div class="spec-box border-danger">
+                                <div class="spec-label text-danger">SURCHARGE DÉTECTÉE</div>
+                                <div class="spec-value text-danger">+@stationState.WeightDifference.Value.ToString("F1") <span class="spec-unit">kg</span></div>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <div class="rejected-footer mt-4">
+                    <div class="alert alert-danger fs-4 py-3 fw-bold shadow-lg">
+                        ⚠️ Merci de vous présenter auprès des arbitres et de la table officielle de pesée.
+                    </div>
+                </div>
+            </div>
+        }
+        else
+        {
+            <!-- ============================================== -->
+            <!-- 4. ÉTAT EN COURS DE PESÉE (CHECKING)           -->
+            <!-- ============================================== -->
+            var comp = stationState.Competitor;
+            <div class="checking-screen animate-fade-in">
+                <!-- En-tête Athlète -->
+                <div class="athlete-main-banner">
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+                        <div class="d-flex align-items-center gap-4">
+                            <img src="@comp.FlagImageUrl" alt="@comp.Country" class="athlete-flag-lg" />
+                            <div>
+                                <div class="d-flex align-items-center gap-2 mb-1">
+                                    <span class="badge bg-primary fs-4 px-3 py-1">
+                                        @(comp.BibNumber.HasValue ? $"DOSSARD #{comp.BibNumber}" : $"ID #{comp.Id}")
+                                    </span>
+                                    <span class="badge bg-secondary fs-5 px-3 py-1">@comp.GradeName</span>
+                                    <span class="badge bg-dark fs-5 px-3 py-1">@comp.Age ans</span>
+                                </div>
+                                <h1 class="athlete-name-display mb-0">@comp.FullName</h1>
+                                <div class="athlete-club-display text-white-50">@comp.Club • @comp.Country</div>
+                            </div>
+                        </div>
+
+                        <div class="text-end">
+                            <div class="pulse-indicator">
+                                <span class="pulse-dot"></span>
+                                <span class="fs-4 fw-bold text-warning">PESÉE EN COURS</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Grille Centrale : Poids & Épreuves -->
+                <div class="row g-4 mt-1">
+                    <!-- Cadre Poids Mesuré Géant -->
+                    <div class="col-lg-7 col-12">
+                        <div class="weight-display-card @(stationState.IsWeightValid ? "compliant" : "non-compliant")">
+                            <div class="weight-header d-flex justify-content-between align-items-center">
+                                <span class="weight-title">POIDS SUR LA BALANCE</span>
+                                <span class="badge @(stationState.IsWeightValid ? "bg-success" : "bg-danger") fs-5 px-3 py-1">
+                                    @(stationState.IsWeightValid ? "✅ CONFORME" : "⚠️ NON CONFORME")
+                                </span>
+                            </div>
+
+                            <div class="weight-giant-number">
+                                @((stationState.WeighedWeight ?? comp.Weight).ToString("F1"))
+                                <span class="weight-giant-unit">kg</span>
+                            </div>
+
+                            <div class="weight-footer-details d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                <div>
+                                    <span class="text-white-50">Poids déclaré :</span>
+                                    <strong class="text-white ms-1 fs-5">@comp.Weight.ToString("F1") kg</strong>
+                                </div>
+
+                                @if (stationState.KumiteCategory != null)
+                                {
+                                    <div>
+                                        <span class="text-white-50">Limite Catégorie :</span>
+                                        <strong class="text-warning ms-1 fs-5">@stationState.KumiteCategory.WeightLimitDisplay</strong>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Cadre Épreuves & Catégories -->
+                    <div class="col-lg-5 col-12">
+                        <div class="category-display-card h-100 d-flex flex-column justify-content-between">
+                            <div>
+                                <h3 class="category-card-title mb-3">🥋 ÉPREUVES INSCRITES</h3>
+
+                                <div class="event-item mb-3">
+                                    <div class="event-type text-primary">KUMITÉ (COMBAT)</div>
+                                    @if (stationState.KumiteCategory != null)
+                                    {
+                                        <div class="event-name">@stationState.KumiteCategory.Name</div>
+                                        <div class="event-limit text-white-50">
+                                            Tolérance : <strong class="text-white">@stationState.KumiteCategory.WeightLimitDisplay</strong>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="text-white-50 fst-italic">Non inscrit en Kumité</div>
+                                    }
+                                </div>
+
+                                <div class="event-item">
+                                    <div class="event-type text-success">KATA (FORMES)</div>
+                                    @if (stationState.KataCategory != null)
+                                    {
+                                        <div class="event-name">@stationState.KataCategory.Name</div>
+                                        <div class="event-limit text-white-50">Épreuve sans limite de poids</div>
+                                    }
+                                    else
+                                    {
+                                        <div class="text-white-50 fst-italic">Non inscrit en Kata</div>
+                                    }
+                                </div>
+                            </div>
+
+                            <div class="status-live-strip mt-3 text-center p-3 rounded">
+                                <span class="spinner-grow spinner-grow-sm text-warning me-2" role="status"></span>
+                                <span class="text-white fw-bold fs-5">En attente de validation par l'arbitre...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </main>
+</div>
+
+<style>
+    /* Structure & Responsive TV Layout */
+    .weighin-display-container {
+        display: flex;
+        flex-direction: column;
+        width: 100vw;
+        height: 100vh;
+        overflow: hidden;
+        background: radial-gradient(circle at 50% 20%, #1e293b 0%, #080c14 80%);
+        color: #f8fafc;
+        font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        box-sizing: border-box;
+        padding: 1.5rem 2.5rem;
+    }
+
+    .weighin-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding-bottom: 1.25rem;
+        border-bottom: 2px solid rgba(255, 255, 255, 0.12);
+        flex-shrink: 0;
+    }
+
+    .weighin-logo {
+        height: 60px;
+        filter: drop-shadow(0 2px 8px rgba(0,0,0,0.5));
+    }
+
+    .weighin-title {
+        font-size: 1.8rem;
+        font-weight: 900;
+        letter-spacing: 0.05em;
+        background: linear-gradient(90deg, #f8fafc, #94a3b8);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .weighin-subtitle {
+        font-size: 0.95rem;
+        letter-spacing: 0.15em;
+        color: #e2e8f0;
+        font-weight: 700;
+    }
+
+    .station-badge {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: rgba(59, 130, 246, 0.2);
+        border: 2px solid #3b82f6;
+        color: #93c5fd;
+        padding: 0.4rem 1.25rem;
+        border-radius: 9999px;
+        font-weight: 800;
+        font-size: 1.25rem;
+        letter-spacing: 0.05em;
+    }
+
+    .weighin-clock {
+        font-family: 'Courier New', Courier, monospace;
+        font-size: 1.7rem;
+        font-weight: 900;
+        color: #38bdf8;
+        background: rgba(0, 0, 0, 0.4);
+        padding: 0.4rem 1rem;
+        border-radius: 8px;
+        border: 1px solid rgba(56, 189, 248, 0.3);
+    }
+
+    .weighin-main {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 1.5rem 0;
+        overflow: hidden;
+    }
+
+    /* Écran Veille (Idle) */
+    .idle-screen {
+        max-width: 900px;
+        margin: 0 auto;
+    }
+
+    .idle-icon-wrapper {
+        position: relative;
+        width: 140px;
+        height: 140px;
+        margin: 0 auto 2rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .idle-icon {
+        font-size: 5rem;
+        position: relative;
+        z-index: 2;
+    }
+
+    .idle-icon-pulse {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+        background: rgba(59, 130, 246, 0.25);
+        animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+    }
+
+    @@keyframes pulse-ring {
+        0% { transform: scale(0.8); opacity: 0.8; }
+        100% { transform: scale(1.8); opacity: 0; }
+    }
+
+    .idle-heading {
+        font-size: 3.5rem;
+        font-weight: 900;
+        letter-spacing: 0.05em;
+        margin-bottom: 1rem;
+        color: #ffffff;
+    }
+
+    .idle-lead {
+        font-size: 1.6rem;
+        color: #94a3b8;
+        line-height: 1.5;
+        margin-bottom: 2.5rem;
+    }
+
+    .idle-lead strong {
+        color: #38bdf8;
+    }
+
+    .idle-footer-box {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        padding: 1rem 2rem;
+        display: inline-block;
+    }
+
+    /* Écran Vérification en cours (Checking) */
+    .athlete-main-banner {
+        background: rgba(15, 23, 42, 0.85);
+        border: 2px solid rgba(255, 255, 255, 0.15);
+        border-radius: 16px;
+        padding: 1.5rem 2rem;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    }
+
+    .athlete-flag-lg {
+        width: 90px;
+        height: 60px;
+        object-fit: cover;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        border: 2px solid rgba(255,255,255,0.2);
+    }
+
+    .athlete-name-display {
+        font-size: 3.2rem;
+        font-weight: 900;
+        letter-spacing: 0.02em;
+        line-height: 1.1;
+        color: #ffffff;
+    }
+
+    .athlete-club-display {
+        font-size: 1.4rem;
+        font-weight: 600;
+    }
+
+    .pulse-indicator {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        background: rgba(245, 158, 11, 0.15);
+        border: 2px solid #f59e0b;
+        padding: 0.5rem 1.25rem;
+        border-radius: 9999px;
+    }
+
+    .pulse-dot {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background-color: #f59e0b;
+        animation: blink 1s infinite alternate;
+    }
+
+    @@keyframes blink {
+        from { opacity: 0.3; }
+        to { opacity: 1; }
+    }
+
+    /* Cadre Poids Géant */
+    .weight-display-card {
+        border-radius: 16px;
+        padding: 2rem;
+        background: rgba(15, 23, 42, 0.95);
+        border: 3px solid;
+        box-shadow: 0 12px 36px rgba(0,0,0,0.5);
+    }
+
+    .weight-display-card.compliant {
+        border-color: #10b981;
+    }
+
+    .weight-display-card.non-compliant {
+        border-color: #ef4444;
+        background: rgba(69, 10, 10, 0.95);
+    }
+
+    .weight-title {
+        font-size: 1.3rem;
+        font-weight: 800;
+        letter-spacing: 0.1em;
+        color: #94a3b8;
+    }
+
+    .weight-giant-number {
+        font-size: 7.5rem;
+        font-weight: 900;
+        line-height: 1;
+        margin: 1rem 0;
+        font-family: 'Courier New', Courier, monospace;
+        letter-spacing: -0.05em;
+        color: #ffffff;
+    }
+
+    .weight-giant-unit {
+        font-size: 3rem;
+        font-weight: 700;
+        color: #94a3b8;
+        font-family: system-ui;
+        margin-left: 0.5rem;
+    }
+
+    .weight-footer-details {
+        padding-top: 1rem;
+        border-top: 1px solid rgba(255,255,255,0.1);
+    }
+
+    /* Cadre Épreuves */
+    .category-display-card {
+        background: rgba(15, 23, 42, 0.85);
+        border: 2px solid rgba(255, 255, 255, 0.15);
+        border-radius: 16px;
+        padding: 2rem;
+    }
+
+    .category-card-title {
+        font-size: 1.3rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        color: #94a3b8;
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+        padding-bottom: 0.75rem;
+    }
+
+    .event-type {
+        font-size: 0.9rem;
+        font-weight: 800;
+        letter-spacing: 0.1em;
+    }
+
+    .event-name {
+        font-size: 1.7rem;
+        font-weight: 800;
+        color: #ffffff;
+        margin: 0.2rem 0;
+    }
+
+    .status-live-strip {
+        background: rgba(245, 158, 11, 0.15);
+        border: 1px solid rgba(245, 158, 11, 0.4);
+    }
+
+    /* Écran Validé (Success) */
+    .validated-screen {
+        max-width: 1050px;
+        margin: 0 auto;
+    }
+
+    .validated-banner {
+        display: inline-flex;
+        align-items: center;
+        gap: 1rem;
+        background: #059669;
+        border: 3px solid #34d399;
+        padding: 0.8rem 2.5rem;
+        border-radius: 9999px;
+        box-shadow: 0 0 40px rgba(16, 185, 129, 0.5);
+    }
+
+    .validated-check {
+        font-size: 3rem;
+    }
+
+    .validated-title {
+        font-size: 3rem;
+        font-weight: 900;
+        letter-spacing: 0.05em;
+        color: #ffffff;
+    }
+
+    .athlete-validated-card {
+        background: rgba(15, 23, 42, 0.95);
+        border: 3px solid #10b981;
+        border-radius: 20px;
+        padding: 2.5rem;
+        box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+    }
+
+    .validated-flag {
+        width: 70px;
+        height: 46px;
+        object-fit: cover;
+        border-radius: 6px;
+    }
+
+    .validated-name {
+        font-size: 4rem;
+        font-weight: 900;
+        color: #ffffff;
+        margin: 0.5rem 0;
+    }
+
+    .validated-club {
+        font-size: 1.7rem;
+        color: #94a3b8;
+    }
+
+    .validated-specs-grid, .rejected-specs-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1.5rem;
+    }
+
+    .spec-box {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 12px;
+        padding: 1.25rem 1rem;
+    }
+
+    .spec-label {
+        font-size: 0.95rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        color: #94a3b8;
+        margin-bottom: 0.5rem;
+    }
+
+    .spec-value {
+        font-size: 2rem;
+        font-weight: 900;
+    }
+
+    .spec-unit {
+        font-size: 1.2rem;
+        color: #94a3b8;
+    }
+
+    /* Écran Rejeté (Hors Poids) */
+    .rejected-screen {
+        max-width: 1050px;
+        margin: 0 auto;
+    }
+
+    .rejected-banner {
+        display: inline-flex;
+        align-items: center;
+        gap: 1rem;
+        background: #dc2626;
+        border: 3px solid #f87171;
+        padding: 0.8rem 2.5rem;
+        border-radius: 9999px;
+        box-shadow: 0 0 40px rgba(239, 68, 68, 0.5);
+    }
+
+    .rejected-icon {
+        font-size: 3rem;
+    }
+
+    .rejected-title {
+        font-size: 3rem;
+        font-weight: 900;
+        letter-spacing: 0.05em;
+        color: #ffffff;
+    }
+
+    .athlete-rejected-card {
+        background: rgba(69, 10, 10, 0.95);
+        border: 3px solid #ef4444;
+        border-radius: 20px;
+        padding: 2.5rem;
+    }
+
+    /* Animations */
+    .animate-fade-in {
+        animation: fadeIn 0.4s ease-out;
+    }
+
+    .animate-scale-up {
+        animation: scaleUp 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .animate-shake {
+        animation: shake 0.5s ease-in-out;
+    }
+
+    @@keyframes fadeIn {
+        from { opacity: 0; transform: translateY(15px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    @@keyframes scaleUp {
+        from { opacity: 0; transform: scale(0.92); }
+        to { opacity: 1; transform: scale(1); }
+    }
+
+    @@keyframes shake {
+        0%, 100% { transform: translateX(0); }
+        20%, 60% { transform: translateX(-8px); }
+        40%, 80% { transform: translateX(8px); }
+    }
+
+    @@media (max-width: 768px) {
+        .weighin-display-container {
+            padding: 1rem;
+            overflow-y: auto;
+        }
+        .weighin-title {
+            font-size: 1.2rem;
+        }
+        .station-badge {
+            font-size: 0.9rem;
+            padding: 0.2rem 0.75rem;
+        }
+        .athlete-name-display {
+            font-size: 2rem;
+        }
+        .weight-giant-number {
+            font-size: 4.5rem;
+        }
+        .validated-name {
+            font-size: 2.2rem;
+        }
+        .validated-title, .rejected-title {
+            font-size: 1.8rem;
+        }
+        .validated-specs-grid, .rejected-specs-grid {
+            grid-template-columns: 1fr;
+            gap: 0.75rem;
+        }
+    }
+</style>
+
+@code {
+    [Parameter]
+    public int? StationId { get; set; }
+
+    private int currentStationId = 1;
+    private WeighInStationState stationState = new();
+    private string currentTimeString = DateTime.Now.ToString("HH:mm:ss");
+    private System.Threading.Timer? clockTimer;
+
+    protected override void OnInitialized()
+    {
+        currentStationId = StationId.HasValue && StationId.Value > 0 ? StationId.Value : 1;
+        stationState = TournamentService.GetWeighInStation(currentStationId);
+
+        TournamentService.OnWeighInStationUpdated += HandleStationUpdated;
+
+        clockTimer = new System.Threading.Timer(_ =>
+        {
+            InvokeAsync(() =>
+            {
+                currentTimeString = DateTime.Now.ToString("HH:mm:ss");
+                StateHasChanged();
+            });
+        }, null, 1000, 1000);
+    }
+
+    protected override void OnParametersSet()
+    {
+        currentStationId = StationId.HasValue && StationId.Value > 0 ? StationId.Value : 1;
+        stationState = TournamentService.GetWeighInStation(currentStationId);
+    }
+
+    private void HandleStationUpdated(int stationId, WeighInStationState state)
+    {
+        if (stationId == currentStationId)
+        {
+            InvokeAsync(() =>
+            {
+                stationState = state;
+                StateHasChanged();
+            });
+        }
+    }
+
+    public void Dispose()
+    {
+        TournamentService.OnWeighInStationUpdated -= HandleStationUpdated;
+        clockTimer?.Dispose();
+    }
+}

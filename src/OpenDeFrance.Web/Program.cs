@@ -195,6 +195,7 @@ app.MapMethods("/api/auth/login", ["GET", "POST"], async (HttpContext httpContex
             "tv" => "tv",
             "streamer" => "streamer",
             "collector" => "collector",
+            "pesee" or "weighin" => "pesee",
             _ => username
         };
         password = quick switch
@@ -204,6 +205,7 @@ app.MapMethods("/api/auth/login", ["GET", "POST"], async (HttpContext httpContex
             "tv" => "tv123",
             "streamer" => "streamer123",
             "collector" => "collector123",
+            "pesee" or "weighin" => "pesee123",
             _ => password
         };
     }
@@ -226,7 +228,7 @@ app.MapMethods("/api/auth/login", ["GET", "POST"], async (HttpContext httpContex
 
     var target = !string.IsNullOrWhiteSpace(returnUrl) && !returnUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase) && !returnUrl.StartsWith("//")
         ? (returnUrl.StartsWith("/") ? returnUrl : $"/{returnUrl}")
-        : (session.Role == "Admin" ? "/admin" : (session.Role == "Table" ? "/tatami/1/controller" : (session.Role == "Streamer" ? "/tatami/1/streamer" : (session.Role == "Collector" ? "/collector" : "/tatami/1/tv"))));
+        : (session.Role == "Admin" ? "/admin" : (session.Role == "Table" ? "/tatami/1/controller" : (session.Role == "Streamer" ? "/tatami/1/streamer" : (session.Role == "Collector" ? "/collector" : (session.Role == "WeighIn" ? "/weighin/controller" : "/tatami/1/tv")))));
 
     return Results.Redirect(target);
 }).DisableAntiforgery();

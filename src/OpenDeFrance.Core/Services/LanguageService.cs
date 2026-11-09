@@ -270,6 +270,30 @@ public class LanguageService : ILanguageService
         ["Discipline"] = new() { ["fr"] = "Discipline", ["en"] = "Discipline" },
         ["CompetitorsCount"] = new() { ["fr"] = "Inscrits", ["en"] = "Competitors" },
         ["Duration"] = new() { ["fr"] = "Durée Match", ["en"] = "Match Duration" },
-        ["Action"] = new() { ["fr"] = "Action", ["en"] = "Action" }
+        ["Action"] = new() { ["fr"] = "Action", ["en"] = "Action" },
+
+        // Pesée / Weigh-in
+        ["WeighIn"] = new() { ["fr"] = "Pesée", ["en"] = "Weigh-in" },
+        ["WeighInController"] = new() { ["fr"] = "Contrôle de la Pesée", ["en"] = "Weigh-in Controller" },
+        ["WeighInDisplay"] = new() { ["fr"] = "Écran Compétiteur (Pesée)", ["en"] = "Competitor Display (Weigh-in)" },
+        ["WeighInStation"] = new() { ["fr"] = "Poste de Pesée", ["en"] = "Weigh-in Station" },
+        ["WeighedWeight"] = new() { ["fr"] = "Poids mesuré", ["en"] = "Weighed weight" },
+        ["DeclaredWeight"] = new() { ["fr"] = "Poids déclaré", ["en"] = "Declared weight" },
+        ["WeightLimit"] = new() { ["fr"] = "Limite de poids", ["en"] = "Weight limit" },
+        ["WeightDifference"] = new() { ["fr"] = "Écart de poids", ["en"] = "Weight difference" },
+        ["ValidateWeighIn"] = new() { ["fr"] = "Valider la Pesée", ["en"] = "Validate Weigh-in" },
+        ["RejectWeighIn"] = new() { ["fr"] = "Refuser (Hors Poids)", ["en"] = "Reject (Overweight)" },
+        ["ResetStation"] = new() { ["fr"] = "Réinitialiser le poste", ["en"] = "Reset station" },
+        ["ScanQrCode"] = new() { ["fr"] = "Scanner un QR Code", ["en"] = "Scan a QR Code" },
+        ["ScanOrEnterBib"] = new() { ["fr"] = "Scanner QR Code ou taper N° Dossard...", ["en"] = "Scan QR Code or enter Bib #..." },
+        ["WeighInValidated"] = new() { ["fr"] = "Pesée validée !", ["en"] = "Weigh-in validated!" },
+        ["WeighInPending"] = new() { ["fr"] = "Pesée en attente", ["en"] = "Weigh-in pending" },
+        ["WeighInChecking"] = new() { ["fr"] = "Vérification en cours...", ["en"] = "Checking weight..." },
+        ["WeighInRejected"] = new() { ["fr"] = "Poids non conforme", ["en"] = "Weight not compliant" },
+        ["WeightCompliant"] = new() { ["fr"] = "Poids conforme", ["en"] = "Compliant weight" },
+        ["WeightExceeded"] = new() { ["fr"] = "Surcharge de poids", ["en"] = "Weight exceeded" },
+        ["WeighInWelcome"] = new() { ["fr"] = "Bienvenue à la pesée officielle", ["en"] = "Welcome to official weigh-in" },
+        ["PresentQrPrompt"] = new() { ["fr"] = "Veuillez présenter votre QR Code ou dossard", ["en"] = "Please present your QR Code or bib" },
+        ["RecentWeighIns"] = new() { ["fr"] = "Dernières pesées validées", ["en"] = "Recent validated weigh-ins" }
     };
 }

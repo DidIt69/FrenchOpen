@@ -1,0 +1,794 @@
+@page "/weighin/controller"
+@page "/weighin/controller/{StationId:int}"
+@attribute [Authorize(Roles = "Admin,Table,Collector,WeighIn")]
+@rendermode InteractiveServer
+@inject ITournamentService TournamentService
+@inject ILanguageService Lang
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<PageTitle>Contrôle de la Pesée - Open de France</PageTitle>
+
+<div class="weighin-mobile-container pb-5">
+    <!-- Barre Supérieure Mobile / Desktop (Poste & Navigation) -->
+    <div class="weighin-topbar card border-0 shadow-sm mb-2">
+        <div class="card-body p-2 p-md-3">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="fs-4">⚖️</span>
+                    <div>
+                        <h1 class="fs-5 fw-bold mb-0 text-dark">Pesée Officielle</h1>
+                        <small class="text-muted d-none d-sm-inline">Contrôle et validation des compétiteurs</small>
+                    </div>
+                </div>
+
+                <!-- Sélecteur de Poste & Actions -->
+                <div class="d-flex align-items-center gap-1 gap-md-2">
+                    <div class="btn-group btn-group-sm" role="group">
+                        @foreach (var s in availableStations)
+                        {
+                            <button type="button"
+                                    class="btn @(s.StationId == currentStationId ? "btn-primary fw-bold" : "btn-outline-secondary") px-2 py-1"
+                                    @onclick="() => SelectStation(s.StationId)">
+                                @s.StationName
+                                @if (s.Competitor != null)
+                                {
+                                    <span class="badge bg-warning text-dark ms-1">●</span>
+                                }
+                            </button>
+                        }
+                    </div>
+
+                    <button class="btn btn-sm btn-outline-secondary px-2" @onclick="AddNewStation" title="Ajouter un poste">
+                        ➕
+                    </button>
+
+                    <a href="@($"/weighin/display/{currentStationId}")" target="_blank" class="btn btn-sm btn-outline-info text-dark" title="Ouvrir l'écran d'affichage pour le compétiteur">
+                        📺<span class="d-none d-md-inline ms-1">Écran TV</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Barre d'Action Scanner : Optimisée Smartphone -->
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body p-2 p-md-3">
+            <!-- Bouton Caméra Pleine Largeur sur Mobile -->
+            <div class="mb-2">
+                <button class="btn @(isCameraActive ? "btn-danger" : "btn-primary") w-100 py-3 fs-5 fw-bold d-flex align-items-center justify-content-center gap-2 shadow-sm touch-btn"
+                        @onclick="ToggleCameraScanner">
+                    <span class="fs-4">📷</span>
+                    <span>@(isCameraActive ? "Fermer la Caméra" : "SCANNER UN QR CODE")</span>
+                </button>
+            </div>
+
+            <!-- Saisie Manuelle ou Douchette Clavier -->
+            <div class="input-group mb-2">
+                <span class="input-group-text bg-light text-muted">
+                    #
+                </span>
+                <input type="text"
+                       @ref="scannerInputElement"
+                       inputmode="numeric"
+                       class="form-control form-control-lg fw-bold"
+                       placeholder="N° de dossard ou ID..."
+                       value="@scanInputValue"
+                       @oninput="OnScanInputChanged"
+                       @onkeydown="HandleScanKeyDown" />
+                @if (!string.IsNullOrEmpty(scanInputValue))
+                {
+                    <button class="btn btn-outline-secondary" @onclick="() => scanInputValue = string.Empty">✕</button>
+                }
+                <button class="btn btn-dark px-3 fw-bold" @onclick="SubmitScan">
+                    🔍
+                </button>
+            </div>
+
+            <!-- Sélection rapide par liste déroulante -->
+            <select class="form-select form-select-sm text-muted" @onchange="OnSelectCompetitorFromDropdown">
+                <option value="">-- Ou choisir un compétiteur dans la liste --</option>
+                @foreach (var c in allCompetitors.OrderBy(x => x.BibNumber ?? 9999).ThenBy(x => x.LastName))
+                {
+                    <option value="@c.Id">
+                        @(c.BibNumber.HasValue ? $"#{c.BibNumber} " : "")@c.FullName (@(c.Status == CompetitorStatus.Present ? "🟢 Présent" : "🔴 Absent"))
+                    </option>
+                }
+            </select>
+
+            @if (!string.IsNullOrWhiteSpace(scanFeedbackMessage))
+            {
+                <div class="alert @(scanFeedbackSuccess ? "alert-success" : "alert-warning") mt-2 mb-0 py-2 small d-flex justify-content-between align-items-center">
+                    <span>@scanFeedbackMessage</span>
+                    <button type="button" class="btn-close btn-sm" @onclick="() => scanFeedbackMessage = string.Empty"></button>
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- Modal Caméra Scanner : Plein Écran Adaptatif pour Smartphone -->
+    @if (isCameraActive)
+    {
+        <div class="camera-modal-backdrop">
+            <div class="camera-modal-content">
+                <div class="d-flex justify-content-between align-items-center p-3 text-white bg-black">
+                    <span class="fw-bold fs-5">📷 Visez le QR Code</span>
+                    <button class="btn btn-sm btn-danger px-3 py-1 fs-6 fw-bold" @onclick="StopCamera">✕ Fermer</button>
+                </div>
+
+                <div class="camera-viewfinder-wrapper">
+                    <video id="qr-camera-feed" class="camera-video" playsinline autoplay></video>
+                    <!-- Cadre de visée animé -->
+                    <div class="camera-target-reticle">
+                        <div class="laser-scanner-line"></div>
+                    </div>
+                </div>
+
+                <div class="p-3 bg-black text-center text-white-50 small">
+                    Placez le badge ou QR Code du compétiteur dans le cadre vert.
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(cameraError))
+                {
+                    <div class="alert alert-danger m-2 py-2 small">@cameraError</div>
+                }
+            </div>
+        </div>
+    }
+
+    <!-- Zone Fiche Compétiteur & Pesée -->
+    @if (currentStation.Competitor != null)
+    {
+        var comp = currentStation.Competitor;
+        <div class="card border-0 shadow-sm mb-3 @(currentStation.IsValidated ? "border-success border-2" : (currentStation.IsRejected ? "border-danger border-2" : ""))">
+            <!-- En-tête Athlète Mobile -->
+            <div class="card-header bg-white py-2 px-3 border-bottom">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge bg-dark fs-4 px-3 py-2 fw-bold">
+                            @(comp.BibNumber.HasValue ? $"#{comp.BibNumber.Value}" : $"ID #{comp.Id}")
+                        </span>
+                        <div>
+                            <h2 class="fs-4 fw-bold mb-0 text-dark">@comp.FullName</h2>
+                            <div class="d-flex align-items-center gap-1 text-muted small">
+                                <img src="@comp.FlagImageUrl" alt="@comp.Country" class="border rounded-1" style="width: 20px; height: 14px; object-fit: cover;" />
+                                <span>@comp.Country</span> • <span>@comp.Club</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        @if (currentStation.IsValidated || comp.IsWeighInValidated)
+                        {
+                            <span class="badge bg-success fs-6 px-3 py-2">✅ VALIDÉ</span>
+                        }
+                        else if (currentStation.IsRejected)
+                        {
+                            <span class="badge bg-danger fs-6 px-3 py-2">⚠️ HORS POIDS</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-warning text-dark fs-6 px-2 py-1">⏳ EN COURS</span>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-body p-3">
+                <!-- BLOC PESÉE & CONFORMITÉ : EN PREMIER POUR MOBILE ! -->
+                <div class="p-3 rounded mb-3 border @(currentStation.IsWeightValid ? "bg-light border-success" : "bg-danger-subtle border-danger")">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="text-uppercase fw-bold text-secondary small">⚖️ Poids Mesuré</span>
+                        <span class="badge @(currentStation.IsWeightValid ? "bg-success" : "bg-danger") px-2 py-1 fs-6">
+                            @(currentStation.IsWeightValid ? "Conforme" : "Hors Tolérance")
+                        </span>
+                    </div>
+
+                    <!-- Grand Affichage du Poids & Steppers Rapides -->
+                    <div class="row g-2 align-items-center mb-3">
+                        <div class="col-3">
+                            <button class="btn btn-outline-secondary w-100 py-3 fs-3 fw-bold touch-btn"
+                                    @onclick="() => AdjustWeight(-0.5)"
+                                    title="-0.5 kg">
+                                -0.5
+                            </button>
+                        </div>
+
+                        <div class="col-6">
+                            <div class="input-group">
+                                <input type="number"
+                                       step="0.1"
+                                       inputmode="decimal"
+                                       class="form-control form-control-lg text-center fw-bold fs-1 py-2"
+                                       style="letter-spacing: -0.05em;"
+                                       value="@currentWeighedWeight"
+                                       @onchange="OnWeightInputChange" />
+                                <span class="input-group-text fw-bold">kg</span>
+                            </div>
+                        </div>
+
+                        <div class="col-3">
+                            <button class="btn btn-outline-secondary w-100 py-3 fs-3 fw-bold touch-btn"
+                                    @onclick="() => AdjustWeight(0.5)"
+                                    title="+0.5 kg">
+                                +0.5
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Boutons d'Ajustement Fin (+/- 0.1 kg) -->
+                    <div class="d-flex justify-content-center gap-2 mb-3">
+                        <button class="btn btn-sm btn-outline-secondary px-3 py-1 fw-bold" @onclick="() => AdjustWeight(-1.0)">-1 kg</button>
+                        <button class="btn btn-sm btn-outline-secondary px-3 py-1 fw-bold" @onclick="() => AdjustWeight(-0.1)">-0.1 kg</button>
+                        <button class="btn btn-sm btn-outline-secondary px-3 py-1 fw-bold" @onclick="() => AdjustWeight(0.1)">+0.1 kg</button>
+                        <button class="btn btn-sm btn-outline-secondary px-3 py-1 fw-bold" @onclick="() => AdjustWeight(1.0)">+1 kg</button>
+                    </div>
+
+                    <!-- Indicateur de Conformité & Limites -->
+                    @if (currentStation.KumiteCategory != null)
+                    {
+                        if (currentStation.IsWeightValid)
+                        {
+                            <div class="alert alert-success py-2 mb-3 small d-flex align-items-center gap-2">
+                                <span class="fs-5">✅</span>
+                                <div>
+                                    <strong>Poids conforme !</strong> Athlète sous la limite autorisée (@currentStation.KumiteCategory.WeightLimitDisplay).
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="alert alert-danger py-2 mb-3 small d-flex align-items-center gap-2">
+                                <span class="fs-4">⚠️</span>
+                                <div>
+                                    <strong>Surcharge de poids : +@(currentStation.WeightDifference?.ToString("F1")) kg !</strong>
+                                    <div>Limite autorisée : @currentStation.KumiteCategory.WeightLimitDisplay</div>
+                                </div>
+                            </div>
+                        }
+                    }
+
+                    <!-- BOUTONS D'ACTION MOBILES GÉANTS -->
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-success btn-lg fw-bold py-3 fs-5 shadow-sm touch-btn d-flex align-items-center justify-content-center gap-2"
+                                @onclick="ConfirmValidation">
+                            <span>✅</span>
+                            <span>VALIDER LA PESÉE (@currentWeighedWeight.ToString("F1") kg)</span>
+                        </button>
+
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <button class="btn btn-outline-danger w-100 py-2 fw-bold"
+                                        @onclick="ConfirmRejection">
+                                    ⚠️ Hors Poids
+                                </button>
+                            </div>
+                            <div class="col-6">
+                                <button class="btn btn-outline-secondary w-100 py-2 fw-bold"
+                                        @onclick="ResetCurrentStation">
+                                    🔄 Suivant
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- DÉTAILS SECONDAIRES (Catégories, Âge, Grade) -->
+                <div class="p-3 rounded bg-light border">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="fw-bold text-secondary small text-uppercase">📋 Détails de l'Inscription</span>
+                        <span class="badge bg-secondary-subtle text-dark border">@comp.GradeName</span>
+                    </div>
+
+                    @if (currentStation.KumiteCategory != null)
+                    {
+                        <div class="mb-2">
+                            <div class="small text-muted">Kumité :</div>
+                            <div class="fw-bold text-primary">🥋 @currentStation.KumiteCategory.Name</div>
+                            <div class="small text-muted">Limite : <strong class="text-dark">@currentStation.KumiteCategory.WeightLimitDisplay</strong></div>
+                        </div>
+                    }
+
+                    @if (currentStation.KataCategory != null)
+                    {
+                        <div class="mb-2">
+                            <div class="small text-muted">Kata :</div>
+                            <div class="fw-bold text-success">🥋 @currentStation.KataCategory.Name</div>
+                        </div>
+                    }
+
+                    <div class="d-flex justify-content-between small text-muted pt-2 border-top">
+                        <span>Poids déclaré : <strong>@comp.Weight.ToString("F1") kg</strong></span>
+                        <span>Âge : <strong>@comp.Age ans</strong></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <!-- État Poste Prêt / Standby -->
+        <div class="card border-0 shadow-sm text-center p-4 bg-light mb-3">
+            <div class="py-4">
+                <div class="display-3 mb-2">⚖️</div>
+                <h3 class="fw-bold text-dark fs-4">Poste @currentStationId Prêt</h3>
+                <p class="text-muted small mb-4">
+                    Appuyez sur <strong>Scanner</strong> pour ouvrir la caméra ou tapez le numéro de dossard.
+                </p>
+                <button class="btn btn-primary btn-lg fw-bold px-4 py-3 shadow-sm touch-btn"
+                        @onclick="ToggleCameraScanner">
+                    📷 OUVRIR LA CAMÉRA
+                </button>
+            </div>
+        </div>
+    }
+
+    <!-- Statistiques & Historique (Format Accordéon Mobile) -->
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center cursor-pointer"
+             @onclick="() => isStatsOpen = !isStatsOpen"
+             style="cursor: pointer;">
+            <div class="d-flex align-items-center gap-2">
+                <span>📊</span>
+                <span class="fw-bold small">Avancement : @validatedCount / @allCompetitors.Count validés (@progressPercent%)</span>
+            </div>
+            <span class="text-muted">@(isStatsOpen ? "▲" : "▼")</span>
+        </div>
+
+        @if (isStatsOpen)
+        {
+            <div class="card-body p-3 border-top">
+                <div class="progress mb-2" style="height: 12px;">
+                    <div class="progress-bar bg-success" role="progressbar" style="width: @(progressPercent)%"></div>
+                </div>
+
+                <div class="d-flex justify-content-between small text-muted mb-3">
+                    <span>🟢 Validés : <strong>@validatedCount</strong></span>
+                    <span>🔴 En Attente : <strong>@pendingCount</strong></span>
+                </div>
+
+                <!-- Dernières Pesées Validées -->
+                <h6 class="fw-bold text-secondary mb-2 small text-uppercase">🕒 Dernières Pesées Validées</h6>
+                @if (recentWeighed.Count == 0)
+                {
+                    <div class="text-muted small text-center py-2">Aucune pesée validée pour le moment.</div>
+                }
+                else
+                {
+                    <div class="list-group list-group-flush border rounded">
+                        @foreach (var c in recentWeighed.Take(6))
+                        {
+                            <div class="list-group-item d-flex justify-content-between align-items-center p-2">
+                                <div>
+                                    <div class="fw-bold small">
+                                        @(c.BibNumber.HasValue ? $"#{c.BibNumber} " : "")@c.FullName
+                                    </div>
+                                    <div class="text-muted" style="font-size: 0.75rem;">
+                                        @(c.WeighInStation ?? "Pesée") • @(c.WeighInDate?.ToString("HH:mm:ss"))
+                                    </div>
+                                </div>
+                                <div class="d-flex align-items-center gap-2">
+                                    <strong class="text-success small">@(c.ActualWeight?.ToString("F1") ?? c.Weight.ToString("F1")) kg</strong>
+                                    <button class="btn btn-sm btn-outline-warning py-0 px-2"
+                                            @onclick="() => CancelValidation(c.Id)"
+                                            title="Annuler">
+                                        ↩
+                                    </button>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+<style>
+    /* Styles Mobile-First Spécifiques pour Smartphone */
+    .weighin-mobile-container {
+        max-width: 760px;
+        margin: 0 auto;
+    }
+
+    /* Éviter l'auto-zoom de Safari iOS sur le focus des inputs */
+    input[type="text"], input[type="number"], select {
+        font-size: 16px !important;
+    }
+
+    /* Boutons tactiles minimum 44px */
+    .touch-btn {
+        min-height: 48px;
+    }
+
+    /* Modal Caméra Plein Écran */
+    .camera-modal-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.95);
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .camera-modal-content {
+        width: 100%;
+        max-width: 520px;
+        height: 100%;
+        max-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+    }
+
+    .camera-viewfinder-wrapper {
+        position: relative;
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        background: #000;
+    }
+
+    .camera-video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    /* Réticule de ciblage vert avec laser */
+    .camera-target-reticle {
+        position: absolute;
+        width: 250px;
+        height: 250px;
+        border: 3px solid #10b981;
+        border-radius: 16px;
+        box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55);
+        overflow: hidden;
+        pointer-events: none;
+    }
+
+    .laser-scanner-line {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: #10b981;
+        box-shadow: 0 0 12px #10b981;
+        animation: scanAnim 2s infinite ease-in-out;
+    }
+
+    @@keyframes scanAnim {
+        0% { top: 5%; }
+        50% { top: 95%; }
+        100% { top: 5%; }
+    }
+</style>
+
+@code {
+    [Parameter]
+    public int? StationId { get; set; }
+
+    private int currentStationId = 1;
+    private WeighInStationState currentStation = new();
+    private List<WeighInStationState> availableStations = new();
+    private List<Competitor> allCompetitors = new();
+    private List<Competitor> recentWeighed = new();
+
+    private ElementReference scannerInputElement;
+    private string scanInputValue = string.Empty;
+    private string scanFeedbackMessage = string.Empty;
+    private bool scanFeedbackSuccess = true;
+    private bool isStatsOpen = false;
+
+    private double currentWeighedWeight = 0;
+    private bool isCameraActive = false;
+    private string cameraError = string.Empty;
+    private DotNetObjectReference<WeighInController>? dotNetRef;
+
+    private int validatedCount => allCompetitors.Count(c => c.IsWeighInValidated);
+    private int pendingCount => allCompetitors.Count(c => !c.IsWeighInValidated);
+    private int progressPercent => allCompetitors.Count > 0 ? (validatedCount * 100) / allCompetitors.Count : 0;
+
+    protected override void OnInitialized()
+    {
+        currentStationId = StationId.HasValue && StationId.Value > 0 ? StationId.Value : 1;
+        RefreshData();
+
+        TournamentService.OnWeighInStationUpdated += HandleWeighInStationUpdated;
+        TournamentService.OnStateChanged += HandleStateChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await FocusScannerInput();
+        }
+    }
+
+    private void RefreshData()
+    {
+        availableStations = TournamentService.GetAllWeighInStations();
+        currentStation = TournamentService.GetWeighInStation(currentStationId);
+        allCompetitors = TournamentService.GetCompetitors();
+        recentWeighed = TournamentService.GetRecentWeighedCompetitors(15);
+
+        if (currentStation.Competitor != null)
+        {
+            currentWeighedWeight = currentStation.WeighedWeight ?? currentStation.Competitor.ActualWeight ?? currentStation.Competitor.Weight;
+        }
+    }
+
+    private void SelectStation(int stationId)
+    {
+        currentStationId = stationId;
+        currentStation = TournamentService.GetWeighInStation(stationId);
+        if (currentStation.Competitor != null)
+        {
+            currentWeighedWeight = currentStation.WeighedWeight ?? currentStation.Competitor.ActualWeight ?? currentStation.Competitor.Weight;
+        }
+        else
+        {
+            currentWeighedWeight = 0;
+        }
+        scanFeedbackMessage = string.Empty;
+    }
+
+    private void AddNewStation()
+    {
+        int nextId = (availableStations.MaxBy(s => s.StationId)?.StationId ?? 2) + 1;
+        SelectStation(nextId);
+        availableStations = TournamentService.GetAllWeighInStations();
+    }
+
+    private async Task FocusScannerInput()
+    {
+        try
+        {
+            await scannerInputElement.FocusAsync();
+        }
+        catch { }
+    }
+
+    private void OnScanInputChanged(ChangeEventArgs e)
+    {
+        scanInputValue = e.Value?.ToString() ?? string.Empty;
+    }
+
+    private void HandleScanKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            SubmitScan();
+        }
+    }
+
+    private async void SubmitScan()
+    {
+        if (string.IsNullOrWhiteSpace(scanInputValue)) return;
+
+        var state = TournamentService.ScanCompetitorForWeighIn(currentStationId, scanInputValue);
+        if (state.Competitor != null)
+        {
+            currentWeighedWeight = state.WeighedWeight ?? state.Competitor.ActualWeight ?? state.Competitor.Weight;
+            scanFeedbackMessage = $"✅ {state.Competitor.FullName} chargé";
+            scanFeedbackSuccess = true;
+            scanInputValue = string.Empty;
+
+            try
+            {
+                await JS.InvokeVoidAsync("qrScanner.vibrate", 60);
+            }
+            catch { }
+        }
+        else
+        {
+            scanFeedbackMessage = state.StatusMessage ?? "Compétiteur non trouvé";
+            scanFeedbackSuccess = false;
+        }
+    }
+
+    private async void OnSelectCompetitorFromDropdown(ChangeEventArgs e)
+    {
+        var raw = e.Value?.ToString();
+        if (int.TryParse(raw, out var id))
+        {
+            var state = TournamentService.ScanCompetitorForWeighIn(currentStationId, id.ToString());
+            if (state.Competitor != null)
+            {
+                currentWeighedWeight = state.WeighedWeight ?? state.Competitor.ActualWeight ?? state.Competitor.Weight;
+                scanFeedbackMessage = $"✅ {state.Competitor.FullName} chargé";
+                scanFeedbackSuccess = true;
+
+                try
+                {
+                    await JS.InvokeVoidAsync("qrScanner.vibrate", 60);
+                }
+                catch { }
+            }
+        }
+    }
+
+    private void OnWeightInputChange(ChangeEventArgs e)
+    {
+        if (double.TryParse(e.Value?.ToString()?.Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var w))
+        {
+            currentWeighedWeight = Math.Round(w, 1);
+            TournamentService.UpdateWeighedWeight(currentStationId, currentWeighedWeight);
+        }
+    }
+
+    private void AdjustWeight(double delta)
+    {
+        currentWeighedWeight = Math.Max(0, Math.Round(currentWeighedWeight + delta, 1));
+        TournamentService.UpdateWeighedWeight(currentStationId, currentWeighedWeight);
+    }
+
+    private async Task ConfirmValidation()
+    {
+        if (currentStation.Competitor == null) return;
+
+        TournamentService.ValidateWeighIn(currentStationId, currentWeighedWeight);
+
+        try
+        {
+            await JS.InvokeVoidAsync("qrScanner.vibrate", new int[] { 60, 50, 100 });
+            await JS.InvokeVoidAsync("tournamentAudio.playSuccessDing");
+        }
+        catch { }
+
+        scanFeedbackMessage = $"✅ Pesée validée : {currentStation.Competitor.FullName} ({currentWeighedWeight:F1} kg) !";
+        scanFeedbackSuccess = true;
+        RefreshData();
+    }
+
+    private async Task ConfirmRejection()
+    {
+        if (currentStation.Competitor == null) return;
+
+        TournamentService.RejectWeighIn(currentStationId, $"Poids non conforme : {currentWeighedWeight:F1} kg");
+
+        try
+        {
+            await JS.InvokeVoidAsync("qrScanner.vibrate", new int[] { 150, 100, 150 });
+        }
+        catch { }
+
+        scanFeedbackMessage = $"⚠️ Athlète {currentStation.Competitor.FullName} marqué hors poids.";
+        scanFeedbackSuccess = false;
+        RefreshData();
+    }
+
+    private void ResetCurrentStation()
+    {
+        TournamentService.ResetWeighInStation(currentStationId);
+        scanInputValue = string.Empty;
+        scanFeedbackMessage = string.Empty;
+        currentWeighedWeight = 0;
+        RefreshData();
+    }
+
+    private void CancelValidation(int compId)
+    {
+        TournamentService.CancelWeighInValidation(compId);
+        RefreshData();
+    }
+
+    private async Task ToggleCameraScanner()
+    {
+        if (isCameraActive)
+        {
+            await StopCamera();
+        }
+        else
+        {
+            await StartCamera();
+        }
+    }
+
+    private async Task StartCamera()
+    {
+        isCameraActive = true;
+        cameraError = string.Empty;
+        dotNetRef = DotNetObjectReference.Create(this);
+
+        await Task.Delay(100);
+
+        try
+        {
+            var res = await JS.InvokeAsync<CameraInitResult>("qrScanner.startScanner", "qr-camera-feed", dotNetRef, nameof(OnBarcodeScannedFromCamera));
+            if (!res.Success)
+            {
+                cameraError = res.Error ?? "Impossible d'accéder à la caméra.";
+            }
+        }
+        catch (Exception ex)
+        {
+            cameraError = ex.Message;
+        }
+    }
+
+    private async Task StopCamera()
+    {
+        isCameraActive = false;
+        try
+        {
+            await JS.InvokeVoidAsync("qrScanner.stopScanner");
+        }
+        catch { }
+    }
+
+    [JSInvokable]
+    public void OnBarcodeScannedFromCamera(string rawValue)
+    {
+        if (string.IsNullOrWhiteSpace(rawValue)) return;
+
+        InvokeAsync(() =>
+        {
+            scanInputValue = rawValue;
+            SubmitScan();
+            // Fermer automatiquement la caméra sur smartphone pour afficher la fiche de pesée
+            isCameraActive = false;
+            try
+            {
+                JS.InvokeVoidAsync("qrScanner.stopScanner");
+            }
+            catch { }
+            StateHasChanged();
+        });
+    }
+
+    private void HandleWeighInStationUpdated(int stationId, WeighInStationState state)
+    {
+        if (stationId == currentStationId)
+        {
+            InvokeAsync(() =>
+            {
+                currentStation = state;
+                if (state.Competitor != null && state.WeighedWeight.HasValue)
+                {
+                    currentWeighedWeight = state.WeighedWeight.Value;
+                }
+                StateHasChanged();
+            });
+        }
+    }
+
+    private void HandleStateChanged()
+    {
+        InvokeAsync(() =>
+        {
+            RefreshData();
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose()
+    {
+        TournamentService.OnWeighInStationUpdated -= HandleWeighInStationUpdated;
+        TournamentService.OnStateChanged -= HandleStateChanged;
+
+        try
+        {
+            JS.InvokeVoidAsync("qrScanner.stopScanner");
+        }
+        catch { }
+
+        dotNetRef?.Dispose();
+    }
+
+    public class CameraInitResult
+    {
+        public bool Success { get; set; }
+        public string? Error { get; set; }
+    }
+}
