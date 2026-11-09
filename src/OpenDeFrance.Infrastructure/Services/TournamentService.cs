@@ -3374,7 +3374,12 @@ public class TournamentService : ITournamentService, IHostedService
         var max = cat.EffectiveMaxWeight;
         var min = cat.EffectiveMinWeight;
 
-        if (max.HasValue && weight > max.Value)
+        if  (max.HasValue && min.HasValue) 
+        {
+            station.IsWeightValid = (weight >= min.Value && weight <= max.Value);
+            station.WeightDifference = Math.Round(weight - max.Value, 2);
+        }
+        else if (max.HasValue && weight > max.Value)
         {
             station.IsWeightValid = false;
             station.WeightDifference = Math.Round(weight - max.Value, 2);
