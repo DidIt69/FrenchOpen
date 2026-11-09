@@ -41,11 +41,11 @@ public class Category
 
     public double? EffectiveMaxWeight => MaxWeight.HasValue && MaxWeight.Value > 0
         ? MaxWeight.Value
-        : ParseMaxWeightFromName(Name);
+        : null;
 
     public double? EffectiveMinWeight => MinWeight.HasValue && MinWeight.Value > 0
         ? MinWeight.Value
-        : ParseMinWeightFromName(Name);
+        : null;
 
     public string WeightLimitDisplay
     {
