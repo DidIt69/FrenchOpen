@@ -173,14 +173,7 @@
                                     <span class="badge bg-dark fs-5 px-3 py-1">@comp.Age ans</span>
                                 </div>
                                 <h1 class="athlete-name-display mb-0">@comp.FullName</h1>
-                                <div class="athlete-club-display text-white-50">@comp.Club • @comp.Country</div>
-                            </div>
-                        </div>
-
-                        <div class="text-end">
-                            <div class="pulse-indicator">
-                                <span class="pulse-dot"></span>
-                                <span class="fs-4 fw-bold text-warning">PESÉE EN COURS</span>
+                                <div class="athlete-club-display text-white-50">@comp.Club</div>
                             </div>
                         </div>
                     </div>
@@ -189,7 +182,7 @@
                 <!-- Grille Centrale : Poids & Épreuves -->
                 <div class="row g-4 mt-1">
                     <!-- Cadre Poids Mesuré Géant -->
-                    <div class="col-lg-7 col-12">
+                    <div class="col-12">
                         <div class="weight-display-card @(stationState.IsWeightValid ? "compliant" : "non-compliant")">
                             <div class="weight-header d-flex justify-content-between align-items-center">
                                 <span class="weight-title">POIDS SUR LA BALANCE</span>
@@ -208,41 +201,30 @@
                                     <span class="text-white-50">Poids déclaré :</span>
                                     <strong class="text-white ms-1 fs-5">@comp.Weight.ToString("F1") kg</strong>
                                 </div>
-
-                                @if (stationState.KumiteCategory != null)
-                                {
-                                    <div>
-                                        <span class="text-white-50">Limite Catégorie :</span>
-                                        <strong class="text-warning ms-1 fs-5">@stationState.KumiteCategory.WeightLimitDisplay</strong>
-                                    </div>
-                                }
                             </div>
                         </div>
                     </div>
 
                     <!-- Cadre Épreuves & Catégories -->
-                    <div class="col-lg-5 col-12">
+                    <div class="col-12">
                         <div class="category-display-card h-100 d-flex flex-column justify-content-between">
                             <div>
-                                <h3 class="category-card-title mb-3">🥋 ÉPREUVES INSCRITES</h3>
+                                <h3 class="category-card-title mb-3">🥋 CATÉGORIE</h3>
 
                                 <div class="event-item mb-3">
-                                    <div class="event-type text-primary">KUMITÉ (COMBAT)</div>
+                                    <div class="event-type text-primary">KUMITE</div>
                                     @if (stationState.KumiteCategory != null)
                                     {
                                         <div class="event-name">@stationState.KumiteCategory.Name</div>
-                                        <div class="event-limit text-white-50">
-                                            Tolérance : <strong class="text-white">@stationState.KumiteCategory.WeightLimitDisplay</strong>
-                                        </div>
                                     }
                                     else
                                     {
-                                        <div class="text-white-50 fst-italic">Non inscrit en Kumité</div>
+                                        <div class="text-white-50 fst-italic">Non inscrit en Kumite</div>
                                     }
                                 </div>
 
                                 <div class="event-item">
-                                    <div class="event-type text-success">KATA (FORMES)</div>
+                                    <div class="event-type text-success">KATA</div>
                                     @if (stationState.KataCategory != null)
                                     {
                                         <div class="event-name">@stationState.KataCategory.Name</div>
@@ -257,7 +239,7 @@
 
                             <div class="status-live-strip mt-3 text-center p-3 rounded">
                                 <span class="spinner-grow spinner-grow-sm text-warning me-2" role="status"></span>
-                                <span class="text-white fw-bold fs-5">En attente de validation par l'arbitre...</span>
+                                <span class="text-white fw-bold fs-5">En attente de validation...</span>
                             </div>
                         </div>
                     </div>
