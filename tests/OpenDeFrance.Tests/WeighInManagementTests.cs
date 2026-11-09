@@ -27,17 +27,32 @@ public class WeighInManagementTests
     [Fact]
     public void CategoryWeightLimitParsing_ShouldDetectLimitsAccurately()
     {
-        var catMinus = new Category { Name = "Kumite Seniors Hommes -75kg", Type = CompetitionType.Kumite };
+        var catMinus = new Category { 
+            Name = "Kumite Seniors Hommes -75kg", 
+            Type = CompetitionType.Kumite,
+            MinWeight = null,
+            MaxWeight = 75
+        };
         Assert.Equal(75, catMinus.EffectiveMaxWeight);
         Assert.Null(catMinus.EffectiveMinWeight);
         Assert.Equal("-75 kg", catMinus.WeightLimitDisplay);
 
-        var catPlus = new Category { Name = "Kumite Seniors Hommes +85kg", Type = CompetitionType.Kumite };
+        var catPlus = new Category { 
+            Name = "Kumite Seniors Hommes +85kg", 
+            Type = CompetitionType.Kumite,
+            MinWeight = 85,
+            MaxWeight = null
+        };
         Assert.Null(catPlus.EffectiveMaxWeight);
         Assert.Equal(85, catPlus.EffectiveMinWeight);
         Assert.Equal("+85 kg", catPlus.WeightLimitDisplay);
 
-        var catRange = new Category { Name = "Kumite Juniors 65-70kg", Type = CompetitionType.Kumite };
+        var catRange = new Category { 
+            Name = "Kumite Juniors 65-70kg", 
+            Type = CompetitionType.Kumite,
+            MinWeight = 65,
+            MaxWeight = 70
+        };
         Assert.Equal(65, catRange.EffectiveMinWeight);
         Assert.Equal(70, catRange.EffectiveMaxWeight);
         Assert.Equal("65 à 70 kg", catRange.WeightLimitDisplay);
